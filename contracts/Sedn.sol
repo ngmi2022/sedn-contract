@@ -12,6 +12,9 @@ error SednError();
 contract Sedn is Ownable {
     IERC20 public usdcToken;
     uint256 public paymentCounter;
+    address public addressDelegate;
+
+    event PreferredAddressSet(string phone, address to);
 
     struct Payment {
         address from;
@@ -26,6 +29,7 @@ contract Sedn is Ownable {
     constructor(address _usdcTokenAddressForChain) {
         console.log("Deploying the Sedn Contract; USDC Token Address:", _usdcTokenAddressForChain);
         usdcToken = IERC20(_usdcTokenAddressForChain);
+        setAddressDelegate(msg.sender);
     }
 
     function sednToUnregistered(uint _amount, string calldata secret, string calldata nullifier) public {
@@ -62,8 +66,14 @@ contract Sedn is Ownable {
         payments[key].completed = true;
     }
 
-    function setPreferredAddress(address to, string calldata phone) public onlyOwner {
+    function setPreferredAddress(address to, string calldata phone) public {
+        require(msg.sender == addressDelegate, "only address delegate may call this");
         bytes32 _preferred = keccak256(abi.encodePacked(phone));
         preferredAddresses[_preferred] = to;
+        emit PreferredAddressSet(phone, to);
+    }
+
+    function setAddressDelegate(address delegate) public onlyOwner {
+        addressDelegate = delegate;
     }
 }
