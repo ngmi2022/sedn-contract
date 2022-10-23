@@ -29,7 +29,7 @@ describe("Sedn Contract", function () {
     });
     it("send funds to an unregistered user", async function () {
       await usdc.approve(sedn.address, 10);
-      await sedn.connect(owner).sednToUnregistered(10);
+      await sedn.connect(owner).sednToUnregistered(10, "hello", "world");
       expect(await usdc.balanceOf(sedn.address)).to.equal(10);
     });
   });
