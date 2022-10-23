@@ -31,6 +31,10 @@ describe("Sedn Contract", function () {
       await usdc.approve(sedn.address, 10);
       await sedn.connect(owner).sednToUnregistered(10, "hello", "world");
       expect(await usdc.balanceOf(sedn.address)).to.equal(10);
+      const beforeClaim = await usdc.balanceOf(owner.address);
+      await sedn.connect(owner).claim("hello", "world");
+      const afterClaim = await usdc.balanceOf(owner.address);
+      expect(afterClaim.sub(beforeClaim)).to.equal(10);
     });
   });
 });

@@ -30,10 +30,18 @@ contract Sedn is Ownable {
         console.log("Attempting to send", _amount);
         require(_amount > 0, "amount should be > 0");
         bytes32 key = keccak256(abi.encodePacked(secret, nullifier));
-        //require(payments[nullifier].from == address(0), "nullifier already used");
+        require(payments[key].from == address(0), "nullifier already used");
         require(usdcToken.transferFrom(msg.sender, address(this), _amount), "transferFrom failed");
         payments[key] = Payment(msg.sender, _amount);
         paymentCounter++;
         console.log("Total payments", paymentCounter);
+    }
+
+    function claim(string calldata secret, string calldata nullifier) public {
+        bytes32 key = keccak256(abi.encodePacked(secret, nullifier));
+        require(payments[key].from != address(0), "payment not found");
+        console.log("Claiming funds", payments[key].amount, msg.sender);
+        usdcToken.approve(address(this), payments[key].amount);
+        require(usdcToken.transferFrom(address(this), msg.sender, payments[key].amount), "transferFrom failed");
     }
 }
