@@ -89,6 +89,10 @@ const config: HardhatUserConfig = {
         mnemonic,
       },
       chainId: chainIds.hardhat,
+      forking: {
+        enabled: true,
+        url: "https://mainnet.infura.io/v3/" + infuraApiKey,
+      },
     },
     arbitrum: getChainConfig("arbitrum-mainnet"),
     avalanche: getChainConfig("avalanche"),
