@@ -6,6 +6,7 @@ import { resolve } from "path";
 
 import "./tasks/accounts";
 import "./tasks/deploy";
+import "hardhat-etherscan-abi";
 
 dotenvConfig({ path: resolve(__dirname, "./.env") });
 
