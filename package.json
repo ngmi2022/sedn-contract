@@ -1,5 +1,5 @@
 {
-  "name": "Sedn",
+  "name": "sedn",
   "description": "Send money to coiners and no-coiners alike",
   "version": "1.0.0",
   "devDependencies": {
@@ -34,6 +34,7 @@
     "ethers": "^5.6.9",
     "fs-extra": "^10.1.0",
     "hardhat": "^2.10.1",
+    "hardhat-etherscan-abi": "^0.3.0",
     "hardhat-gas-reporter": "^1.0.8",
     "husky": "^8.0.1",
     "lint-staged": "^13.0.3",
@@ -85,10 +86,28 @@
     "prettier": "prettier --config ./.prettierrc.yml --write \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier:check": "prettier --check --config ./.prettierrc.yml \"**/*.{js,json,md,sol,ts,yml}\"",
     "test": "hardhat test",
+    "integration": "hardhat test --config hardhat.config.integration.ts",
     "typechain": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat typechain"
   },
   "dependencies": {
     "@chainlink/contracts": "^0.4.1",
-    "@openzeppelin/contracts": "^4.7.3"
-  }
+    "@openzeppelin/contracts": "^4.7.3",
+    "@socket.tech/ll-core": "^0.1.20",
+    "etherscan-api": "^10.2.0",
+    "polygonscan-api": "^1.0.4"
+  },
+  "main": ".solcover.js",
+  "directories": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ngmi2022/sedn-contract.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ngmi2022/sedn-contract/issues"
+  },
+  "homepage": "https://github.com/ngmi2022/sedn-contract#readme"
 }
