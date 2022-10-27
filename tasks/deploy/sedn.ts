@@ -1,9 +1,9 @@
 import type { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { task } from "hardhat/config";
 import type { TaskArguments } from "hardhat/types";
+import { addresses } from "@socket.tech/ll-core/addresses/index";
 
-import type { Sedn } from "../../src/types/Sedn";
-import type { Sedn__factory } from "../../src/types/factories/Sedn__factory";
+import type { Sedn, Sedn__factory } from "../../src/types";
 
 function timeout(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -19,10 +19,13 @@ const usdcTokenAddressess: any = {
 
 task("deploy:Sedn").setAction(async function (taskArguments: TaskArguments, { ethers, run, network }) {
   const signers: SignerWithAddress[] = await ethers.getSigners();
-  const sednFactory: Sedn__factory = <Sedn__factory>(
+  const registry: string = "registry";
+  const ch_id: number = network.config.chainId!;
+  const registryAddress: string = (ch_id !== 31337) ? addresses[ch_id][registry] : "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0"
+  const sednFactory: Sedn__factory = (
     await ethers.getContractFactory("Sedn")
   );
-  const sedn: Sedn = <Sedn>await sednFactory.connect(signers[0]).deploy(usdcTokenAddressess[network.name]);
+  const sedn: Sedn = await sednFactory.connect(signers[0]).deploy(usdcTokenAddressess[network.name], registryAddress);
   await sedn.deployed();
   console.log("Sedn deployed to: ", sedn.address);
 
@@ -32,7 +35,7 @@ task("deploy:Sedn").setAction(async function (taskArguments: TaskArguments, { et
     await run("verify:verify", {
       address: sedn.address,
       network: network.name,
-      constructorArguments: [usdcTokenAddressess[network.name]]
+      constructorArguments: [usdcTokenAddressess[network.name], registryAddress]
     });
   }
 });
