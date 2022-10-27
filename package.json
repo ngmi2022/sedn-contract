@@ -86,13 +86,15 @@
     "prettier": "prettier --config ./.prettierrc.yml --write \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier:check": "prettier --check --config ./.prettierrc.yml \"**/*.{js,json,md,sol,ts,yml}\"",
     "test": "hardhat test",
+    "integration": "hardhat test --config hardhat.config.integration.ts",
     "typechain": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat typechain"
   },
   "dependencies": {
     "@chainlink/contracts": "^0.4.1",
     "@openzeppelin/contracts": "^4.7.3",
     "@socket.tech/ll-core": "^0.1.20",
-    "etherscan-api": "^10.2.0"
+    "etherscan-api": "^10.2.0",
+    "polygonscan-api": "^1.0.4"
   },
   "main": ".solcover.js",
   "directories": {
