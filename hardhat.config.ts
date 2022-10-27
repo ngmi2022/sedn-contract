@@ -77,6 +77,7 @@ const config: HardhatUserConfig = {
       polygonMumbai: process.env.POLYGONSCAN_API_KEY || "",
       rinkeby: process.env.ETHERSCAN_API_KEY || "",
     },
+    customChains: [],
   },
   gasReporter: {
     currency: "USD",

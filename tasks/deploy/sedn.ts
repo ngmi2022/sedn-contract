@@ -35,7 +35,7 @@ task("deploy:Sedn").setAction(async function (taskArguments: TaskArguments, { et
     await run("verify:verify", {
       address: sedn.address,
       network: network.name,
-      constructorArguments: [usdcTokenAddressess[network.name]]
+      constructorArguments: [usdcTokenAddressess[network.name], registryAddress]
     });
   }
 });
