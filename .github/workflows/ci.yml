@@ -3,6 +3,9 @@ name: "CI"
 env:
   INFURA_API_KEY: ${{ secrets.INFURA_API_KEY }}
   MNEMONIC: ${{ secrets.MNEMONIC }}
+  POLYGON_PK: ${{ secrets.POLYGON_PK }}
+  ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+  POLYGONSCAN_API_KEY: ${{ secrets.POLYGONSCAN_API_KEY }}
 
 on:
   pull_request:
@@ -28,13 +31,13 @@ jobs:
       - name: "Install the dependencies"
         run: "yarn install --immutable"
 
-      - name: "Lint the code"
-        run: "yarn lint"
+      # - name: "Lint the code"
+      #   run: "yarn lint"
 
-      - name: "Add lint summary"
-        run: |
-          echo "## Lint results" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
+      # - name: "Add lint summary"
+      #   run: |
+      #     echo "## Lint results" >> $GITHUB_STEP_SUMMARY
+      #     echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
       - name: "Compile the contracts and generate the TypeChain bindings"
         run: "yarn typechain"
