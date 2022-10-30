@@ -17,8 +17,15 @@ if (!mnemonic) {
 }
 
 const infuraApiKey: string | undefined = process.env.INFURA_API_KEY;
+
 if (!infuraApiKey) {
   throw new Error("Please set your INFURA_API_KEY in a .env file");
+}
+
+const polygonPrivateKey: string | undefined = process.env.POLYGON_PK;
+
+if (!polygonPrivateKey) {
+  throw new Error("Please set your POLYGON_PK in a .env file");
 }
 
 const chainIds = {
