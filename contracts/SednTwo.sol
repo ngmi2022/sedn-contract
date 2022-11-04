@@ -65,7 +65,7 @@ contract Sedn is Ownable, IUserRequest {
     uint256 public paymentCounter;
     address public addressDelegate;
     address public trustedVerifyAddress;
-    uint256 public _till = 0;
+    uint256 public nonce = 0;
 
     event PreferredAddressSet(string phone, address to);
 
@@ -93,9 +93,8 @@ contract Sedn is Ownable, IUserRequest {
         trustedVerifyAddress = _trustedVerifyAddress;
     }
 
-    function sedn(uint256 _amount, bytes32 memory secret) external {
+    function sedn(uint256 _amount, bytes32 secret) external {
         require(_amount > 0, "Amount must be greater than 0");
-        require(bytes(secret).length > 0, "Secret must be greater than 0");
         require(usdcToken.transferFrom(msg.sender, address(this), _amount), "Transfer failed");
         require(payments[secret].secret != secret, "Can not double set secret");
         payments[secret] = Payment(msg.sender, _amount, false, secret);
@@ -103,14 +102,14 @@ contract Sedn is Ownable, IUserRequest {
 
     function _checkClaim(
         string memory solution,
-        bytes32 memory secret,
+        bytes32 secret,
         address receiver,
         uint256 amount,
         uint256 till,
         uint8 _v,
         bytes32 _r,
         bytes32 _s
-    ) internal {
+    ) internal view {
         require(keccak256(abi.encodePacked(solution)) == payments[secret].secret, "Incorrect answer");
         require(payments[secret].secret == secret, "Secret not found");
         require(payments[secret].from != address(0), "payment not found");
@@ -122,21 +121,21 @@ contract Sedn is Ownable, IUserRequest {
 
     function claim(
         string memory solution,
-        bytes32 memory secret,
+        bytes32 secret,
         uint256 _till,
         uint8 _v,
         bytes32 _r,
         bytes32 _s
     ) public {
         _checkClaim(solution, secret, msg.sender, payments[secret].amount, _till, _v, _r, _s);
-        usdcToken.approve(address(this), payments[key].amount);
-        require(usdcToken.transferFrom(address(this), msg.sender, payments[key].amount), "transferFrom failed");
-        payments[key].completed = true;
+        usdcToken.approve(address(this), payments[secret].amount);
+        require(usdcToken.transferFrom(address(this), msg.sender, payments[secret].amount), "transferFrom failed");
+        payments[secret].completed = true;
     }
 
     function bridgeClaim(
         string memory solution,
-        bytes32 memory secret,
+        bytes32 secret,
         uint256 _till,
         uint8 _v,
         bytes32 _r,
@@ -145,11 +144,11 @@ contract Sedn is Ownable, IUserRequest {
         address bridgeImpl
     ) public {
         _checkClaim(solution, secret, msg.sender, payments[secret].amount, _till, _v, _r, _s);
-        console.log("Bridge and claiming funds", payments[key].amount, msg.sender);
-        usdcToken.approve(address(registry), payments[key].amount);
-        usdcToken.approve(bridgeImpl, payments[key].amount);
+        console.log("Bridge and claiming funds", payments[secret].amount, msg.sender);
+        usdcToken.approve(address(registry), payments[secret].amount);
+        usdcToken.approve(bridgeImpl, payments[secret].amount);
         registry.outboundTransferTo(_userRequest);
-        payments[key].completed = true;
+        payments[secret].completed = true;
     }
 
     function setVerifier(address _trustedVerifyAddress) public onlyOwner {
@@ -183,9 +182,10 @@ contract Sedn is Ownable, IUserRequest {
         uint8 _v,
         bytes32 _r,
         bytes32 _s
-    ) public pure returns (bool) {
+    ) public view returns (bool) {
         bytes32 messageHash = getMessageHash(_amount, _receiver, _till, _secret, _nonce);
         bytes32 ethSignedMessageHash = getEthSignedMessageHash(messageHash);
-        return ecrecover(ethSignedMessageHash, v, r, s);
+        address recoveredAddress = ecrecover(ethSignedMessageHash, _v, _r, _s);
+        return recoveredAddress == trustedVerifyAddress;
     }
 }
