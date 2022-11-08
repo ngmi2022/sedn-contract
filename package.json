@@ -34,7 +34,7 @@
     "eslint-config-prettier": "^8.5.0",
     "ethers": "^5.6.9",
     "fs-extra": "^10.1.0",
-    "hardhat": "^2.10.1",
+    "hardhat": "^2.12.2",
     "hardhat-etherscan-abi": "^0.3.0",
     "hardhat-gas-reporter": "^1.0.8",
     "husky": "^8.0.1",

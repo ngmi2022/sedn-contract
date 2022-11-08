@@ -59,7 +59,7 @@ interface IRegistry is IUserRequest {
     function outboundTransferTo(UserRequest calldata _userRequest) external payable;
 }
 
-contract Sedn is Ownable, IUserRequest {
+contract SednTwo is Ownable, IUserRequest {
     IERC20 public usdcToken;
     IRegistry public registry;
     uint256 public paymentCounter;

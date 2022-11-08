@@ -38,6 +38,7 @@ const chainIds = {
   "polygon-mainnet": 137,
   "polygon-mumbai": 80001,
   rinkeby: 4,
+  goerli: 5,
 };
 
 function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
@@ -60,7 +61,7 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
       break;
     case "polygon-mumbai":
       jsonRpcUrl = "https://rpc-mumbai.maticvigil.com/";
-      break;
+      break;      
     default:
       jsonRpcUrl = "https://" + chain + ".infura.io/v3/" + infuraApiKey;
   }
@@ -111,6 +112,10 @@ const config: HardhatUserConfig = {
     "polygon-mainnet": getChainConfig("polygon-mainnet"),
     "polygon-mumbai": getChainConfig("polygon-mumbai"),
     rinkeby: getChainConfig("rinkeby"),
+    goerli: {
+      url: "https://goerli.infura.io/v3/" + infuraApiKey,
+      accounts: [process.env.POLYGON_PK as string],
+    }
   },
   paths: {
     artifacts: "./artifacts",
