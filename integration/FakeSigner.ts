@@ -24,7 +24,7 @@ export class FakeSigner {
     async signMessage(amount: BigNumber, receiver: string, till: number, secret: string) {
         const nonce = await this.getNonce();
         const message = ethers.utils.solidityKeccak256(
-            ["uint256", "address", "uint256", "string", "uint256"],
+            ["uint256", "address", "uint256", "bytes32", "uint256"],
             [amount, receiver, till, secret, nonce]
         );
         return await this.signer.signMessage(ethers.utils.arrayify(message));
