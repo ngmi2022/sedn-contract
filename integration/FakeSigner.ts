@@ -1,14 +1,13 @@
 import { BigNumber } from 'ethers';
-import { ethers } from 'ethers';
+import { ethers, Wallet } from 'ethers';
 import { Sedn } from './../src/types/contracts/Sedn.sol/Sedn';
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import ABI from "../../sedn-contract/artifacts/contracts/Sedn.sol/Sedn.json";
 
 export class FakeSigner {
-    signer: SignerWithAddress;
+    signer: Wallet;
     sedn: Sedn;
 
-    constructor(signer: SignerWithAddress, sednContractAddress: string) {
+    constructor(signer: Wallet, sednContractAddress: string) {
         this.signer = signer;
         this.sedn = new ethers.Contract(sednContractAddress, ABI.abi, signer) as Sedn;
     }

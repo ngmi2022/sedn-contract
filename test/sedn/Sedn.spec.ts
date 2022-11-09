@@ -145,7 +145,7 @@ describe("Sedn", function () {
       }
       
       // Claim
-      const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 1000;
+      const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 300;
       const signedMessage = await trusted.signMessage(BigNumber.from(amount), claimer.address, till, secret);
       const signature = ethers.utils.splitSignature(signedMessage);
 

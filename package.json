@@ -94,6 +94,7 @@
     "@chainlink/contracts": "^0.4.1",
     "@openzeppelin/contracts": "^4.7.3",
     "@socket.tech/ll-core": "^0.1.20",
+    "cross-fetch": "^3.1.5",
     "etherscan-api": "^10.2.0",
     "polygonscan-api": "^1.0.4"
   },

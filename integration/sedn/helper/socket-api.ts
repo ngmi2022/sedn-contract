@@ -76,7 +76,6 @@ class SocketApi {
   ) {
     const methodUrl: string = `https://api.socket.tech/v2/quote?fromChainId=${fromChainId}&fromTokenAddress=${fromTokenAddress}&toChainId=${toChainId}&toTokenAddress=${toTokenAddress}&fromAmount=${fromAmount}&userAddress=${userAddress}&uniqueRoutesPerBridge=${uniqueRoutesPerBridge}&sort=${sort}&recipient=${recipient}&singleTxOnly=${singleTxOnly}`;
     const result = await this.request(methodUrl);
-    // console.log(result);
     return result;
   }
   async buildTx(route: Route) {

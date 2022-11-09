@@ -1,5 +1,6 @@
 import type { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { task } from "hardhat/config";
+import fetch from "cross-fetch";
 import type { TaskArguments } from "hardhat/types";
 import { addresses } from "@socket.tech/ll-core/addresses/index";
 
@@ -17,6 +18,11 @@ const usdcTokenAddressess: any = {
   'polygon-mumbai': '0xe6b8a5cf854791412c1f6efc7caf629f5df1c747',
 };
 
+const fetchVerifierAddress = async () => {
+  const data: any = await (await fetch('https://api.github.com/gists/3a4dab1609b9fa3a9e86cb40568cd7d2')).json()
+  return JSON.parse(data.files['sedn.json'].content).verifier
+};
+
 task("deploy:Sedn").setAction(async function (taskArguments: TaskArguments, { ethers, run, network }) {
   const signers: SignerWithAddress[] = await ethers.getSigners();
   const registry: string = "registry";
@@ -25,7 +31,8 @@ task("deploy:Sedn").setAction(async function (taskArguments: TaskArguments, { et
   const sednFactory: Sedn__factory = (
     await ethers.getContractFactory("Sedn")
   );
-  const sedn: Sedn = await sednFactory.connect(signers[0]).deploy(usdcTokenAddressess[network.name], registryAddress);
+  const verifier = await fetchVerifierAddress();
+  const sedn: Sedn = await sednFactory.connect(signers[0]).deploy(usdcTokenAddressess[network.name], registryAddress, verifier);
   await sedn.deployed();
   console.log("Sedn deployed to: ", sedn.address);
 
@@ -35,7 +42,7 @@ task("deploy:Sedn").setAction(async function (taskArguments: TaskArguments, { et
     await run("verify:verify", {
       address: sedn.address,
       network: network.name,
-      constructorArguments: [usdcTokenAddressess[network.name], registryAddress]
+      constructorArguments: [usdcTokenAddressess[network.name], registryAddress, verifier]
     });
   }
 });
