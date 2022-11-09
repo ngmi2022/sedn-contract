@@ -4,6 +4,8 @@ env:
   INFURA_API_KEY: ${{ secrets.INFURA_API_KEY }}
   MNEMONIC: ${{ secrets.MNEMONIC }}
   POLYGON_PK: ${{ secrets.POLYGON_PK }}
+  ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+  POLYGONSCAN_API_KEY: ${{ secrets.POLYGONSCAN_API_KEY }}
 
 on:
   pull_request:
