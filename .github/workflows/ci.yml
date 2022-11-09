@@ -3,6 +3,7 @@ name: "CI"
 env:
   INFURA_API_KEY: ${{ secrets.INFURA_API_KEY }}
   MNEMONIC: ${{ secrets.MNEMONIC }}
+  POLYGON_PK: ${{ secrets.POLYGON_PK }}
 
 on:
   pull_request:
