@@ -47,6 +47,8 @@ const getChainId = (network: string) => {
       return "137";
     case 'arbitrum':
       return "42161";
+    case 'gnosis':
+      return "100";
     default:
       throw new Error('Network not supported');
   }
@@ -68,6 +70,14 @@ const getAbi = async (network: string, contract: string) => {
   }
 };
 
+const supportedNetworks = ['polygon', 'arbitrum'];
+
+const getRandomRecipientNetwork = async (fromNetwork: string) => {
+  const networks = supportedNetworks.filter(network => network !== fromNetwork);
+  const randomIndex = Math.floor(Math.random() * networks.length);
+  return networks[randomIndex];
+};
+
 describe("Sedn Contract", function () {
   async function getSedn(network: string) {
     const config = await fetchConfig();
@@ -81,9 +91,9 @@ describe("Sedn Contract", function () {
 
     // Get Sedn
     const sedn = new ethers.Contract(sednContract, await getAbi(network, sednContract), signer);
-    const usdc = new ethers.Contract(config.usdc[network].contract, await getAbi(network, config.usdc[network].abi), signer);
+    const usdcSenderNetwork = new ethers.Contract(config.usdc[network].contract, await getAbi(network, config.usdc[network].abi), signer);
 
-    return { sedn, usdc, signer, verifier, feeData, config };
+    return { sedn, usdcSenderNetwork, signer, verifier, feeData, config };
   }
   [
     'polygon',
@@ -91,7 +101,7 @@ describe("Sedn Contract", function () {
   ].forEach(function (network) {
     describe(`Sedn from ${network}`, function () {
       let sedn: Contract;
-      let usdc: Contract;
+      let usdcSenderNetwork: Contract;
       let signer: Wallet;
       let feeData: any;
       let trusted: FakeSigner;
@@ -99,7 +109,7 @@ describe("Sedn Contract", function () {
       beforeEach(async function () {
         const deployed = await getSedn(network);
         sedn = deployed.sedn;
-        usdc = deployed.usdc;
+        usdcSenderNetwork = deployed.usdcSenderNetwork;
         signer = deployed.signer;
         feeData = deployed.feeData;
         trusted = new FakeSigner(deployed.verifier, sedn.address);
@@ -111,9 +121,15 @@ describe("Sedn Contract", function () {
           throw error;
         }
       });
-      it("send funds to an unregistered user", async function () {
+      it("send funds to an unregistered user who claims it on a different chain", async function () {
         const explorerUrl = getExplorerUrl(network);
-        const amount = parseInt(1 * 10 ** 6 + ""); // 1$ in USDC
+        const decimals = await usdcSenderNetwork.decimals();
+        const amount = parseInt(1 * 10 ** decimals + ""); // 1$ in USDC
+        const recipientNetwork = await getRandomRecipientNetwork(network);
+        const recipientAddress = config.testRecipient[recipientNetwork];
+        const usdcRecipientNetwork = new ethers.Contract(config.usdc[network].contract, await getAbi(network, config.usdc[network].abi), signer);
+
+        console.log(`Sending ${amount / 10 ** decimals}USDC from ${signer.address} (${network}) to ${recipientAddress} (${recipientNetwork})`);
 
         // /**********************************
         // DERISK BUNGI API STUFFS
@@ -123,18 +139,16 @@ describe("Sedn Contract", function () {
         // TODO: make this an api call
         // instantiate all variables for exemplary tranfser of 1 USDC (Polygon) to approx. 0.5 USDC (xDAI)
         const fromChainId: number = parseInt(getChainId(network));
-        const fromTokenAddress: string = usdc.address;
-        const toChainId: number = 100;
-        const toTokenAddress: string = config.usdc.gnosis.contract;
+        const fromTokenAddress: string = usdcSenderNetwork.address;
+        const toChainId: number = parseInt(getChainId(recipientNetwork));
+        const toTokenAddress: string = config.usdc[recipientNetwork].contract;
         const userAddress: string = sedn.address;
         const uniqueRoutesPerBridge: boolean = true;
         const sort: string = "output";
-        const recipient: string = signer.address;
         const singleTxOnly: boolean = true;
 
         // involke API call
-        const apiKey: any = process.env.SOCKET_API_KEY;
-        const api = new SocketApi(apiKey);
+        const api = new SocketApi(process.env.SOCKET_API_KEY || "");
         const result: GetQuote = await api.getQuote(
           fromChainId,
           fromTokenAddress,
@@ -144,16 +158,14 @@ describe("Sedn Contract", function () {
           userAddress,
           uniqueRoutesPerBridge,
           sort,
-          recipient,
+          recipientAddress,
           singleTxOnly,
         );
         const route = result.result.routes[0]; // take optimal route
-        console.log("api: route found");
         const txResult: GetTx = await api.buildTx(route);
         // create calldata dict
         const userRequestDict = await getUserRequestDictionary(txResult);
         const bridgeImpl = txResult.result.approvalData.allowanceTarget;
-        console.log("api: user dictionary retrieved");
 
         // /**********************************
         // SEND
@@ -164,7 +176,7 @@ describe("Sedn Contract", function () {
             case 'arbitrum':
               return { gasLimit: approveGas.mul(2) };
             default:
-              return { gasPrice: feeData.gasPrice, gasLimit: approveGas.mul(4) };
+              return { gasPrice: feeData.gasPrice, gasLimit: approveGas.mul(10) };
           }
         };
 
@@ -172,12 +184,12 @@ describe("Sedn Contract", function () {
         const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
         console.log(`Running with solution '${solution}' and secret '${secret}'`);
 
-        const beforeSend = await usdc.balanceOf(signer.address);
-        console.log("before", beforeSend.toString());
+        const beforeSend = await usdcSenderNetwork.balanceOf(signer.address);
+        console.log("before", parseInt(beforeSend.toString() + "") / 10 ** decimals);
         // TODO: how can we get a better value for gas limit here?
-        const approveGas = await usdc.estimateGas.approve(sedn.address, amount);
+        const approveGas = await usdcSenderNetwork.estimateGas.approve(sedn.address, amount);
         console.log('approveGas', approveGas.toString());
-        const approve = await usdc.approve(sedn.address, amount, getApproveGas(network, approveGas));
+        const approve = await usdcSenderNetwork.approve(sedn.address, amount, getApproveGas(network, approveGas));
         console.log(`approve tx: ${explorerUrl}/tx/${approve.hash}`);
         await approve.wait();
         console.log("approved");
@@ -189,23 +201,18 @@ describe("Sedn Contract", function () {
         await sednToUnregistered.wait();
         console.log("sent");
 
-        const afterSend = await usdc.balanceOf(signer.address);
+        const afterSend = await usdcSenderNetwork.balanceOf(signer.address);
         console.log("afterSend", afterSend.toString());
 
         // --------------------------
         // Claim
         // --------------------------
-
-        
-        // TODO: does this make sense
-        const claimer = signer;
-
-        const beforeClaim = await usdc.balanceOf(signer.address);
-        console.log("beforeClaim", beforeClaim.toString());
+        const beforeClaim = await usdcRecipientNetwork.balanceOf(recipientAddress);
+        console.log(`beforeClaim (${recipientNetwork}:${recipientAddress}) ${beforeClaim.toString()}`);
         
         // Claim
         const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 1000;
-        const signedMessage = await trusted.signMessage(BigNumber.from(amount), recipient, till, secret);
+        const signedMessage = await trusted.signMessage(BigNumber.from(amount), recipientAddress, till, secret);
         const signature = ethers.utils.splitSignature(signedMessage);
         const bridgeClaim = await sedn.bridgeClaim(solution, secret, till, signature.v, signature.r, signature.s, userRequestDict, bridgeImpl, {
           gasPrice: feeData.gasPrice,
@@ -215,8 +222,9 @@ describe("Sedn Contract", function () {
         await bridgeClaim.wait();
         console.log("claimed");
 
-        const afterClaim = await usdc.balanceOf(signer.address);
-        console.log("afterClaim", afterClaim.toString());
+        const afterClaim = await usdcRecipientNetwork.balanceOf(recipientAddress);
+        console.log(`afterClaim (${recipientNetwork}:${recipientAddress}) ${afterClaim.toString()}`);
+        console.log("claimed", afterClaim.sub(beforeClaim).toString());
       });
     });
   });
