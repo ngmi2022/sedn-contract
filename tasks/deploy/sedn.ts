@@ -16,6 +16,8 @@ const usdcTokenAddressess: any = {
   'rinkeby': '0xeb8f08a975ab53e34d8a0330e0d34de942c95926',
   'polygon-mainnet': '0x2791bca1f2de4661ed88a30c99a7a9449aa84174',
   'polygon-mumbai': '0xe6b8a5cf854791412c1f6efc7caf629f5df1c747',
+  'gnosis': '0xDDAfbb505ad214D7b80b1f830fcCc89B60fb7A83',
+  'arbitrum': '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8',
 };
 
 const fetchVerifierAddress = async () => {

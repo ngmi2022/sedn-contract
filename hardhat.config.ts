@@ -39,6 +39,7 @@ const chainIds = {
   "polygon-mumbai": 80001,
   rinkeby: 4,
   goerli: 5,
+  gnosis: 100,
 };
 
 function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
@@ -61,7 +62,10 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
       break;
     case "polygon-mumbai":
       jsonRpcUrl = "https://rpc-mumbai.maticvigil.com/";
-      break;      
+      break;
+    case "gnosis":
+      jsonRpcUrl = "https://rpc.gnosischain.com";
+      break;
     default:
       jsonRpcUrl = "https://" + chain + ".infura.io/v3/" + infuraApiKey;
   }
@@ -84,6 +88,7 @@ const config: HardhatUserConfig = {
       polygon: process.env.POLYGONSCAN_API_KEY || "",
       polygonMumbai: process.env.POLYGONSCAN_API_KEY || "",
       rinkeby: process.env.ETHERSCAN_API_KEY || "",
+      gnosis: process.env.GNOSISSCAN_API_KEY || "",
     },
     customChains: [],
   },
@@ -112,6 +117,7 @@ const config: HardhatUserConfig = {
     "polygon-mainnet": getChainConfig("polygon-mainnet"),
     "polygon-mumbai": getChainConfig("polygon-mumbai"),
     rinkeby: getChainConfig("rinkeby"),
+    gnosis: getChainConfig("gnosis"),
     goerli: {
       url: "https://goerli.infura.io/v3/" + infuraApiKey,
       accounts: [process.env.POLYGON_PK as string],
