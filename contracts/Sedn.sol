@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 error SednError();
 
@@ -64,6 +65,8 @@ contract Sedn is Ownable, IUserRequest {
     IRegistry public registry;
     uint256 public paymentCounter;
     address public addressDelegate;
+    address public trustedVerifyAddress;
+    uint256 public nonce = 0;
 
     event PreferredAddressSet(string phone, address to);
 
@@ -71,13 +74,16 @@ contract Sedn is Ownable, IUserRequest {
         address from;
         uint256 amount;
         bool completed;
+        bytes32 secret;
     }
 
-    // Mapping from token ID to owner address
     mapping(bytes32 => Payment) private payments;
-    mapping(bytes32 => address) private preferredAddresses;
 
-    constructor(address _usdcTokenAddressForChain, address _registryDeploymentAddressForChain) {
+    constructor(
+        address _usdcTokenAddressForChain,
+        address _registryDeploymentAddressForChain,
+        address _trustedVerifyAddress
+    ) {
         console.log(
             "Deploying the Sedn Contract; USDC Token Address: %s; Socket Registry: %s",
             _usdcTokenAddressForChain,
@@ -85,75 +91,102 @@ contract Sedn is Ownable, IUserRequest {
         );
         usdcToken = IERC20(_usdcTokenAddressForChain);
         registry = IRegistry(_registryDeploymentAddressForChain);
-        setAddressDelegate(msg.sender);
+        trustedVerifyAddress = _trustedVerifyAddress;
     }
 
-    function sednToUnregistered(
-        uint256 _amount,
-        string calldata secret,
-        string calldata nullifier
+    function sedn(uint256 _amount, bytes32 secret) external {
+        require(_amount > 0, "Amount must be greater than 0");
+        require(usdcToken.transferFrom(msg.sender, address(this), _amount), "Transfer failed");
+        require(payments[secret].secret != secret, "Can not double set secret");
+        payments[secret] = Payment(msg.sender, _amount, false, secret);
+    }
+
+    function _checkClaim(
+        string memory solution,
+        bytes32 secret,
+        address receiver,
+        uint256 amount,
+        uint256 till,
+        uint8 _v,
+        bytes32 _r,
+        bytes32 _s
+    ) internal view {
+        require(keccak256(abi.encodePacked(solution)) == payments[secret].secret, "Incorrect answer");
+        require(payments[secret].secret == secret, "Secret not found");
+        require(payments[secret].from != address(0), "payment not found");
+        require(payments[secret].completed == false, "Payment already completed");
+        require(payments[secret].amount == amount, "Amount does not match");
+        require(block.timestamp < till, "Time expired");
+        require(verify(amount, receiver, till, secret, nonce, _v, _r, _s), "Verification failed");
+    }
+
+    function claim(
+        string memory solution,
+        bytes32 secret,
+        uint256 _till,
+        uint8 _v,
+        bytes32 _r,
+        bytes32 _s
     ) public {
-        console.log("Attempting to send", _amount);
-        require(_amount > 0, "amount should be > 0");
-        bytes32 key = keccak256(abi.encodePacked(secret, nullifier));
-        require(payments[key].from == address(0), "nullifier already used");
-        require(usdcToken.transferFrom(msg.sender, address(this), _amount), "transferFrom failed");
-        payments[key] = Payment(msg.sender, _amount, false);
-        paymentCounter++;
-        console.log("Total payments", paymentCounter);
-    }
-
-    function sednToRegistered(
-        uint256 _amount,
-        string calldata secret,
-        string calldata nullifier,
-        string calldata phone
-    ) public {
-        bytes32 _preferred = keccak256(abi.encodePacked(phone));
-        require(preferredAddresses[_preferred] != address(0), "no preferred address found");
-        address preferred = preferredAddresses[_preferred];
-        console.log("Attempting to send", _amount);
-        require(_amount > 0, "amount should be > 0");
-        bytes32 key = keccak256(abi.encodePacked(secret, nullifier));
-        require(payments[key].from == address(0), "nullifier already used");
-        require(usdcToken.transferFrom(msg.sender, preferred, _amount), "transferFrom failed");
-        payments[key] = Payment(msg.sender, _amount, true);
-        paymentCounter++;
-        console.log("Total payments", paymentCounter);
-    }
-
-    function claim(string calldata secret, string calldata nullifier) public {
-        bytes32 key = keccak256(abi.encodePacked(secret, nullifier));
-        require(payments[key].from != address(0), "payment not found");
-        console.log("Claiming funds", payments[key].amount, msg.sender);
-        usdcToken.approve(address(this), payments[key].amount);
-        require(usdcToken.transferFrom(address(this), msg.sender, payments[key].amount), "transferFrom failed");
-        payments[key].completed = true;
+        _checkClaim(solution, secret, msg.sender, payments[secret].amount, _till, _v, _r, _s);
+        usdcToken.approve(address(this), payments[secret].amount);
+        require(usdcToken.transferFrom(address(this), msg.sender, payments[secret].amount), "transferFrom failed");
+        payments[secret].completed = true;
     }
 
     function bridgeClaim(
-        string calldata secret,
-        string calldata nullifier,
+        string memory solution,
+        bytes32 secret,
+        uint256 _till,
+        uint8 _v,
+        bytes32 _r,
+        bytes32 _s,
         UserRequest calldata _userRequest,
         address bridgeImpl
     ) public {
-        bytes32 key = keccak256(abi.encodePacked(secret, nullifier));
-        require(payments[key].from != address(0), "payment not found");
-        console.log("Bridge and claiming funds", payments[key].amount, msg.sender);
-        usdcToken.approve(address(registry), payments[key].amount);
-        usdcToken.approve(bridgeImpl, payments[key].amount);
+        _checkClaim(solution, secret, msg.sender, payments[secret].amount, _till, _v, _r, _s);
+        console.log("Bridge and claiming funds", payments[secret].amount, msg.sender);
+        usdcToken.approve(address(registry), payments[secret].amount);
+        usdcToken.approve(bridgeImpl, payments[secret].amount);
         registry.outboundTransferTo(_userRequest);
-        payments[key].completed = true;
+        payments[secret].completed = true;
     }
 
-    function setPreferredAddress(address to, string calldata phone) public {
-        require(msg.sender == addressDelegate, "only address delegate may call this");
-        bytes32 _preferred = keccak256(abi.encodePacked(phone));
-        preferredAddresses[_preferred] = to;
-        emit PreferredAddressSet(phone, to);
+    function setVerifier(address _trustedVerifyAddress) public onlyOwner {
+        trustedVerifyAddress = _trustedVerifyAddress;
     }
 
-    function setAddressDelegate(address delegate) public onlyOwner {
-        addressDelegate = delegate;
+    function increaseNonce() public onlyOwner {
+        nonce++;
+    }
+
+    function getMessageHash(
+        uint256 _amount,
+        address _receiver,
+        uint256 _till,
+        bytes32 _secret,
+        uint256 _nonce
+    ) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_amount, _receiver, _till, _secret, _nonce));
+    }
+
+    function getEthSignedMessageHash(bytes32 _messageHash) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", _messageHash));
+    }
+
+    function verify(
+        uint256 _amount,
+        address _receiver,
+        uint256 _till,
+        bytes32 _secret,
+        uint256 _nonce,
+        uint8 _v,
+        bytes32 _r,
+        bytes32 _s
+    ) public view returns (bool) {
+        bytes32 messageHash = getMessageHash(_amount, _receiver, _till, _secret, _nonce);
+        bytes32 ethSignedMessageHash = getEthSignedMessageHash(messageHash);
+        address recoveredAddress = ecrecover(ethSignedMessageHash, _v, _r, _s);
+        return recoveredAddress == trustedVerifyAddress;
     }
 }

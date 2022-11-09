@@ -1,4 +1,4 @@
-import { SednTwo } from './../src/types/contracts/SednTwo.sol/SednTwo';
+import { Sedn } from '../src/types/contracts/Sedn.sol/Sedn';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import  { ethers } from 'hardhat';
 import { Signer } from 'ethers';
@@ -13,10 +13,10 @@ export const deployContract = async <ContractType extends Contract>(
     ).deploy(...args)) as ContractType;
   };
 
-  export const deploySednTwo = async (
+  export const deploySedn = async (
     args: string[],
     signer: SignerWithAddress
-  ): Promise<SednTwo> => {
-    return deployContract("SednTwo", args, signer);
+  ): Promise<Sedn> => {
+    return deployContract("Sedn", args, signer);
   };
   

@@ -5,9 +5,9 @@ import { ethers, network } from "hardhat";
 import { it } from "mocha";
 
 import { restoreSnapshot, takeSnapshot } from "../utils/network";
-import { FakeSigner } from "./../../integration/FakeSigner";
-import { deploySednTwo } from "./../../integration/sednTwo.contract";
-import { SednTwo } from "./../../src/types/contracts/SednTwo.sol/SednTwo";
+import { FakeSigner } from "../../integration/FakeSigner";
+import { deploySedn } from "../../integration/sedn.contract";
+import { Sedn } from "../../src/types/contracts/Sedn.sol/Sedn";
 import { BigNumber, Contract } from 'ethers';
 
 if (!process.env.ETHERSCAN_API_KEY) {
@@ -39,12 +39,12 @@ const getRequirements = async () => {
   return { usdc, registryAddress, circleSigner };
 };
 
-describe("SednTwo", function () {
+describe("Sedn", function () {
   let snap: number;
   let accounts: SignerWithAddress[];
   let owner: SignerWithAddress;
   let trusted: FakeSigner;
-  let contract: SednTwo;
+  let contract: Sedn;
   let usdc: Contract;
   let registry: string;
   let circleSigner: SignerWithAddress;
@@ -55,7 +55,7 @@ describe("SednTwo", function () {
     owner = accounts[0];
     const requirements = await getRequirements();
     registry = requirements.registryAddress;
-    contract = await deploySednTwo([requirements.usdc.address, requirements.registryAddress, accounts[1].address], owner);
+    contract = await deploySedn([requirements.usdc.address, requirements.registryAddress, accounts[1].address], owner);
     trusted = new FakeSigner(accounts[1], contract.address);
     usdc = requirements.usdc;
     circleSigner = requirements.circleSigner;
@@ -72,7 +72,7 @@ describe("SednTwo", function () {
 
   describe("constructor", () => {
     it("should deploy", async () => {
-      const sedn = await deploySednTwo([usdc.address, registry, accounts[1].address], owner);
+      const sedn = await deploySedn([usdc.address, registry, accounts[1].address], owner);
       await sedn.deployed();
       expect(await sedn.owner()).to.equal(owner.address);
       expect(await sedn.usdcToken()).to.equal(usdc);
@@ -144,7 +144,6 @@ describe("SednTwo", function () {
         'bridgeRequest': bridgeRequest
       }
       
-
       // Claim
       const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 1000;
       const signedMessage = await trusted.signMessage(BigNumber.from(amount), claimer.address, till, secret);
