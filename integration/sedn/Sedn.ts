@@ -97,7 +97,7 @@ describe("Sedn Contract", function () {
   }
   [
     'polygon',
-    'arbitrum'
+    //'arbitrum'
   ].forEach(function (network) {
     describe(`Sedn from ${network}`, function () {
       let sedn: Contract;
@@ -212,7 +212,7 @@ describe("Sedn Contract", function () {
         
         // Claim
         const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 1000;
-        const signedMessage = await trusted.signMessage(BigNumber.from(amount), recipientAddress, till, secret);
+        const signedMessage = await trusted.signMessage(BigNumber.from(amount), signer.address, till, secret);
         const signature = ethers.utils.splitSignature(signedMessage);
         const bridgeClaim = await sedn.bridgeClaim(solution, secret, till, signature.v, signature.r, signature.s, userRequestDict, bridgeImpl, {
           gasPrice: feeData.gasPrice,
