@@ -86,14 +86,15 @@ describe("Sedn Contract", function () {
     // TODO: support other providers
     const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(network));
     const feeData = await provider.getFeeData();
-    const signer = new ethers.Wallet(process.env.NEW_PK || "", provider);
+    const signer = new ethers.Wallet(process.env.SENDER_PK || "", provider);
     const verifier = new ethers.Wallet(process.env.VERIFIER_PK || "", provider);
+    const recipient = new ethers.Wallet(process.env.RECIPIENT_PK || "", provider);
 
     // Get Sedn
     const sedn = new ethers.Contract(sednContract, await getAbi(network, sednContract), signer);
     const usdcSenderNetwork = new ethers.Contract(config.usdc[network].contract, await getAbi(network, config.usdc[network].abi), signer);
 
-    return { sedn, usdcSenderNetwork, signer, verifier, feeData, config };
+    return { sedn, usdcSenderNetwork, signer, verifier, feeData, config, recipient };
   }
   [
     'polygon',
@@ -103,6 +104,7 @@ describe("Sedn Contract", function () {
       let sedn: Contract;
       let usdcSenderNetwork: Contract;
       let signer: Wallet;
+      let recipient: Wallet;
       let feeData: any;
       let trusted: FakeSigner;
       let config: any;
@@ -114,6 +116,7 @@ describe("Sedn Contract", function () {
         feeData = deployed.feeData;
         trusted = new FakeSigner(deployed.verifier, sedn.address);
         config = deployed.config;
+        recipient = deployed.recipient;
 
         if (trusted.getAddress() !== deployed.config.verifier) {
           const error = new Error(`Using the wrong verifier: expected ${deployed.config.verifier} got  ${trusted.getAddress()}`);
@@ -128,6 +131,7 @@ describe("Sedn Contract", function () {
         const recipientNetwork = await getRandomRecipientNetwork(network);
         const recipientAddress = config.testRecipient[recipientNetwork];
         const usdcRecipientNetwork = new ethers.Contract(config.usdc[network].contract, await getAbi(network, config.usdc[network].abi), signer);
+        expect(recipientAddress).to.equal(recipient.address);
 
         console.log(`Sending ${amount / 10 ** decimals}USDC from ${signer.address} (${network}) to ${recipientAddress} (${recipientNetwork})`);
 
@@ -212,9 +216,9 @@ describe("Sedn Contract", function () {
         
         // Claim
         const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 1000;
-        const signedMessage = await trusted.signMessage(BigNumber.from(amount), signer.address, till, secret);
+        const signedMessage = await trusted.signMessage(BigNumber.from(amount), recipientAddress, till, secret);
         const signature = ethers.utils.splitSignature(signedMessage);
-        const bridgeClaim = await sedn.bridgeClaim(solution, secret, till, signature.v, signature.r, signature.s, userRequestDict, bridgeImpl, {
+        const bridgeClaim = await sedn.connect(recipient).bridgeClaim(solution, secret, till, signature.v, signature.r, signature.s, userRequestDict, bridgeImpl, {
           gasPrice: feeData.gasPrice,
           gasLimit: 5500000
         });
