@@ -3,9 +3,6 @@ import { expect } from "chai";
 import { Contract, Wallet, ethers, BigNumber } from "ethers";
 import fetch from "cross-fetch";
 
-import { GetQuote, GetTx } from "./helper/interfaces";
-import { SocketApi, getUserRequestDictionary } from "./helper/socket-api";
-
 import { FakeSigner } from "../../integration/FakeSigner";
 
 const fetchConfig = async () => {
@@ -125,6 +122,9 @@ describe("Sedn Contract", function () {
         }
       });
       it("send funds to an unregistered user who claims it on a different chain", async function () {
+        // /**********************************
+        // Setup
+        // *************************************/
         const explorerUrl = getExplorerUrl(network);
         const decimals = await usdcSenderNetwork.decimals();
         const amount = parseInt(1 * 10 ** decimals + ""); // 1$ in USDC
@@ -136,40 +136,29 @@ describe("Sedn Contract", function () {
         console.log(`Sending ${amount / 10 ** decimals}USDC from ${signer.address} (${network}) to ${recipientAddress} (${recipientNetwork})`);
 
         // /**********************************
-        // DERISK BUNGI API STUFFS
+        // Get the Bungee/Socket Route
         // *************************************/
 
+        const socketRouteRequest = {
+          fromChain: network,
+          toChain: recipientNetwork,
+          recipientAddress: recipientAddress,
+          amount: amount / 10 ** decimals,
+        };
+        
+        const socketRouteResponse: any = await fetch("http://localhost:5001/sedn-17b18/us-central1/getSednParameters/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({data: socketRouteRequest})
+        });
+        const socketRoute = (await socketRouteResponse.json()).result;
+        console.log('Socket Route', socketRoute);
 
-        // TODO: make this an api call
-        // instantiate all variables for exemplary tranfser of 1 USDC (Polygon) to approx. 0.5 USDC (xDAI)
-        const fromChainId: number = parseInt(getChainId(network));
-        const fromTokenAddress: string = usdcSenderNetwork.address;
-        const toChainId: number = parseInt(getChainId(recipientNetwork));
-        const toTokenAddress: string = config.usdc[recipientNetwork].contract;
-        const userAddress: string = sedn.address;
-        const uniqueRoutesPerBridge: boolean = true;
-        const sort: string = "output";
-        const singleTxOnly: boolean = true;
-
-        // involke API call
-        const api = new SocketApi(process.env.SOCKET_API_KEY || "");
-        const result: GetQuote = await api.getQuote(
-          fromChainId,
-          fromTokenAddress,
-          toChainId,
-          toTokenAddress,
-          amount,
-          userAddress,
-          uniqueRoutesPerBridge,
-          sort,
-          recipientAddress,
-          singleTxOnly,
-        );
-        const route = result.result.routes[0]; // take optimal route
-        const txResult: GetTx = await api.buildTx(route);
         // create calldata dict
-        const userRequestDict = await getUserRequestDictionary(txResult);
-        const bridgeImpl = txResult.result.approvalData.allowanceTarget;
+        const bungeeUserRequestDict = socketRoute.request;
+        const bungeeBridgeAddress = socketRoute.bridgeAddress;
 
         // /**********************************
         // SEND
@@ -211,6 +200,7 @@ describe("Sedn Contract", function () {
         // --------------------------
         // Claim
         // --------------------------
+        
         const beforeClaim = await usdcRecipientNetwork.balanceOf(recipientAddress);
         console.log(`beforeClaim (${recipientNetwork}:${recipientAddress}) ${beforeClaim.toString()}`);
         
@@ -218,7 +208,7 @@ describe("Sedn Contract", function () {
         const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 1000;
         const signedMessage = await trusted.signMessage(BigNumber.from(amount), recipientAddress, till, secret);
         const signature = ethers.utils.splitSignature(signedMessage);
-        const bridgeClaim = await sedn.connect(recipient).bridgeClaim(solution, secret, till, signature.v, signature.r, signature.s, userRequestDict, bridgeImpl, {
+        const bridgeClaim = await sedn.connect(recipient).bridgeClaim(solution, secret, till, signature.v, signature.r, signature.s, bungeeUserRequestDict, bungeeBridgeAddress, {
           gasPrice: feeData.gasPrice,
           gasLimit: 5500000
         });
