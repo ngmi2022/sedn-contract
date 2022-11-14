@@ -7,6 +7,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/metatx/ERC2771Context.sol";
+import "@openzeppelin/contracts/metatx/MinimalForwarder.sol";
 
 error SednError();
 
@@ -60,7 +62,7 @@ interface IRegistry is IUserRequest {
     function outboundTransferTo(UserRequest calldata _userRequest) external payable;
 }
 
-contract Sedn is Ownable, IUserRequest {
+contract Sedn is ERC2771Context, Ownable, IUserRequest {
     IERC20 public usdcToken;
     IRegistry public registry;
     uint256 public paymentCounter;
@@ -82,8 +84,9 @@ contract Sedn is Ownable, IUserRequest {
     constructor(
         address _usdcTokenAddressForChain,
         address _registryDeploymentAddressForChain,
-        address _trustedVerifyAddress
-    ) {
+        address _trustedVerifyAddress,
+        MinimalForwarder _trustedForwarder
+    ) ERC2771Context(address(_trustedForwarder)) {
         console.log(
             "Deploying the Sedn Contract; USDC Token Address: %s; Socket Registry: %s",
             _usdcTokenAddressForChain,
@@ -94,11 +97,21 @@ contract Sedn is Ownable, IUserRequest {
         trustedVerifyAddress = _trustedVerifyAddress;
     }
 
+    function _msgSender() internal view override(Context, ERC2771Context)
+        returns (address sender) {
+        sender = ERC2771Context._msgSender();
+    }
+
+    function _msgData() internal view override(Context, ERC2771Context)
+        returns (bytes calldata) {
+        return ERC2771Context._msgData();
+    }
+
     function sedn(uint256 _amount, bytes32 secret) external {
         require(_amount > 0, "Amount must be greater than 0");
-        require(usdcToken.transferFrom(msg.sender, address(this), _amount), "Transfer failed");
+        require(usdcToken.transferFrom(_msgSender(), address(this), _amount), "Transfer failed");
         require(payments[secret].secret != secret, "Can not double set secret");
-        payments[secret] = Payment(msg.sender, _amount, false, secret);
+        payments[secret] = Payment(_msgSender(), _amount, false, secret);
     }
 
     function _checkClaim(
@@ -128,9 +141,9 @@ contract Sedn is Ownable, IUserRequest {
         bytes32 _r,
         bytes32 _s
     ) public {
-        _checkClaim(solution, secret, msg.sender, payments[secret].amount, _till, _v, _r, _s);
+        _checkClaim(solution, secret, _msgSender(), payments[secret].amount, _till, _v, _r, _s);
         usdcToken.approve(address(this), payments[secret].amount);
-        require(usdcToken.transferFrom(address(this), msg.sender, payments[secret].amount), "transferFrom failed");
+        require(usdcToken.transferFrom(address(this), _msgSender(), payments[secret].amount), "transferFrom failed");
         payments[secret].completed = true;
     }
 
@@ -144,8 +157,8 @@ contract Sedn is Ownable, IUserRequest {
         UserRequest calldata _userRequest,
         address bridgeImpl
     ) public {
-        _checkClaim(solution, secret, msg.sender, payments[secret].amount, _till, _v, _r, _s);
-        console.log("Bridge and claiming funds", payments[secret].amount, msg.sender);
+        _checkClaim(solution, secret, _msgSender(), payments[secret].amount, _till, _v, _r, _s);
+        console.log("Bridge and claiming funds", payments[secret].amount, _msgSender());
         usdcToken.approve(address(registry), payments[secret].amount);
         usdcToken.approve(bridgeImpl, payments[secret].amount);
         registry.outboundTransferTo(_userRequest);

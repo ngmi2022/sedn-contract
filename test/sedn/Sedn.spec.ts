@@ -1,22 +1,27 @@
-import { expect } from 'chai';
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { addresses } from "@socket.tech/ll-core";
+import { expect } from "chai";
+import { Address } from "defender-relay-client";
+import { BigNumber, Contract } from "ethers";
+import { ObjectEncodingOptions } from "fs";
 import { ethers, network } from "hardhat";
 import { it } from "mocha";
 
-import { restoreSnapshot, takeSnapshot } from "../utils/network";
+import { signMetaTxRequest } from "../../gasless/signer";
 import { FakeSigner } from "../../integration/FakeSigner";
 import { deploySedn } from "../../integration/sedn.contract";
 import { Sedn } from "../../src/types/contracts/Sedn.sol/Sedn";
-import { BigNumber, Contract } from 'ethers';
+import { restoreSnapshot, takeSnapshot } from "../utils/network";
 
 if (!process.env.ETHERSCAN_API_KEY) {
-    throw new Error("ETHERSCAN_API_KEY not set");
+  throw new Error("ETHERSCAN_API_KEY not set");
 }
 
 const getRequirements = async () => {
   const usdcOwnerAddress = "0x55FE002aefF02F77364de339a1292923A15844B8"; // Circle's wallet
   const circleSigner = await ethers.getImpersonatedSigner(usdcOwnerAddress); // Signer for circle's wallet
+  const relayerAddress = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"; // vitalik's address
+  const relayer = await ethers.getImpersonatedSigner(relayerAddress); // vitalik will be impersonated and act as our relayer signer
 
   // instantiate etherscan api
   const api = require("etherscan-api").init(process.env.ETHERSCAN_API_KEY);
@@ -30,13 +35,19 @@ const getRequirements = async () => {
   const usdcAbi = usdcAbiObject[result];
   const usdc = new ethers.Contract(usdcAddress, usdcAbi, circleSigner);
 
+  // instantiate minimalForwarder contract
+  const forwarderAddress: string = "0x67c67a22d80466638a5d26Cd921Efb18F2C09b57";
+  const minimalForwarderAbiObject = await api.contract.getabi(forwarderAddress);
+  const minimalForwarderAbi = minimalForwarderAbiObject[result];
+  const minimalForwarder = new ethers.Contract(forwarderAddress, minimalForwarderAbi, relayer);
+
   // generate registry address for contract deployment
   const registry: string = "registry";
-  const ch_id: number = network.config.chainId!;
+  const chainId: number = network.config.chainId!;
   const registryAddress: string =
-    ch_id !== 31337 ? addresses[ch_id][registry] : "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0";
+    chainId !== 31337 ? addresses[chainId][registry] : "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0";
 
-  return { usdc, registryAddress, circleSigner };
+  return { usdc, registryAddress, circleSigner, forwarderAddress, minimalForwarder, relayer };
 };
 
 describe("Sedn", function () {
@@ -55,7 +66,10 @@ describe("Sedn", function () {
     owner = accounts[0];
     const requirements = await getRequirements();
     registry = requirements.registryAddress;
-    contract = await deploySedn([requirements.usdc.address, requirements.registryAddress, accounts[1].address], owner);
+    contract = await deploySedn(
+      [requirements.usdc.address, requirements.registryAddress, accounts[1].address, requirements.forwarderAddress],
+      owner,
+    );
     trusted = new FakeSigner(accounts[1], contract.address);
     usdc = requirements.usdc;
     circleSigner = requirements.circleSigner;
@@ -72,10 +86,14 @@ describe("Sedn", function () {
 
   describe("constructor", () => {
     it("should deploy", async () => {
-      const sedn = await deploySedn([usdc.address, registry, accounts[1].address], owner);
+      const requirements = await getRequirements();
+      const sedn = await deploySedn(
+        [usdc.address, registry, accounts[1].address, requirements.forwarderAddress],
+        owner,
+      );
       await sedn.deployed();
       expect(await sedn.owner()).to.equal(owner.address);
-      expect(await sedn.usdcToken()).to.equal(usdc);
+      expect(await sedn.usdcToken()).to.equal(usdc.address);
       expect(await sedn.registry()).to.equal(registry);
       expect(await sedn.trustedVerifyAddress()).to.equal(trusted.getAddress());
     });
@@ -90,7 +108,7 @@ describe("Sedn", function () {
       const solution = "Hello World!";
       const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
       await contract.connect(circleSigner).sedn(amount, secret);
-      const afterSedn = await usdc.balanceOf(circleSigner.address)
+      const afterSedn = await usdc.balanceOf(circleSigner.address);
       expect(beforeSedn.sub(afterSedn)).to.equal(amount);
       expect(await usdc.balanceOf(contract.address)).to.equal(amount);
 
@@ -104,8 +122,8 @@ describe("Sedn", function () {
       expect(afterClaim.sub(beforeClaim)).to.equal(amount);
     });
 
-    it.only("should send funds to an unregistered user on a different chain", async function () {
-      const amount = 10
+    it("should send funds to an unregistered user on a different chain", async function () {
+      const amount = 10;
       await contract.deployed();
 
       // Send
@@ -114,45 +132,86 @@ describe("Sedn", function () {
       const solution = "Hello World!";
       const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
       await contract.connect(circleSigner).sedn(amount, secret);
-      const afterSedn = await usdc.balanceOf(circleSigner.address)
+      const afterSedn = await usdc.balanceOf(circleSigner.address);
       expect(beforeSedn.sub(afterSedn)).to.equal(amount);
       expect(await usdc.balanceOf(contract.address)).to.equal(amount);
 
       // Claim
       // construct necessary calldata for method execution
-      const toChainId = 100
+      const toChainId = 100;
 
       // data construct for middleware, which is not used in this test transaction
-      const miWaId = 0 
-      const miOpNativeAmt = 0
-      const inToken = usdc.address
-      const miData = "0x"
-      const middlewareRequest = [miWaId, miOpNativeAmt, inToken, miData]
+      const miWaId = 0;
+      const miOpNativeAmt = 0;
+      const inToken = usdc.address;
+      const miData = "0x";
+      const middlewareRequest = [miWaId, miOpNativeAmt, inToken, miData];
 
       // data construct for hop bridge, which is used in this test transaction
-      const briId = 18
-      const briOpNativeAmt = 0
-      const briData = "0x0000000000000000000000003666f603cc164936c1b87e207f36beba4ac5f18a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000018413b7dcb40000000000000000000000000000000000000000000000000000000000000001"
-      const bridgeRequest = [briId, briOpNativeAmt, inToken, briData]
+      const briId = 18;
+      const briOpNativeAmt = 0;
+      const briData =
+        "0x0000000000000000000000003666f603cc164936c1b87e207f36beba4ac5f18a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000018413b7dcb40000000000000000000000000000000000000000000000000000000000000001";
+      const bridgeRequest = [briId, briOpNativeAmt, inToken, briData];
 
       // create calldata dict
       const userRequestDict: any = {
-        'receiverAddress': claimer.address,
-        'toChainId': toChainId,
-        'amount': amount,
-        'middlewareRequest': middlewareRequest,
-        'bridgeRequest': bridgeRequest
-      }
-      
+        receiverAddress: claimer.address,
+        toChainId: toChainId,
+        amount: amount,
+        middlewareRequest: middlewareRequest,
+        bridgeRequest: bridgeRequest,
+      };
+
       // Claim
       const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 300;
       const signedMessage = await trusted.signMessage(BigNumber.from(amount), claimer.address, till, secret);
       const signature = ethers.utils.splitSignature(signedMessage);
 
       const beforeClaim = await usdc.balanceOf(contract.address);
-      await contract.connect(claimer).bridgeClaim(solution, secret, till, signature.v, signature.r, signature.s, userRequestDict, "0x4C9faD010D8be90Aba505c85eacc483dFf9b8Fa9");
+      await contract
+        .connect(claimer)
+        .bridgeClaim(
+          solution,
+          secret,
+          till,
+          signature.v,
+          signature.r,
+          signature.s,
+          userRequestDict,
+          "0x4C9faD010D8be90Aba505c85eacc483dFf9b8Fa9",
+        );
       const afterClaim = await usdc.balanceOf(contract.address);
       expect(beforeClaim.sub(afterClaim)).to.equal(10);
+    });
+
+    it("should work with a meta tx", async function () {
+      const amount = 0;
+      await contract.deployed();
+      const account = accounts[0];
+
+      // connect forwarder contract
+      const requirements = getRequirements();
+      const minimalForwarder = (await requirements).minimalForwarder;
+      const relayer = (await requirements).relayer;
+
+      // Send
+      await usdc.connect(account);
+      const beforeSedn = await usdc.balanceOf(account.address);
+      const solution = "Hello World!";
+      const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
+      await minimalForwarder.connect(relayer);
+      const sednAddress: string = contract.address;
+      const txData: string = contract.interface.encodeFunctionData("sedn", [amount, secret]);
+      const { request, signature } = await signMetaTxRequest(account.provider, minimalForwarder, {
+        from: account.address,
+        to: sednAddress,
+        data: txData,
+      });
+      await minimalForwarder.execute(request, signature).then((tx: { wait: () => any }) => tx.wait());
+      const afterSedn = await usdc.balanceOf(account.address);
+      expect(beforeSedn.sub(afterSedn)).to.equal(amount);
+      expect(await usdc.balanceOf(contract.address)).to.equal(amount);
     });
   });
 });

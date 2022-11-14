@@ -1,9 +1,10 @@
 import type { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { task } from "hardhat/config";
-import fetch from "cross-fetch";
-import type { TaskArguments } from "hardhat/types";
 import { addresses } from "@socket.tech/ll-core/addresses/index";
+import fetch from "cross-fetch";
+import { task } from "hardhat/config";
+import type { TaskArguments } from "hardhat/types";
 
+import { forwarderAddressBook } from "../../gasless/addresses";
 import type { Sedn, Sedn__factory } from "../../src/types";
 
 function timeout(ms: number) {
@@ -11,30 +12,32 @@ function timeout(ms: number) {
 }
 
 const usdcTokenAddressess: any = {
-  'hardhat': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-  'mainnet': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-  'rinkeby': '0xeb8f08a975ab53e34d8a0330e0d34de942c95926',
-  'polygon-mainnet': '0x2791bca1f2de4661ed88a30c99a7a9449aa84174',
-  'polygon-mumbai': '0xe6b8a5cf854791412c1f6efc7caf629f5df1c747',
-  'gnosis': '0xDDAfbb505ad214D7b80b1f830fcCc89B60fb7A83',
-  'arbitrum': '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8',
+  hardhat: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+  mainnet: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+  rinkeby: "0xeb8f08a975ab53e34d8a0330e0d34de942c95926",
+  "polygon-mainnet": "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
+  "polygon-mumbai": "0xe6b8a5cf854791412c1f6efc7caf629f5df1c747",
+  gnosis: "0xDDAfbb505ad214D7b80b1f830fcCc89B60fb7A83",
+  arbitrum: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
 };
 
 const fetchVerifierAddress = async () => {
-  const data: any = await (await fetch('https://api.github.com/gists/3a4dab1609b9fa3a9e86cb40568cd7d2')).json()
-  return JSON.parse(data.files['sedn.json'].content).verifier
+  const data: any = await (await fetch("https://api.github.com/gists/3a4dab1609b9fa3a9e86cb40568cd7d2")).json();
+  return JSON.parse(data.files["sedn.json"].content).verifier;
 };
 
 task("deploy:Sedn").setAction(async function (taskArguments: TaskArguments, { ethers, run, network }) {
   const signers: SignerWithAddress[] = await ethers.getSigners();
   const registry: string = "registry";
   const ch_id: number = network.config.chainId!;
-  const registryAddress: string = (ch_id !== 31337) ? addresses[ch_id][registry] : "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0"
-  const sednFactory: Sedn__factory = (
-    await ethers.getContractFactory("Sedn")
-  );
+  const registryAddress: string =
+    ch_id !== 31337 ? addresses[ch_id][registry] : "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0";
+  const sednFactory: Sedn__factory = await ethers.getContractFactory("Sedn");
+  const trustedForwarder = forwarderAddressBook[network.name]["MinimalForwarder"];
   const verifier = await fetchVerifierAddress();
-  const sedn: Sedn = await sednFactory.connect(signers[0]).deploy(usdcTokenAddressess[network.name], registryAddress, verifier);
+  const sedn: Sedn = await sednFactory
+    .connect(signers[0])
+    .deploy(usdcTokenAddressess[network.name], registryAddress, verifier, trustedForwarder);
   await sedn.deployed();
   console.log("Sedn deployed to: ", sedn.address);
 
@@ -44,7 +47,7 @@ task("deploy:Sedn").setAction(async function (taskArguments: TaskArguments, { et
     await run("verify:verify", {
       address: sedn.address,
       network: network.name,
-      constructorArguments: [usdcTokenAddressess[network.name], registryAddress, verifier]
+      constructorArguments: [usdcTokenAddressess[network.name], registryAddress, verifier, trustedForwarder],
     });
   }
 });

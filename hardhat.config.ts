@@ -1,12 +1,12 @@
 import "@nomicfoundation/hardhat-toolbox";
 import { config as dotenvConfig } from "dotenv";
+import "hardhat-etherscan-abi";
 import type { HardhatUserConfig } from "hardhat/config";
 import type { NetworkUserConfig } from "hardhat/types";
 import { resolve } from "path";
 
 import "./tasks/accounts";
 import "./tasks/deploy";
-import "hardhat-etherscan-abi";
 
 dotenvConfig({ path: resolve(__dirname, "./.env") });
 
@@ -66,6 +66,10 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
     case "gnosis":
       jsonRpcUrl = "https://rpc.gnosischain.com";
       break;
+    case "arbitrum-mainnet":
+      jsonRpcUrl =
+        "https://cosmopolitan-cold-water.arbitrum-mainnet.discover.quiknode.pro/ed37e37499d524083f3ae91b9f095ac41d3821b5/";
+      break;
     default:
       jsonRpcUrl = "https://" + chain + ".infura.io/v3/" + infuraApiKey;
   }
@@ -121,7 +125,7 @@ const config: HardhatUserConfig = {
     goerli: {
       url: "https://goerli.infura.io/v3/" + infuraApiKey,
       accounts: [process.env.POLYGON_PK as string],
-    }
+    },
   },
   paths: {
     artifacts: "./artifacts",
