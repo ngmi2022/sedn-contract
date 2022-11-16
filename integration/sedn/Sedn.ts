@@ -1,8 +1,9 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
 import { Provider } from "@ethersproject/providers";
-import { expect } from "chai";
+import { expect, util } from "chai";
+import { time } from "console";
 import fetch from "cross-fetch";
-import { BigNumber, Contract, Signer, Wallet, ethers } from "ethers";
+import { BigNumber, Contract, Signer, Wallet, ethers, utils } from "ethers";
 
 import { forwarderAddressBook } from "../../gasless/addresses";
 import { ForwarderAbi } from "../../gasless/forwarder";
@@ -20,7 +21,7 @@ const fetchConfig = async () => {
 const workWithMetaTxContracts: boolean = true;
 const metaTxContracts: any = {
   contracts: {
-    polygon: "0x0Ace214a0b5F38CEd0Dac5105af10e4e661eE496",
+    polygon: "0x579E9809C0E06711A815698ebCd38b210621760a",
     arbitrum: "0x8DC32778b81f7C2A537647CCf7fac2F8BC713f9C",
   },
   testRecipient: {
@@ -58,18 +59,19 @@ async function sendMetaTx(
   const url: string = relayers[chainName];
   if (!url) throw new Error(`Missing relayer url`);
 
-  const forwarder = new ethers.Contract(forwarderAddressBook[chainName].MinimalForwarder, ForwarderAbi, provider);
-  const from = signer.getAddress();
+  const forwarder = new ethers.Contract(forwarderAddressBook[chainName].MinimalForwarder, ForwarderAbi, signer);
+  const from = await signer.getAddress();
   const data = sednContract.interface.encodeFunctionData(funcName, funcArgs);
   const to = sednContract.address;
 
   const request = await signMetaTxRequest(signerKey, forwarder, { to, from, data });
-
-  return fetch(url, {
+  const txHash = await fetch(url, {
     method: "POST",
     body: JSON.stringify(request),
     headers: { "Content-Type": "application/json" },
   });
+  console.log(txHash);
+  return txHash;
 }
 
 const getRpcUrl = (network: string) => {
@@ -271,36 +273,26 @@ describe("Sedn Contract", function () {
         };
 
         const solution = (Math.random() + 1).toString(36).substring(7);
+        // const solution = "xf471";
         const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
         console.log(`Running with solution '${solution}' and secret '${secret}'`);
 
         const beforeSend = await usdcSenderNetwork.balanceOf(signer.address);
-        // console.log("before", parseInt(beforeSend.toString() + "") / 10 ** decimals);
-        // // TODO: how can we get a better value for gas limit here?
-        // const approveGas = await usdcSenderNetwork.estimateGas.approve(sedn.address, amount);
-        // console.log("approveGas", approveGas.toString());
-        // const approve = await usdcSenderNetwork.approve(sedn.address, amount, getApproveGas(network, approveGas));
-        // console.log(`approve tx: ${explorerUrl}/tx/${approve.hash}`);
-        // await approve.wait();
-        // console.log("approved");
-        if (workWithMetaTxContracts === true) {
-          await sendMetaTx(
-            sedn,
-            signer.provider,
-            signer,
-            process.env.SENDER_PK || "",
-            "sedn",
-            [amount, secret],
-            network,
-          );
-        } else {
-          const sednToUnregistered = await sedn.sedn(amount, secret, {
-            gasPrice: feeData.gasPrice,
-            gasLimit: 1000000,
-          });
-          console.log(`send tx: ${explorerUrl}/tx/${sednToUnregistered.hash}`);
-          await sednToUnregistered.wait();
-        }
+        console.log("before", parseInt(beforeSend.toString() + "") / 10 ** decimals);
+        // TODO: how can we get a better value for gas limit here?
+        const approveGas = await usdcSenderNetwork.estimateGas.approve(sedn.address, amount);
+        console.log("approveGas", approveGas.toString());
+        const approve = await usdcSenderNetwork.approve(sedn.address, amount, getApproveGas(network, approveGas));
+        console.log(`approve tx: ${explorerUrl}/tx/${approve.hash}`);
+        await approve.wait();
+        console.log("approved");
+
+        const sednToUnregistered = await sedn.sedn(amount, secret, {
+          gasPrice: feeData.gasPrice,
+          gasLimit: 1000000,
+        });
+        console.log(`send tx: ${explorerUrl}/tx/${sednToUnregistered.hash}`);
+        await sednToUnregistered.wait();
         console.log("sent");
 
         const afterSend = await usdcSenderNetwork.balanceOf(signer.address);
@@ -316,16 +308,30 @@ describe("Sedn Contract", function () {
         const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 1000;
         const signedMessage = await trusted.signMessage(BigNumber.from(amount), recipientAddress, till, secret);
         const signature = ethers.utils.splitSignature(signedMessage);
-        const bridgeClaim = await sedn
-          .connect(recipient)
-          .bridgeClaim(solution, secret, till, signature.v, signature.r, signature.s, userRequestDict, bridgeImpl, {
-            gasPrice: feeData.gasPrice,
-            gasLimit: 5500000,
-          });
-        console.log(`claim tx: ${explorerUrl}/tx/${bridgeClaim.hash}`);
-        await bridgeClaim.wait();
+        if (workWithMetaTxContracts === true) {
+          await sendMetaTx(
+            sedn,
+            recipient.provider,
+            recipient,
+            process.env.RECIPIENT_PK || "",
+            "bridgeClaim",
+            [solution, secret, till, signature.v, signature.r, signature.s, userRequestDict, bridgeImpl],
+            network,
+          );
+        } else {
+          const bridgeClaim = await sedn
+            .connect(recipient)
+            .bridgeClaim(solution, secret, till, signature.v, signature.r, signature.s, userRequestDict, bridgeImpl, {
+              gasPrice: feeData.gasPrice,
+              gasLimit: 5500000,
+            });
+          console.log(`claim tx: ${explorerUrl}/tx/${bridgeClaim.hash}`);
+          await bridgeClaim.wait();
+        }
         console.log("claimed");
-
+        sedn.on("bridgeClaim", (sol, two) => {
+          console.log("bridgeClaim happened", sol, two);
+        });
         const afterClaim = await usdcRecipientNetwork.balanceOf(recipientAddress);
         console.log(`afterClaim (${recipientNetwork}:${recipientAddress}) ${afterClaim.toString()}`);
         console.log("claimed", afterClaim.sub(beforeClaim).toString());

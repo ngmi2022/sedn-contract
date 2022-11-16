@@ -2,7 +2,7 @@ import { DefenderRelayProvider, DefenderRelaySigner } from "defender-relay-clien
 import { Contract } from "ethers";
 
 import { ForwarderAbi } from "../../gasless/forwarder";
-import { forwarderAddressBook } from "../../gasless/addresses"
+import { forwarderAddressBook } from "../../gasless/addresses";
 
 
 async function relay(forwarder, request, signature) {

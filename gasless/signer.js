@@ -60,14 +60,10 @@ async function buildTypedData(forwarder, request) {
 }
 
 export async function signMetaTxRequest(signer, forwarder, input) {
-  console.log(1);
   const request = await buildRequest(forwarder, input);
-  console.log(2);
   const toSign = await buildTypedData(forwarder, request);
-  console.log(3);
   const privateKey = Buffer.from(signer.replace(/^0x/, ""), "hex");
   const signature = signTypedData({ privateKey, data: toSign, version: SignTypedDataVersion.V3 });
-  console.log(4);
   return { signature, request };
 }
 
