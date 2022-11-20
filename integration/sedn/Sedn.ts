@@ -3,14 +3,10 @@ import fetch from "cross-fetch";
 import { BigNumber, Contract, Wallet, ethers } from "ethers";
 
 import { FakeSigner } from "../../integration/FakeSigner";
-import config from "./../../config.json";
 import { sendMetaTx } from "./helper/signer";
 
 const fetchConfig = async () => {
-  const data = config;
-  return data;
-  // const data: any = await (await fetch("https://api.github.com/gists/3a4dab1609b9fa3a9e86cb40568cd7d2")).json();
-  // return JSON.parse(data.files["sedn.json"].content);
+  return await (await fetch("https://storage.googleapis.com/sedn-public-config/config.json")).json();
 };
 
 // some params & functions to facilitate metaTX testing / testnet
@@ -80,28 +76,6 @@ const explorerData: any = {
   },
 };
 
-// getting chain Id ?? do we need this?
-const getChainId = (network: string) => {
-  switch (network) {
-    case "mainnet":
-      return "1";
-    case "polygon":
-      return "137";
-    case "arbitrum":
-      return "42161";
-    case "gnosis":
-      return "100";
-    case "goerli":
-      return "4";
-    case "sepolia":
-      return "11155111";
-    case "arbitrum-goerli":
-      return "421613";
-    default:
-      throw new Error("Network not supported: ChainID");
-  }
-};
-
 export const feeData = async (network: string, signer: Wallet) => {
   switch (network) {
     case "polygon":
@@ -126,6 +100,7 @@ const getAbi = async (network: string, contract: string) => {
   }
   const apiUrl = explorerData[network].api;
   const apiKey = explorerData[network].apiKey;
+  console.log(`${apiUrl}?module=contract&action=getabi&address=${contract}&apikey=${apiKey}`);
   const data: any = await (
     await fetch(`${apiUrl}?module=contract&action=getabi&address=${contract}&apikey=${apiKey}`)
   ).json();
@@ -222,7 +197,7 @@ describe("Sedn Contract", function () {
         };
 
         const socketRouteResponse: any = await fetch(
-          "http://localhost:5001/sedn-17b18/us-central1/getSednParameters/",
+          "https://us-central1-sedn-17b18.cloudfunctions.net/getSednParameters/",
           {
             method: "POST",
             headers: {
