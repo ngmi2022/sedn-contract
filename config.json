@@ -1,0 +1,57 @@
+{
+    "forwarder": {
+        "matic": "0xc5babfd1c5FFdA1F24B1fC21453692d8d9678a87",
+        "polygon": "0xc5babfd1c5FFdA1F24B1fC21453692d8d9678a87",
+        "polygon-mainnet": "0xc5babfd1c5FFdA1F24B1fC21453692d8d9678a87",
+        "arbitrum": "0x77183b55Ba34bF5A4da4D362085A68A67b78cCDA",
+        "mainnet": "0x67c67a22d80466638a5d26Cd921Efb18F2C09b57",
+        "sepolia": "0x46Fb61B38b670eEb4EA4b024940432E7507cb213",
+        "arbitrum-goerli": "0x8DC32778b81f7C2A537647CCf7fac2F8BC713f9C"
+    },
+    "contracts": {
+        "polygon": "0x579E9809C0E06711A815698ebCd38b210621760a",
+        "arbitrum": "0x8DC32778b81f7C2A537647CCf7fac2F8BC713f9C",
+        "sepolia": "0xB958998Eab79507ca61b7D485c6dc27854eBaDCb",
+        "arbitrum-goerli": "0x579E9809C0E06711A815698ebCd38b210621760a"
+    },
+    "usdc": {
+        "polygon": {
+            "abi": "0xDD9185DB084f5C4fFf3b4f70E7bA62123b812226",
+            "contract": "0x2791bca1f2de4661ed88a30c99a7a9449aa84174"
+        },
+        "polygon-mainnet": {
+            "abi": "0xDD9185DB084f5C4fFf3b4f70E7bA62123b812226",
+            "contract": "0x2791bca1f2de4661ed88a30c99a7a9449aa84174"
+        },
+        "matic": {
+            "abi": "0xDD9185DB084f5C4fFf3b4f70E7bA62123b812226",
+            "contract": "0x2791bca1f2de4661ed88a30c99a7a9449aa84174"
+        },
+        "gnosis": {
+            "abi": "",
+            "contract": "0xDDAfbb505ad214D7b80b1f830fcCc89B60fb7A83"
+        },
+        "arbitrum": {
+            "abi": "0x1efb3f88bc88f03fd1804a5c53b7141bbef5ded8",
+            "contract": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8"
+        },
+        "arbitrum-goerli": {
+            "abi": "0xA30D67979d4Ce07b5467533B633AD23285434C4A",
+            "contract": "0xA30D67979d4Ce07b5467533B633AD23285434C4A"
+        },
+        "sepolia": {
+            "abi": "0x44CD37AE7580DF4875812f900EDbc2a7127e2842",
+            "contract": "0x44CD37AE7580DF4875812f900EDbc2a7127e2842"
+        }
+    },
+    "verifier": "0xe0c2eE53925fBe98319ac1f5653677e551E10AD7",
+    "testRecipient": {
+        "matic": "0x3906d98287847E4Ac8Ee44A87d3fCea531E5692F",
+        "mainnet": "0x3906d98287847E4Ac8Ee44A87d3fCea531E5692F",
+        "polygon-mainnet": "0x3906d98287847E4Ac8Ee44A87d3fCea531E5692F",
+        "polygon": "0x3906d98287847E4Ac8Ee44A87d3fCea531E5692F",
+        "arbitrum": "0x3906d98287847E4Ac8Ee44A87d3fCea531E5692F",
+        "sepolia": "0x3906d98287847E4Ac8Ee44A87d3fCea531E5692F",
+        "arbitrum-goerli": "0x3906d98287847E4Ac8Ee44A87d3fCea531E5692F"
+    }
+}

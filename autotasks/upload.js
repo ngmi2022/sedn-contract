@@ -1,0 +1,32 @@
+const { AutotaskClient } = require('defender-autotask-client');
+
+const autotaskIds = ["507b3f04-18d3-41ab-9484-701a01fc2ffe", "8e4e19b7-0103-4552-ab68-3646966ab186", "ce515ed3-d267-4654-8843-e9fe7047c05d"];
+
+async function uploadCode(autotaskId, apiKey, apiSecret) {
+    const client = new AutotaskClient({ apiKey, apiSecret });
+    await client.updateCodeFromFolder(autotaskId, "./build/relay");
+}
+
+async function main() {
+    require("dotenv").config();
+    const { DEFENDER_TEAM_KEY: apiKey, DEFENDER_TEAM_SECRET: apiSecret } = process.env;
+    var autotaskIdsLength = autotaskIds.length
+    for (var i = 0; i < autotaskIdsLength; i++) {
+        var autotaskId = autotaskIds[i]
+        if (!autotaskId) throw new Error("Missing autotask id");
+        if (!apiKey) throw new Error("Missing api key");
+        if (!apiSecret) throw new Error("Missing api key");
+        await uploadCode(autotaskId, apiKey, apiSecret);
+        console.log("Code updated for ", autotaskId);
+    };
+    console.log('Code updated for all autotask ids')
+}
+
+if (require.main === module) {
+    main()
+        .then(() => process.exit(0))
+        .catch(error => {
+            console.error(error);
+            process.exit(1);
+        });
+}

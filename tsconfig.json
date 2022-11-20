@@ -9,14 +9,16 @@
     "lib": ["es6"],
     "module": "commonjs",
     "moduleResolution": "node",
-    "noImplicitAny": true,
+    "noImplicitAny": false,
     "removeComments": true,
     "resolveJsonModule": true,
     "sourceMap": true,
     "strict": true,
-    "target": "es6"
+    "target": "es6",
+    "allowJs": true,
+    "outDir": "build"
   },
-  "exclude": ["node_modules"],
+  "exclude": ["node_modules", "build/**/*"],
   "files": ["./hardhat.config.ts"],
   "include": ["src/**/*", "tasks/**/*", "test/**/*"]
 }
