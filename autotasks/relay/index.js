@@ -1,6 +1,5 @@
 import { DefenderRelayProvider, DefenderRelaySigner } from "defender-relay-client/lib/ethers";
 import { Contract } from "ethers";
-import config from "../../config.json"
 
 import { ForwarderAbi } from "../../abis/abis";
 
@@ -16,10 +15,12 @@ async function relay(forwarder, request, signature) {
 
   // Send meta-tx through relayer to the forwarder contract
   const gasLimit = (parseInt(request.gas) + 50000).toString();
+  console.log(`Using gas limit ${gasLimit}`);
   return await forwarder.execute(request, signature, { gasLimit, });
 }
 
 async function handler(event) {
+  const config = await configData();
   // Parse webhook payload
   if (!event.request || !event.request.body) throw new Error(`Missing payload`);
   const { request, signature } = event.request.body;
@@ -37,6 +38,7 @@ async function handler(event) {
   const forwarder = new Contract(forwarderAddress, ForwarderAbi, signer);
 
   // Relay transaction!
+  console.log(`Relaying transaction via ${forwarderAddress} by ${signer.address}`);
   const tx = await relay(forwarder, request, signature);
   console.log(`Sent meta-tx: ${tx.hash}`);
   return { txHash: tx.hash };

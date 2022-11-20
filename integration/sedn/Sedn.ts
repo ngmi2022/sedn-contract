@@ -6,12 +6,17 @@ import { FakeSigner } from "../../integration/FakeSigner";
 import { sendMetaTx } from "./helper/signer";
 
 const fetchConfig = async () => {
-  return await (await fetch("https://storage.googleapis.com/sedn-public-config/config.json")).json();
+  return await (await fetch("https://storage.googleapis.com/sedn-public-config/config.json?avoidTheCaches=1")).json();
 };
 
 // some params & functions to facilitate metaTX testing / testnet
-const gasless: boolean = true;
-const testnet: boolean = true;
+const gasless: boolean = false;
+const testnet: boolean = false;
+// no testnets need to be included
+const supportedNetworks = ["polygon", "arbitrum"];
+// dependent on use case
+const networksToTest = testnet ? ["arbitrum-goerli"] : ["polygon"];
+
 const relayers: any = {
   polygon:
     "https://api.defender.openzeppelin.com/autotasks/507b3f04-18d3-41ab-9484-701a01fc2ffe/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/PjcQDaaG11CYHoJJ1Khcj3",
@@ -107,11 +112,6 @@ const getAbi = async (network: string, contract: string) => {
   return JSON.parse(data.result);
 };
 
-// no testnets need to be included
-const supportedNetworks = ["polygon", "arbitrum"];
-// dependent on use case
-const networksToTest = testnet ? ["arbitrum-goerli"] : ["polygon"];
-
 const getRandomRecipientNetwork = async (fromNetwork: string) => {
   const networks = supportedNetworks.filter(network => network !== fromNetwork);
   const randomIndex = Math.floor(Math.random() * networks.length);
@@ -190,8 +190,8 @@ describe("Sedn Contract", function () {
         // Get the Bungee/Socket Route
         // *************************************/
         const socketRouteRequest = {
-          fromChain: network,
-          toChain: destinationNetwork,
+          fromChain: testnet ? "polygon" : network,
+          toChain: testnet ? "arbitrum" : destinationNetwork,
           recipientAddress: destinationRecipient.address,
           amount: amount / 10 ** decimals,
         };
@@ -207,7 +207,7 @@ describe("Sedn Contract", function () {
           },
         );
         const socketRoute = (await socketRouteResponse.json()).result;
-        console.log("Socket Route", socketRoute);
+        console.log("Socket Route", JSON.stringify(socketRoute), JSON.stringify(socketRouteRequest));
 
         // create calldata dict
         const bungeeUserRequestDict = socketRoute.request;
@@ -218,8 +218,7 @@ describe("Sedn Contract", function () {
         // *************************************/
 
         // SECRET HASHING
-        const solution = "admfn"; //admfn
-        // const solution = (Math.random() + 1).toString(36).substring(7);
+        const solution = (Math.random() + 1).toString(36).substring(7);
         const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
         console.log(`INFO: Running with solution '${solution}' and secret '${secret}'`);
 
@@ -252,7 +251,7 @@ describe("Sedn Contract", function () {
           const txHash = JSON.parse(response.result).txHash;
           console.log(`TX: Send tx: ${explorerUrl}/tx/${txHash}`);
           const txReceipt = await signer.provider.getTransactionReceipt(txHash);
-          console.log(`TX: Executed send tx with txHash: ${txHash} and blockHash: ${txReceipt.blockHash}`);
+          console.log(`TX: Executed send tx with txHash: ${txHash} and blockHash: ${txReceipt && txReceipt.blockHash || "no tx receipt"}`);
         } else {
           const sednToUnregistered = await sedn.sedn(amount, secret);
           console.log(`TX: Send tx: ${explorerUrl}/tx/${sednToUnregistered.hash}`);
@@ -297,10 +296,11 @@ describe("Sedn Contract", function () {
             relayers[network],
             config.forwarder[network],
           );
+          console.log("sendMetaTx response", response);
           const txHash = JSON.parse(response.result).txHash;
           console.log(`TX: Claim tx: ${explorerUrl}/tx/${txHash}`);
           const txReceipt = await signer.provider.getTransactionReceipt(txHash);
-          console.log(`TX: Executed claim with txHash: ${txHash} and blockHash: ${txReceipt.blockHash}`);
+          console.log(`TX: Executed claim with txHash: ${txHash} and blockHash: ${txReceipt && txReceipt.blockHash || "no tx receipt"}`);
         } else {
           const bridgeClaim = await sedn
             .connect(recipient)
