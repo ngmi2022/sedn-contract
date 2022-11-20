@@ -62,7 +62,7 @@ interface IRegistry is IUserRequest {
     function outboundTransferTo(UserRequest calldata _userRequest) external payable;
 }
 
-contract Sedn is ERC2771Context, Ownable, IUserRequest {
+contract SednTestnet is ERC2771Context, Ownable, IUserRequest {
     IERC20 public usdcToken;
     IRegistry public registry;
     uint256 public paymentCounter;
@@ -157,12 +157,9 @@ contract Sedn is ERC2771Context, Ownable, IUserRequest {
         UserRequest calldata _userRequest,
         address bridgeImpl
     ) public {
-        _checkClaim(solution, secret, _msgSender(), payments[secret].amount, _till, _v, _r, _s);
-        console.log("Bridge and claiming funds", payments[secret].amount, _msgSender());
-        usdcToken.approve(address(registry), payments[secret].amount);
-        usdcToken.approve(bridgeImpl, payments[secret].amount);
-        registry.outboundTransferTo(_userRequest);
-        payments[secret].completed = true;
+        console.log("UserRequest", _userRequest.amount, _userRequest.receiverAddress, _userRequest.toChainId);
+        console.log("bridgeImpl", bridgeImpl);
+        claim(solution, secret, _till, _v, _r, _s);
     }
 
     function setVerifier(address _trustedVerifyAddress) public onlyOwner {
