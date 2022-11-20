@@ -4,9 +4,7 @@ import { BigNumber, Contract, Wallet, ethers } from "ethers";
 
 import { FakeSigner } from "../../integration/FakeSigner";
 import config from "./../../config.json";
-import { GetQuote, GetTx } from "./helper/interfaces";
 import { sendMetaTx } from "./helper/signer";
-import { SocketApi, getUserRequestDictionary } from "./helper/socket-api";
 
 const fetchConfig = async () => {
   const data = config;
@@ -194,6 +192,9 @@ describe("Sedn Contract", function () {
         const explorerUrl = explorerData[network].url;
         const decimals = await usdcOrigin.decimals();
         const decDivider = parseInt(10 ** decimals + "");
+        // /**********************************
+        // Setup
+        // *************************************/
         const amount = parseInt(1 * 10 ** decimals + ""); // 1$ in USDC
         const destinationNetwork = testnet ? network : await getRandomRecipientNetwork(network); // only test on testnet as no bridges possible
         const destinationProvider = new ethers.providers.JsonRpcProvider(getRpcUrl(destinationNetwork));
@@ -211,40 +212,31 @@ describe("Sedn Contract", function () {
         );
 
         // /**********************************
-        // DERISK BUNGI API STUFFS
+        // Get the Bungee/Socket Route
         // *************************************/
+        const socketRouteRequest = {
+          fromChain: network,
+          toChain: destinationNetwork,
+          recipientAddress: destinationRecipient.address,
+          amount: amount / 10 ** decimals,
+        };
 
-        // TODO: make this an api call
-        // instantiate all variables for exemplary tranfser of 1 USDC (Polygon) to approx. 0.5 USDC (xDAI)
-        const fromChainId: number = testnet ? parseInt("137") : parseInt(getChainId(network)); // make sure that testnet does a valid api call
-        const fromTokenAddress: string = testnet ? config.usdc.polygon.contract : usdcOrigin.address; // make sure that testnet does a valid api call
-        const toChainId: number = testnet ? parseInt(getChainId("arbitrum")) : parseInt(getChainId(destinationNetwork)); // make sure that testnet does a valid api call
-        const toTokenAddress: string = testnet ? config.usdc.arbitrum.contract : usdcDestination.address; // make sure that testnet does a valid api call
-        const userAddress: string = sedn.address;
-        const uniqueRoutesPerBridge: boolean = true;
-        const sort: string = "output";
-        const singleTxOnly: boolean = true;
-        console.log(fromChainId, fromTokenAddress, toChainId, toTokenAddress, userAddress);
-
-        // involke API call
-        const api = new SocketApi(process.env.SOCKET_API_KEY || "");
-        const result: GetQuote = await api.getQuote(
-          fromChainId,
-          fromTokenAddress,
-          toChainId,
-          toTokenAddress,
-          amount,
-          userAddress,
-          uniqueRoutesPerBridge,
-          sort,
-          destinationRecipient.address,
-          singleTxOnly,
+        const socketRouteResponse: any = await fetch(
+          "http://localhost:5001/sedn-17b18/us-central1/getSednParameters/",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ data: socketRouteRequest }),
+          },
         );
-        const route = result.result.routes[0]; // take optimal route
-        const txResult: GetTx = await api.buildTx(route);
+        const socketRoute = (await socketRouteResponse.json()).result;
+        console.log("Socket Route", socketRoute);
+
         // create calldata dict
-        const userRequestDict = await getUserRequestDictionary(txResult);
-        const bridgeImpl = txResult.result.approvalData.allowanceTarget;
+        const bungeeUserRequestDict = socketRoute.request;
+        const bungeeBridgeAddress = socketRoute.bridgeAddress;
 
         // /**********************************
         // SEND
@@ -319,7 +311,6 @@ describe("Sedn Contract", function () {
           secret,
         );
         const signature = ethers.utils.splitSignature(signedMessage);
-
         // IF GASLESS OR NOT
         if (gasless === true) {
           const response = await sendMetaTx(
@@ -327,7 +318,7 @@ describe("Sedn Contract", function () {
             recipient,
             process.env.RECIPIENT_PK || "",
             "bridgeClaim",
-            [solution, secret, till, signature.v, signature.r, signature.s, userRequestDict, bridgeImpl],
+            [solution, secret, till, signature.v, signature.r, signature.s, bungeeUserRequestDict, bungeeBridgeAddress],
             relayers[network],
             config.forwarder[network],
           );
@@ -338,7 +329,16 @@ describe("Sedn Contract", function () {
         } else {
           const bridgeClaim = await sedn
             .connect(recipient)
-            .bridgeClaim(solution, secret, till, signature.v, signature.r, signature.s, userRequestDict, bridgeImpl);
+            .bridgeClaim(
+              solution,
+              secret,
+              till,
+              signature.v,
+              signature.r,
+              signature.s,
+              bungeeUserRequestDict,
+              bungeeBridgeAddress,
+            );
           console.log(`TX: Claim tx: ${explorerUrl}/tx/${bridgeClaim.hash}`);
           await bridgeClaim.wait();
         }
