@@ -11,7 +11,7 @@ export default {
     exports: 'auto',
   },
   plugins: [
-    resolve({ preferBuiltins: true }),
+    resolve({ preferBuiltins: true, extensions: ['.js', '.ts'] }),
     commonjs(),
     json({ compact: true }),
   ],

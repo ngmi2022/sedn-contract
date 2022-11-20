@@ -20,5 +20,5 @@
   },
   "exclude": ["node_modules", "build/**/*"],
   "files": ["./hardhat.config.ts"],
-  "include": ["src/**/*", "tasks/**/*", "test/**/*", "gasless/upload.js", "gasless/forwarder.js"]
+  "include": ["src/**/*", "tasks/**/*", "test/**/*"]
 }

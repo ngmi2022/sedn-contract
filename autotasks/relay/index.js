@@ -1,9 +1,13 @@
 import { DefenderRelayProvider, DefenderRelaySigner } from "defender-relay-client/lib/ethers";
 import { Contract } from "ethers";
+import config from "../../config.json"
 
-import { ForwarderAbi } from "../../gasless/forwarder";
-import { forwarderAddressBook } from "../../gasless/addresses";
+import { ForwarderAbi } from "../../abis/abis";
 
+const configData = async () => {
+  const configData = await (await fetch("https://storage.googleapis.com/sedn-public-config/config.json")).json();
+  return configData;
+};
 
 async function relay(forwarder, request, signature) {
   // Validate request on the forwarder contract
@@ -12,7 +16,7 @@ async function relay(forwarder, request, signature) {
 
   // Send meta-tx through relayer to the forwarder contract
   const gasLimit = (parseInt(request.gas) + 50000).toString();
-  return await forwarder.execute(request, signature, { gasLimit });
+  return await forwarder.execute(request, signature, { gasLimit, });
 }
 
 async function handler(event) {
@@ -25,10 +29,12 @@ async function handler(event) {
   const credentials = { ...event };
   const provider = new DefenderRelayProvider(credentials);
   // get chain id for multichain functionality
-  const networkName = (await provider.getNetwork()).name;
-  const ForwarderAddress = forwarderAddressBook[networkName]["MinimalForwarder"];
+  const { chainId, name } = await provider.getNetwork();
+  const networkName = chainId == 421613 ? "arbitrum-goerli" : name;
+  const forwarderAddress = config.forwarder[networkName];
+  console.log("forwarder address", forwarderAddress);
   const signer = new DefenderRelaySigner(credentials, provider, { speed: "fast" });
-  const forwarder = new Contract(ForwarderAddress, ForwarderAbi, signer);
+  const forwarder = new Contract(forwarderAddress, ForwarderAbi, signer);
 
   // Relay transaction!
   const tx = await relay(forwarder, request, signature);

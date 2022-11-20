@@ -7,9 +7,9 @@ import { ObjectEncodingOptions } from "fs";
 import { ethers, network } from "hardhat";
 import { it } from "mocha";
 
-import { signMetaTxRequest } from "../../gasless/signer";
 import { FakeSigner } from "../../integration/FakeSigner";
 import { deploySedn } from "../../integration/sedn.contract";
+import { signMetaTxRequest } from "../../integration/sedn/helper/signer";
 import { Sedn } from "../../src/types/contracts/Sedn.sol/Sedn";
 import { restoreSnapshot, takeSnapshot } from "../utils/network";
 
@@ -183,35 +183,6 @@ describe("Sedn", function () {
         );
       const afterClaim = await usdc.balanceOf(contract.address);
       expect(beforeClaim.sub(afterClaim)).to.equal(10);
-    });
-
-    it("should work with a meta tx", async function () {
-      const amount = 0;
-      await contract.deployed();
-      const account = accounts[0];
-
-      // connect forwarder contract
-      const requirements = getRequirements();
-      const minimalForwarder = (await requirements).minimalForwarder;
-      const relayer = (await requirements).relayer;
-
-      // Send
-      await usdc.connect(account);
-      const beforeSedn = await usdc.balanceOf(account.address);
-      const solution = "Hello World!";
-      const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
-      await minimalForwarder.connect(relayer);
-      const sednAddress: string = contract.address;
-      const txData: string = contract.interface.encodeFunctionData("sedn", [amount, secret]);
-      const { request, signature } = await signMetaTxRequest(account.provider, minimalForwarder, {
-        from: account.address,
-        to: sednAddress,
-        data: txData,
-      });
-      await minimalForwarder.execute(request, signature).then((tx: { wait: () => any }) => tx.wait());
-      const afterSedn = await usdc.balanceOf(account.address);
-      expect(beforeSedn.sub(afterSedn)).to.equal(amount);
-      expect(await usdc.balanceOf(contract.address)).to.equal(amount);
     });
   });
 });

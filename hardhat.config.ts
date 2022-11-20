@@ -40,6 +40,8 @@ const chainIds = {
   rinkeby: 4,
   goerli: 5,
   gnosis: 100,
+  sepolia: 11155111,
+  "arbitrum-goerli": 421613,
 };
 
 function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
@@ -70,6 +72,11 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
       jsonRpcUrl =
         "https://cosmopolitan-cold-water.arbitrum-mainnet.discover.quiknode.pro/ed37e37499d524083f3ae91b9f095ac41d3821b5/";
       break;
+    case "goerli":
+      jsonRpcUrl = "https://goerli.infura.io/v3/";
+      accounts = [process.env.GOERLI_PK];
+    case "arbitrum-goerli":
+      jsonRpcUrl = "https://arbitrum-goerli.infura.io/v3/" + infuraApiKey;
     default:
       jsonRpcUrl = "https://" + chain + ".infura.io/v3/" + infuraApiKey;
   }
@@ -92,9 +99,20 @@ const config: HardhatUserConfig = {
       polygon: process.env.POLYGONSCAN_API_KEY || "",
       polygonMumbai: process.env.POLYGONSCAN_API_KEY || "",
       rinkeby: process.env.ETHERSCAN_API_KEY || "",
-      gnosis: process.env.GNOSISSCAN_API_KEY || "",
+      goerli: process.env.ETHERSCAN_API_KEY || "",
+      sepolia: process.env.ETHERSCAN_API_KEY || "",
+      "arbitrum-goerli": process.env.ARBISCAN_API_KEY || "",
     },
-    customChains: [],
+    customChains: [
+      {
+        network: "arbitrum-goerli",
+        chainId: 421613,
+        urls: {
+          apiURL: "https://api-goerli.arbiscan.io/api?",
+          browserURL: "https://goerli.arbiscan.io/",
+        },
+      },
+    ],
   },
   gasReporter: {
     currency: "USD",
@@ -121,11 +139,10 @@ const config: HardhatUserConfig = {
     "polygon-mainnet": getChainConfig("polygon-mainnet"),
     "polygon-mumbai": getChainConfig("polygon-mumbai"),
     rinkeby: getChainConfig("rinkeby"),
+    sepolia: getChainConfig("sepolia"),
     gnosis: getChainConfig("gnosis"),
-    goerli: {
-      url: "https://goerli.infura.io/v3/" + infuraApiKey,
-      accounts: [process.env.POLYGON_PK as string],
-    },
+    goerli: getChainConfig("goerli"),
+    "arbitrum-goerli": getChainConfig("arbitrum-goerli"),
   },
   paths: {
     artifacts: "./artifacts",

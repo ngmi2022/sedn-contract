@@ -12,10 +12,12 @@ task("deploy:forwarder").setAction(async function (taskArguments: TaskArguments,
   const signers: SignerWithAddress[] = await ethers.getSigners();
   const forwarderFactory: MinimalForwarder__factory = await ethers.getContractFactory("MinimalForwarder");
   const forwarder: MinimalForwarder = await forwarderFactory.connect(signers[0]).deploy();
+  console.log(console.log(forwarder.deployTransaction.hash));
   await forwarder.deployed();
   console.log("Forwarder deployed to: ", forwarder.address);
   if (network.name !== "hardhat") {
     // Verify contract on Etherscan
+    console.log(network.name);
     await timeout(60000); // We may have to wait a bit until etherscan can read the contract
     await run("verify:verify", {
       address: forwarder.address,

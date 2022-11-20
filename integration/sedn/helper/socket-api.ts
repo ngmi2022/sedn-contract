@@ -106,6 +106,7 @@ class SocketApi {
 }
 
 async function getUserRequestDictionary(txResult: GetTx) {
+  // console.log(txResult.result.txData);
   const txData: string = txResult.result.txData;
   const iFace = new ethers.utils.Interface(registryAbiOutboundTransfer);
   const jsonTxData = JSON.stringify(iFace.decodeFunctionData("outboundTransferTo", txData)[0]);

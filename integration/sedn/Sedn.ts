@@ -1,79 +1,33 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
-import { Provider } from "@ethersproject/providers";
-import { expect, util } from "chai";
-import { time } from "console";
 import fetch from "cross-fetch";
-import { BigNumber, Contract, Signer, Wallet, ethers, utils } from "ethers";
+import { BigNumber, Contract, Wallet, ethers } from "ethers";
 
-import { forwarderAddressBook } from "../../gasless/addresses";
-import { ForwarderAbi } from "../../gasless/forwarder";
-import { signMetaTxRequest } from "../../gasless/signer";
 import { FakeSigner } from "../../integration/FakeSigner";
+import config from "./../../config.json";
 import { GetQuote, GetTx } from "./helper/interfaces";
+import { sendMetaTx } from "./helper/signer";
 import { SocketApi, getUserRequestDictionary } from "./helper/socket-api";
 
 const fetchConfig = async () => {
-  const data: any = await (await fetch("https://api.github.com/gists/3a4dab1609b9fa3a9e86cb40568cd7d2")).json();
-  return JSON.parse(data.files["sedn.json"].content);
+  const data = config;
+  return data;
+  // const data: any = await (await fetch("https://api.github.com/gists/3a4dab1609b9fa3a9e86cb40568cd7d2")).json();
+  // return JSON.parse(data.files["sedn.json"].content);
 };
 
-// some params & functions to facilitate metaTX testing
-const workWithMetaTxContracts: boolean = true;
-const metaTxContracts: any = {
-  contracts: {
-    polygon: "0x579E9809C0E06711A815698ebCd38b210621760a",
-    arbitrum: "0x8DC32778b81f7C2A537647CCf7fac2F8BC713f9C",
-  },
-  testRecipient: {
-    polygon: "0x3906d98287847E4Ac8Ee44A87d3fCea531E5692F",
-    arbitrum: "0x3906d98287847E4Ac8Ee44A87d3fCea531E5692F",
-  },
-  usdc: {
-    polygon: {
-      abi: "0xDD9185DB084f5C4fFf3b4f70E7bA62123b812226",
-      contract: "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
-    },
-    arbitrum: {
-      abi: "0x1efb3f88bc88f03fd1804a5c53b7141bbef5ded8",
-      contract: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
-    },
-  },
-  verifier: "0xe0c2eE53925fBe98319ac1f5653677e551E10AD7",
-};
+// some params & functions to facilitate metaTX testing / testnet
+const gasless: boolean = true;
+const testnet: boolean = true;
 const relayers: any = {
   polygon:
     "https://api.defender.openzeppelin.com/autotasks/507b3f04-18d3-41ab-9484-701a01fc2ffe/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/PjcQDaaG11CYHoJJ1Khcj3",
   arbitrum:
     "https://api.defender.openzeppelin.com/autotasks/8e4e19b7-0103-4552-ab68-3646966ab186/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/Th57r6KwhiVCjTbJmUwBHa",
+  "arbitrum-goerli":
+    "https://api.defender.openzeppelin.com/autotasks/ce515ed3-d267-4654-8843-e9fe7047c05d/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/NifTewFznuMPfh9t5ehvQ7",
 };
 
-async function sendMetaTx(
-  sednContract: Contract,
-  provider: Provider,
-  signer: Signer,
-  signerKey: string,
-  funcName: string,
-  funcArgs: any[],
-  chainName: string,
-) {
-  const url: string = relayers[chainName];
-  if (!url) throw new Error(`Missing relayer url`);
-
-  const forwarder = new ethers.Contract(forwarderAddressBook[chainName].MinimalForwarder, ForwarderAbi, signer);
-  const from = await signer.getAddress();
-  const data = sednContract.interface.encodeFunctionData(funcName, funcArgs);
-  const to = sednContract.address;
-
-  const request = await signMetaTxRequest(signerKey, forwarder, { to, from, data });
-  const txHash = await fetch(url, {
-    method: "POST",
-    body: JSON.stringify(request),
-    headers: { "Content-Type": "application/json" },
-  });
-  console.log(txHash);
-  return txHash;
-}
-
+// Infura URL
 const getRpcUrl = (network: string) => {
   const infuraKey: string = process.env.INFURA_API_KEY as string;
   switch (network) {
@@ -85,26 +39,50 @@ const getRpcUrl = (network: string) => {
       return "https://arbitrum-mainnet.infura.io/v3/" + infuraKey;
     case "goerli":
       return "https://goerli.infura.io/v3/" + infuraKey;
+    case "sepolia":
+      return "https://sepolia.infura.io/v3/" + infuraKey;
+    case "arbitrum-goerli":
+      return "https://arbitrum-goerli.infura.io/v3/" + infuraKey;
     default:
-      throw new Error("Network not supported");
+      throw new Error("Network not supported: Infura");
   }
 };
 
-const getExplorerUrl = (network: string) => {
-  switch (network) {
-    case "mainnet":
-      return "https://etherscan.com";
-    case "polygon":
-      return "https://polygonscan.com";
-    case "arbitrum":
-      return "https://arbiscan.io";
-    case "goerli":
-      return "https://goerli.etherscan.io";
-    default:
-      throw new Error("Network not supported");
-  }
+// Etherscan data
+const explorerData: any = {
+  mainnet: {
+    url: "https://etherscan.com",
+    api: "https://api.etherscan.io/api",
+    apiKey: process.env.ETHERSCAN_API_KEY || "",
+  },
+  polygon: {
+    url: "https://polygonscan.com",
+    api: "https://api.polygonscan.com/api",
+    apiKey: process.env.POLYGONSCAN_API_KEY || "",
+  },
+  arbitrum: {
+    url: "https://arbiscan.io",
+    api: "https://api.arbiscan.io/api",
+    apiKey: process.env.ARBISCAN_API_KEY || "",
+  },
+  goerli: {
+    url: "https://goerli.etherscan.io",
+    api: "https://api-goerli.etherscan.io/api",
+    apiKey: process.env.ETHERSCAN_API_KEY || "",
+  },
+  sepolia: {
+    url: "https://sepolia.etherscan.io",
+    api: "https://api-sepolia.etherscan.io/api",
+    apiKey: process.env.ETHERSCAN_API_KEY || "",
+  },
+  "arbitrum-goerli": {
+    url: "https://goerli.arbiscan.io/",
+    api: "https://api-goerli.arbiscan.io/api",
+    apiKey: process.env.ARBISCAN_API_KEY || "",
+  },
 };
 
+// getting chain Id ?? do we need this?
 const getChainId = (network: string) => {
   switch (network) {
     case "mainnet":
@@ -117,32 +95,49 @@ const getChainId = (network: string) => {
       return "100";
     case "goerli":
       return "4";
+    case "sepolia":
+      return "11155111";
+    case "arbitrum-goerli":
+      return "421613";
     default:
-      throw new Error("Network not supported");
+      throw new Error("Network not supported: ChainID");
   }
 };
 
-const getAbi = async (network: string, contract: string) => {
+export const feeData = async (network: string, signer: Wallet) => {
   switch (network) {
-    case "mainnet":
-      return "https://etherscan.com";
     case "polygon":
-      const explorerApi = require("polygonscan-api").init(process.env.POLYGONSCAN_API_KEY);
-      const result = await explorerApi.contract.getabi(contract);
-      return result.result[0].ABI;
-    case "arbitrum":
-      const data: any = await (
-        await fetch(
-          `https://api.arbiscan.io/api?module=contract&action=getabi&address=${contract}&apikey=${process.env.ARBISCAN_API_KEY}`,
-        )
-      ).json();
-      return JSON.parse(data.result);
+      const fees = await fetch("https://gasstation-mainnet.matic.network/v2").then(response => response.json());
+      return {
+        maxFee: ethers.utils.parseUnits(Math.ceil(fees.fast.maxFee) + "", "gwei"),
+        maxPriorityFee: ethers.utils.parseUnits(Math.ceil(fees.fast.maxPriorityFee) + "", "gwei"),
+      };
     default:
-      throw new Error("Network not supported");
+      const feesData = await signer.provider?.getFeeData();
+      return {
+        maxFee: feesData.maxFeePerGas,
+        maxPriorityFee: feesData.maxPriorityFeePerGas,
+      };
   }
 };
 
+// standardized method of getting etherscan-based abi's
+const getAbi = async (network: string, contract: string) => {
+  if (explorerData[network] === undefined) {
+    throw new Error("Network not supported: explorerData");
+  }
+  const apiUrl = explorerData[network].api;
+  const apiKey = explorerData[network].apiKey;
+  const data: any = await (
+    await fetch(`${apiUrl}?module=contract&action=getabi&address=${contract}&apikey=${apiKey}`)
+  ).json();
+  return JSON.parse(data.result);
+};
+
+// no testnets need to be included
 const supportedNetworks = ["polygon", "arbitrum"];
+// dependent on use case
+const networksToTest = testnet ? ["arbitrum-goerli"] : ["polygon"];
 
 const getRandomRecipientNetwork = async (fromNetwork: string) => {
   const networks = supportedNetworks.filter(network => network !== fromNetwork);
@@ -152,76 +147,67 @@ const getRandomRecipientNetwork = async (fromNetwork: string) => {
 
 describe("Sedn Contract", function () {
   async function getSedn(network: string) {
-    // ensure that correct contracts will be pulled based on testing workWithmMetaTxContracts=true
     let config = await fetchConfig();
-    if (workWithMetaTxContracts === true) {
-      config = metaTxContracts;
-    }
     const sednContract = config.contracts[network];
 
     // TODO: support other providers
     const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(network));
-    const feeData = await provider.getFeeData();
     const signer = new ethers.Wallet(process.env.SENDER_PK || "", provider);
     const verifier = new ethers.Wallet(process.env.VERIFIER_PK || "", provider);
     const recipient = new ethers.Wallet(process.env.RECIPIENT_PK || "", provider);
     // Get Sedn
     const sedn = new ethers.Contract(sednContract, await getAbi(network, sednContract), signer);
-    const usdcSenderNetwork = new ethers.Contract(
+    const usdcOrigin = new ethers.Contract(
       config.usdc[network].contract,
       await getAbi(network, config.usdc[network].abi),
       signer,
     );
 
-    return { sedn, usdcSenderNetwork, signer, verifier, feeData, config, recipient };
+    return { sedn, usdcOrigin, signer, verifier, config, recipient };
   }
-  [
-    "polygon",
-    //'arbitrum'
-  ].forEach(function (network) {
+  networksToTest.forEach(function (network) {
     describe(`Sedn from ${network}`, function () {
       let sedn: Contract;
-      let usdcSenderNetwork: Contract;
+      let usdcOrigin: Contract;
       let signer: Wallet;
       let recipient: Wallet;
-      let feeData: any;
       let trusted: FakeSigner;
       let config: any;
       beforeEach(async function () {
         const deployed = await getSedn(network);
         sedn = deployed.sedn;
-        usdcSenderNetwork = deployed.usdcSenderNetwork;
+        usdcOrigin = deployed.usdcOrigin;
         signer = deployed.signer;
-        feeData = deployed.feeData;
-        trusted = new FakeSigner(deployed.verifier, sedn.address);
         config = deployed.config;
         recipient = deployed.recipient;
 
+        trusted = new FakeSigner(deployed.verifier, sedn.address);
         if (trusted.getAddress() !== deployed.config.verifier) {
           const error = new Error(
-            `Using the wrong verifier: expected ${deployed.config.verifier} got  ${trusted.getAddress()}`,
+            `Using the wrong verifier: expected ${deployed.config.verifier} got ${trusted.getAddress()}`,
           );
           console.error(error);
           throw error;
         }
       });
       it("send funds to an unregistered user who claims it on a different chain", async function () {
-        const explorerUrl = getExplorerUrl(network);
-        const decimals = await usdcSenderNetwork.decimals();
+        const explorerUrl = explorerData[network].url;
+        const decimals = await usdcOrigin.decimals();
+        const decDivider = parseInt(10 ** decimals + "");
         const amount = parseInt(1 * 10 ** decimals + ""); // 1$ in USDC
-        const recipientNetwork = await getRandomRecipientNetwork(network);
-        const recipientAddress = config.testRecipient[recipientNetwork];
-        const usdcRecipientNetwork = new ethers.Contract(
-          config.usdc[network].contract,
-          await getAbi(network, config.usdc[network].abi),
-          signer,
+        const destinationNetwork = testnet ? network : await getRandomRecipientNetwork(network); // only test on testnet as no bridges possible
+        const destinationProvider = new ethers.providers.JsonRpcProvider(getRpcUrl(destinationNetwork));
+        const destinationRecipient = new ethers.Wallet(process.env.RECIPIENT_PK || "", destinationProvider);
+        const usdcDestination = new ethers.Contract(
+          config.usdc[destinationNetwork].contract,
+          await getAbi(destinationNetwork, config.usdc[destinationNetwork].abi),
+          destinationRecipient,
         );
-        expect(recipientAddress).to.equal(recipient.address);
 
         console.log(
-          `Sending ${amount / 10 ** decimals}USDC from ${
-            signer.address
-          } (${network}) to ${recipientAddress} (${recipientNetwork})`,
+          `INFO: Sending ${amount / decDivider} USDC from ${signer.address} (${network}) to ${
+            destinationRecipient.address
+          } (${destinationNetwork})`,
         );
 
         // /**********************************
@@ -230,14 +216,15 @@ describe("Sedn Contract", function () {
 
         // TODO: make this an api call
         // instantiate all variables for exemplary tranfser of 1 USDC (Polygon) to approx. 0.5 USDC (xDAI)
-        const fromChainId: number = parseInt(getChainId(network));
-        const fromTokenAddress: string = usdcSenderNetwork.address;
-        const toChainId: number = parseInt(getChainId(recipientNetwork));
-        const toTokenAddress: string = config.usdc[recipientNetwork].contract;
+        const fromChainId: number = testnet ? parseInt("137") : parseInt(getChainId(network)); // make sure that testnet does a valid api call
+        const fromTokenAddress: string = testnet ? config.usdc.polygon.contract : usdcOrigin.address; // make sure that testnet does a valid api call
+        const toChainId: number = testnet ? parseInt(getChainId("arbitrum")) : parseInt(getChainId(destinationNetwork)); // make sure that testnet does a valid api call
+        const toTokenAddress: string = testnet ? config.usdc.arbitrum.contract : usdcDestination.address; // make sure that testnet does a valid api call
         const userAddress: string = sedn.address;
         const uniqueRoutesPerBridge: boolean = true;
         const sort: string = "output";
         const singleTxOnly: boolean = true;
+        console.log(fromChainId, fromTokenAddress, toChainId, toTokenAddress, userAddress);
 
         // involke API call
         const api = new SocketApi(process.env.SOCKET_API_KEY || "");
@@ -250,7 +237,7 @@ describe("Sedn Contract", function () {
           userAddress,
           uniqueRoutesPerBridge,
           sort,
-          recipientAddress,
+          destinationRecipient.address,
           singleTxOnly,
         );
         const route = result.result.routes[0]; // take optimal route
@@ -263,78 +250,106 @@ describe("Sedn Contract", function () {
         // SEND
         // *************************************/
 
-        const getApproveGas = (network: string, gasEstimate: BigNumber) => {
-          switch (network) {
-            case "arbitrum":
-              return { gasLimit: approveGas.mul(2) };
-            default:
-              return { gasPrice: feeData.gasPrice, gasLimit: approveGas.mul(10) };
-          }
-        };
-
-        const solution = (Math.random() + 1).toString(36).substring(7);
-        // const solution = "xf471";
+        // SECRET HASHING
+        const solution = "admfn"; //admfn
+        // const solution = (Math.random() + 1).toString(36).substring(7);
         const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
-        console.log(`Running with solution '${solution}' and secret '${secret}'`);
+        console.log(`INFO: Running with solution '${solution}' and secret '${secret}'`);
 
-        const beforeSend = await usdcSenderNetwork.balanceOf(signer.address);
-        console.log("before", parseInt(beforeSend.toString() + "") / 10 ** decimals);
+        const beforeSend = await usdcOrigin.balanceOf(signer.address);
+        console.log(typeof beforeSend);
+        console.log(
+          `ACCOUNTS: SenderOrigin inital state (${network}:${signer.address}) ${beforeSend.toNumber() / decDivider}`,
+        );
         // TODO: how can we get a better value for gas limit here?
-        const approveGas = await usdcSenderNetwork.estimateGas.approve(sedn.address, amount);
-        console.log("approveGas", approveGas.toString());
-        const approve = await usdcSenderNetwork.approve(sedn.address, amount, getApproveGas(network, approveGas));
-        console.log(`approve tx: ${explorerUrl}/tx/${approve.hash}`);
-        await approve.wait();
-        console.log("approved");
-
-        const sednToUnregistered = await sedn.sedn(amount, secret, {
-          gasPrice: feeData.gasPrice,
-          gasLimit: 1000000,
+        const fees = await feeData(network, signer);
+        const approve = await usdcOrigin.approve(sedn.address, amount, {
+          maxFeePerGas: fees.maxFee,
+          maxPriorityFeePerGas: fees.maxPriorityFee,
         });
-        console.log(`send tx: ${explorerUrl}/tx/${sednToUnregistered.hash}`);
-        await sednToUnregistered.wait();
-        console.log("sent");
+        console.log(`TX: Approve tx: ${explorerUrl}/tx/${approve.hash}`);
+        await approve.wait();
+        console.log("TX: Executed approve");
 
-        const afterSend = await usdcSenderNetwork.balanceOf(signer.address);
-        console.log("afterSend", afterSend.toString());
+        // ACTUAL SEDN & DECIDE OF GASLESS OR NOT
+        if (gasless === true) {
+          const response = await sendMetaTx(
+            sedn,
+            signer,
+            process.env.SENDER_PK || "",
+            "sedn",
+            [amount, secret],
+            relayers[network],
+            config.forwarder[network],
+          );
+          const txHash = JSON.parse(response.result).txHash;
+          console.log(`TX: Send tx: ${explorerUrl}/tx/${txHash}`);
+          const txReceipt = await signer.provider.getTransactionReceipt(txHash);
+          console.log(`TX: Executed send tx with txHash: ${txHash} and blockHash: ${txReceipt.blockHash}`);
+        } else {
+          const sednToUnregistered = await sedn.sedn(amount, secret);
+          console.log(`TX: Send tx: ${explorerUrl}/tx/${sednToUnregistered.hash}`);
+          await sednToUnregistered.wait();
+          console.log("TX: executed send tx");
+        }
+        // check sedn
+        const afterSend = await usdcOrigin.balanceOf(signer.address);
+        console.log(
+          `ACCOUNTS: SenderOrigin state after 'send' transaction (${network}:${signer.address}) ${
+            afterSend.toNumber() / decDivider
+          }`,
+        );
 
         // --------------------------
         // Claim
         // --------------------------
-        const beforeClaim = await usdcRecipientNetwork.balanceOf(recipientAddress);
-        console.log(`beforeClaim (${recipientNetwork}:${recipientAddress}) ${beforeClaim.toString()}`);
+        const beforeClaim = await usdcDestination.balanceOf(destinationRecipient.address);
+        console.log(
+          `ACCOUNTS: RecipientDestination balance inital state (${destinationNetwork}:${
+            destinationRecipient.address
+          }) ${beforeClaim.toNumber() / decDivider}`,
+        );
 
         // Claim
         const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 1000;
-        const signedMessage = await trusted.signMessage(BigNumber.from(amount), recipientAddress, till, secret);
+        const signedMessage = await trusted.signMessage(
+          BigNumber.from(amount),
+          destinationRecipient.address,
+          till,
+          secret,
+        );
         const signature = ethers.utils.splitSignature(signedMessage);
-        if (workWithMetaTxContracts === true) {
-          await sendMetaTx(
+
+        // IF GASLESS OR NOT
+        if (gasless === true) {
+          const response = await sendMetaTx(
             sedn,
-            recipient.provider,
             recipient,
             process.env.RECIPIENT_PK || "",
             "bridgeClaim",
             [solution, secret, till, signature.v, signature.r, signature.s, userRequestDict, bridgeImpl],
-            network,
+            relayers[network],
+            config.forwarder[network],
           );
+          const txHash = JSON.parse(response.result).txHash;
+          console.log(`TX: Claim tx: ${explorerUrl}/tx/${txHash}`);
+          const txReceipt = await signer.provider.getTransactionReceipt(txHash);
+          console.log(`TX: Executed claim with txHash: ${txHash} and blockHash: ${txReceipt.blockHash}`);
         } else {
           const bridgeClaim = await sedn
             .connect(recipient)
-            .bridgeClaim(solution, secret, till, signature.v, signature.r, signature.s, userRequestDict, bridgeImpl, {
-              gasPrice: feeData.gasPrice,
-              gasLimit: 5500000,
-            });
-          console.log(`claim tx: ${explorerUrl}/tx/${bridgeClaim.hash}`);
+            .bridgeClaim(solution, secret, till, signature.v, signature.r, signature.s, userRequestDict, bridgeImpl);
+          console.log(`TX: Claim tx: ${explorerUrl}/tx/${bridgeClaim.hash}`);
           await bridgeClaim.wait();
         }
-        console.log("claimed");
-        sedn.on("bridgeClaim", (sol, two) => {
-          console.log("bridgeClaim happened", sol, two);
-        });
-        const afterClaim = await usdcRecipientNetwork.balanceOf(recipientAddress);
-        console.log(`afterClaim (${recipientNetwork}:${recipientAddress}) ${afterClaim.toString()}`);
-        console.log("claimed", afterClaim.sub(beforeClaim).toString());
+        console.log("TX: Executed claim");
+        const afterClaim = await usdcDestination.balanceOf(destinationRecipient.address);
+        console.log(
+          `ACCOUNTS: RecipientDestination balance after 'claim' (${destinationNetwork}:${
+            destinationRecipient.address
+          }) ${afterClaim.toNumber() / decDivider}`,
+        );
+        console.log("INFO: Claimed", afterClaim.sub(beforeClaim).toNumber() / decDivider);
       });
     });
   });

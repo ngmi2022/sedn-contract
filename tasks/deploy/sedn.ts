@@ -4,7 +4,6 @@ import fetch from "cross-fetch";
 import { task } from "hardhat/config";
 import type { TaskArguments } from "hardhat/types";
 
-import { forwarderAddressBook } from "../../gasless/addresses";
 import type { Sedn, Sedn__factory } from "../../src/types";
 
 function timeout(ms: number) {
@@ -21,9 +20,9 @@ const usdcTokenAddressess: any = {
   arbitrum: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
 };
 
-const fetchVerifierAddress = async () => {
-  const data: any = await (await fetch("https://api.github.com/gists/3a4dab1609b9fa3a9e86cb40568cd7d2")).json();
-  return JSON.parse(data.files["sedn.json"].content).verifier;
+const getConfig = async () => {
+  const data: any = await (await fetch("https://storage.googleapis.com/sedn-public-config/config.json")).json();
+  return data;
 };
 
 task("deploy:Sedn").setAction(async function (taskArguments: TaskArguments, { ethers, run, network }) {
@@ -33,8 +32,9 @@ task("deploy:Sedn").setAction(async function (taskArguments: TaskArguments, { et
   const registryAddress: string =
     ch_id !== 31337 ? addresses[ch_id][registry] : "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0";
   const sednFactory: Sedn__factory = await ethers.getContractFactory("Sedn");
-  const trustedForwarder = forwarderAddressBook[network.name]["MinimalForwarder"];
-  const verifier = await fetchVerifierAddress();
+  const configData = await getConfig();
+  const trustedForwarder = configData.forwarder.network;
+  const verifier = configData.verifier;
   const sedn: Sedn = await sednFactory
     .connect(signers[0])
     .deploy(usdcTokenAddressess[network.name], registryAddress, verifier, trustedForwarder);
