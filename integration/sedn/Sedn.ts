@@ -207,7 +207,7 @@ describe("Sedn Contract", function () {
           },
         );
         const socketRoute = (await socketRouteResponse.json()).result;
-        console.log("Socket Route", JSON.stringify(socketRoute), JSON.stringify(socketRouteRequest));
+        console.log("Socket Route", 'https://us-central1-sedn-17b18.cloudfunctions.net/getSednParameters/', JSON.stringify({ data: socketRouteRequest }), JSON.stringify(socketRoute));
 
         // create calldata dict
         const bungeeUserRequestDict = socketRoute.request;
