@@ -7,6 +7,12 @@ env:
   GOERLI_PK: ${{ secrets.GOERLI_PK }}
   ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
   POLYGONSCAN_API_KEY: ${{ secrets.POLYGONSCAN_API_KEY }}
+  ARBISCAN_API_KEY: ${{ secrets.ARBISCAN_API_KEY }}
+  SENDER_PK: ${{ secrets.SENDER_PK }}
+  VERIFIER_PK: ${{ secrets.VERIFIER_PK }}
+  RECIPIENT_PK: ${{ secrets.RECIPIENT_PK }}
+
+  CONTEXT: github
 
 on:
   workflow_dispatch:
@@ -51,24 +57,29 @@ jobs:
           cache: "yarn"
           node-version: "16"
 
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+
+      - uses: actions/cache@v3
+        id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
       - name: "Install the dependencies"
         run: "yarn install --immutable"
 
-      # - name: "Lint the code"
-      #   run: "yarn lint"
+      - name: "Validate"
+        run: "yarn integration"
+        env:
+          FROM_CHAINS: ${{ inputs.fromChains }}
+          TO_CHAINS: ${{ inputs.toChains }}
+          AMOUNT: ${{ inputs.amount }}
 
-      # - name: "Add lint summary"
-      #   run: |
-      #     echo "## Lint results" >> $GITHUB_STEP_SUMMARY
-      #     echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
-
-      # - name: "Compile the contracts and generate the TypeChain bindings"
-      #   run: "yarn typechain"
-
-      # - name: "Test the contracts and generate the coverage report"
-      #   run: "yarn coverage"
-
-      # - name: "Add test summary"
-      #   run: |
-      #     echo "## Test results" >> $GITHUB_STEP_SUMMARY
-      #     echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
+      - name: "Add test summary"
+        run: |
+          echo "## Test results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
