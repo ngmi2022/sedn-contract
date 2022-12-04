@@ -54,21 +54,14 @@ jobs:
       - name: "Install the dependencies"
         run: "yarn install --immutable"
 
-      # - name: "Lint the code"
-      #   run: "yarn lint"
+      - name: "Validate"
+        run: "yarn integration"
+        env:
+          FROM_CHAINS: ${{ inputs.fromChains }}
+          TO_CHAINS: ${{ inputs.toChains }}
+          AMOUNT: ${{ inputs.amount }}
 
-      # - name: "Add lint summary"
-      #   run: |
-      #     echo "## Lint results" >> $GITHUB_STEP_SUMMARY
-      #     echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
-
-      # - name: "Compile the contracts and generate the TypeChain bindings"
-      #   run: "yarn typechain"
-
-      # - name: "Test the contracts and generate the coverage report"
-      #   run: "yarn coverage"
-
-      # - name: "Add test summary"
-      #   run: |
-      #     echo "## Test results" >> $GITHUB_STEP_SUMMARY
-      #     echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
+      - name: "Add test summary"
+        run: |
+          echo "## Test results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
