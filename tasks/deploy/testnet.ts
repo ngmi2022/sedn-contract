@@ -22,11 +22,9 @@ const config = async () => {
 task("deploy:testnet").setAction(async function (taskArguments: TaskArguments, { ethers, run, network }) {
   const signers: SignerWithAddress[] = await ethers.getSigners();
   const configData = await config();
-  const ch_id: number = network.config.chainId!;
-  const registryAddress: string = "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0"; // mainnet registry address, could reall be anything
+  const registryAddress: string = "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0"; // mainnet registry address, could really be anything
   const sednFactory: SednTestnet__factory = await ethers.getContractFactory("SednTestnet");
-  // const trustedForwarder = configData.forwarder[network.name];
-  const trustedForwarder = "0x8DC32778b81f7C2A537647CCf7fac2F8BC713f9C";
+  const trustedForwarder = configData.forwarder[network.name];
   const verifier = configData.verifier;
   const sedn: SednTestnet = await sednFactory
     .connect(signers[0])

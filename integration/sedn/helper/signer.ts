@@ -1,7 +1,6 @@
 import { SignTypedDataVersion, signTypedData } from "@metamask/eth-sig-util";
 import { fetch } from "cross-fetch";
 import { Contract, Signer, ethers } from "ethers";
-import { gunzip } from "zlib";
 
 import { ForwarderAbi } from "../../../abis/abis";
 
@@ -62,6 +61,7 @@ export async function sendMetaTx(
   signerKey: string,
   funcName: string,
   funcArgs: any[],
+  txValue: BigInt,
   url: string,
   forwarderAddress: string,
 ) {
@@ -71,8 +71,9 @@ export async function sendMetaTx(
   const from = await signer.getAddress();
   const data = sednContract.interface.encodeFunctionData(funcName, funcArgs);
   const to = sednContract.address;
+  const value = txValue.toString();
 
-  const request = await signMetaTxRequest(signerKey, forwarder, { to, from, data });
+  const request = await signMetaTxRequest(signerKey, forwarder, { to, from, data, value });
   const response = await fetch(url, {
     method: "POST",
     body: JSON.stringify(request),
