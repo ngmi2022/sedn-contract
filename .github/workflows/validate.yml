@@ -32,6 +32,36 @@ on:
         default: 0.5
         required: true
         type: number
+      environment:
+        description: 'The config file to use'
+        required: true
+        default: 'prod' 
+        type: choice
+        options:
+        - staging
+        - prod
+  workflow_call:
+    inputs:
+      fromChains:
+        description: 'Comma separated from chains e.g. polygon,arbitrum'
+        required: false
+        default: 'ALL'
+        type: string
+      toChains:
+        description: 'Comma separated recipient chains e.g. polygon,arbitrum'
+        required: false
+        default: 'ALL'
+        type: string
+      amount:
+        description: 'The amount to be sent'
+        default: 0.5
+        required: false
+        type: number
+      environment:
+        description: 'The config file to use'
+        required: true
+        default: 'prod' 
+        type: string
 
 jobs:
   log-the-inputs:
@@ -41,11 +71,13 @@ jobs:
           echo "From Chains: $FROM_CHAINS"
           echo "To Chains: $TO_CHAINS"
           echo "Amount: $AMOUNT"
+          echo "Environment: $ENVIRONMENT"
         env:
           FROM_CHAINS: ${{ inputs.fromChains }}
           TO_CHAINS: ${{ inputs.toChains }}
           AMOUNT: ${{ inputs.amount }}
-  ci:
+          ENVIRONMENT: ${{ inputs.environment }}
+  validate:
     runs-on: "ubuntu-latest"
     steps:
       - name: "Check out the repo"
@@ -73,11 +105,12 @@ jobs:
         run: "yarn install --immutable"
 
       - name: "Validate"
-        run: "yarn integration"
+        run: "yarn integration:$ENVIRONMENT"
         env:
           FROM_CHAINS: ${{ inputs.fromChains }}
           TO_CHAINS: ${{ inputs.toChains }}
           AMOUNT: ${{ inputs.amount }}
+          ENVIRONMENT: ${{ inputs.environment }}
 
       - name: "Add test summary"
         run: |

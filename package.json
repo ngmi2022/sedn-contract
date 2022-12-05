@@ -94,10 +94,12 @@
     "prettier": "prettier --config ./.prettierrc.yml --write \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier:check": "prettier --check --config ./.prettierrc.yml \"**/*.{js,json,md,sol,ts,yml}\"",
     "test": "hardhat test",
-    "integration": "hardhat test --config hardhat.config.integration.ts",
+    "integration:staging": "ENVIRONMENT=staging hardhat test --config hardhat.config.integration.ts",
+    "integration:prod": "ENVIRONMENT=prod hardhat test --config hardhat.config.integration.ts",
     "typechain": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat typechain",
     "build": "rollup -c",
-    "upload": "yarn build && node autotasks/upload"
+    "upload:prod": "ENVIRONMENT=prod yarn build && node autotasks/upload",
+    "upload:staging": "ENVIRONMENT=staging yarn build && node autotasks/upload"
   },
   "dependencies": {
     "@chainlink/contracts": "^0.4.1",

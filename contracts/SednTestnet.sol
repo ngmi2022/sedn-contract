@@ -156,7 +156,7 @@ contract SednTestnet is ERC2771Context, Ownable, IUserRequest {
         bytes32 _s,
         UserRequest calldata _userRequest,
         address bridgeImpl
-    ) public {
+    ) external payable {
         console.log("UserRequest", _userRequest.amount, _userRequest.receiverAddress, _userRequest.toChainId);
         console.log("bridgeImpl", bridgeImpl);
         claim(solution, secret, _till, _v, _r, _s);

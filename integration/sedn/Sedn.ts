@@ -5,7 +5,12 @@ import { BigNumber, Contract, Wallet, ethers } from "ethers";
 import { FakeSigner } from "../../integration/FakeSigner";
 import { sendMetaTx } from "./helper/signer";
 
+const ENVIRONMENT = process.env.ENVIRONMENT || "prod";
+
 const fetchConfig = async () => {
+  if (ENVIRONMENT === "staging") {
+    return await (await fetch("https://storage.googleapis.com/sedn-public-config/staging.config.json?avoidTheCaches=1")).json();
+  }
   return await (await fetch("https://storage.googleapis.com/sedn-public-config/config.json?avoidTheCaches=1")).json();
 };
 
@@ -18,12 +23,22 @@ const supportedNetworks = ["polygon", "arbitrum"];
 const networksToTest = testnet ? ["arbitrum-goerli"] : process.env.FROM_CHAINS === 'ALL' ? supportedNetworks : process.env.FROM_CHAINS!.split(',');
 
 const relayers: any = {
-  polygon:
-    "https://api.defender.openzeppelin.com/autotasks/507b3f04-18d3-41ab-9484-701a01fc2ffe/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/PjcQDaaG11CYHoJJ1Khcj3",
-  arbitrum:
-    "https://api.defender.openzeppelin.com/autotasks/8e4e19b7-0103-4552-ab68-3646966ab186/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/Th57r6KwhiVCjTbJmUwBHa",
-  "arbitrum-goerli":
-    "https://api.defender.openzeppelin.com/autotasks/ce515ed3-d267-4654-8843-e9fe7047c05d/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/NifTewFznuMPfh9t5ehvQ7",
+  prod: {
+    polygon:
+      "https://api.defender.openzeppelin.com/autotasks/507b3f04-18d3-41ab-9484-701a01fc2ffe/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/PjcQDaaG11CYHoJJ1Khcj3",
+    arbitrum:
+      "https://api.defender.openzeppelin.com/autotasks/8e4e19b7-0103-4552-ab68-3646966ab186/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/Th57r6KwhiVCjTbJmUwBHa",
+    "arbitrum-goerli":
+      "https://api.defender.openzeppelin.com/autotasks/ce515ed3-d267-4654-8843-e9fe7047c05d/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/NifTewFznuMPfh9t5ehvQ7",
+  },
+  staging: {
+    polygon:
+      "https://api.defender.openzeppelin.com/autotasks/ee577506-d647-4919-819e-bbe70e60f58c/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/T1z3MPJi1MmiGgvfooB98s",
+    arbitrum:
+      "https://api.defender.openzeppelin.com/autotasks/dba1d31c-cae3-4205-9786-5c2cf22c46af/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/KvtntGhEgoeVhCKA4jmFem",
+    "arbitrum-goerli":
+      "https://api.defender.openzeppelin.com/autotasks/2d858f46-cc71-4628-af9f-efade0f6b1df/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/DSL3dXteoJuVmagoSrD4Fv",
+  }
 };
 
 // Infura URL
@@ -105,7 +120,6 @@ const getAbi = async (network: string, contract: string) => {
   }
   const apiUrl = explorerData[network].api;
   const apiKey = explorerData[network].apiKey;
-  console.log(`${apiUrl}?module=contract&action=getabi&address=${contract}&apikey=${apiKey}`);
   const data: any = await (
     await fetch(`${apiUrl}?module=contract&action=getabi&address=${contract}&apikey=${apiKey}`)
   ).json();
@@ -170,7 +184,8 @@ describe("Sedn Contract", function () {
         // /**********************************
         // Setup
         // *************************************/
-        const amount = parseInt(parseFloat(process.env.AMOUNT! || '1') * 10 ** decimals + ""); // 1$ in USDC
+        const shortAmount = parseFloat(process.env.AMOUNT! || '0.50');
+        const amount = parseInt(shortAmount * 10 ** decimals + "");
         const destinationNetwork = testnet ? network : await getRandomRecipientNetwork(network); // only test on testnet as no bridges possible
         const destinationProvider = new ethers.providers.JsonRpcProvider(getRpcUrl(destinationNetwork));
         const destinationRecipient = new ethers.Wallet(process.env.RECIPIENT_PK || "", destinationProvider);
@@ -194,6 +209,7 @@ describe("Sedn Contract", function () {
           toChain: testnet ? "arbitrum" : destinationNetwork,
           recipientAddress: destinationRecipient.address,
           amount: amount / 10 ** decimals,
+          environment: ENVIRONMENT,
         };
 
         const socketRouteResponse: any = await fetch(
@@ -211,7 +227,8 @@ describe("Sedn Contract", function () {
 
         // create calldata dict
         const bungeeUserRequestDict = socketRoute.request;
-        const bungeeBridgeAddress = socketRoute.bridgeAddress;
+        const bungeeBridgeAddress: string = socketRoute.bridgeAddress;
+        const bungeeValue: BigInt = socketRoute.value;
 
         // /**********************************
         // SEND
@@ -219,11 +236,11 @@ describe("Sedn Contract", function () {
 
         // SECRET HASHING
         const solution = (Math.random() + 1).toString(36).substring(7);
+        // const solution = "w6ox3";
         const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
         console.log(`INFO: Running with solution '${solution}' and secret '${secret}'`);
 
         const beforeSend = await usdcOrigin.balanceOf(signer.address);
-        console.log(typeof beforeSend);
         console.log(
           `ACCOUNTS: SenderOrigin inital state (${network}:${signer.address}) ${beforeSend.toNumber() / decDivider}`,
         );
@@ -238,6 +255,7 @@ describe("Sedn Contract", function () {
         console.log("TX: Executed approve");
 
         // ACTUAL SEDN & DECIDE OF GASLESS OR NOT
+
         if (gasless === true) {
           const response = await sendMetaTx(
             sedn,
@@ -245,13 +263,18 @@ describe("Sedn Contract", function () {
             process.env.SENDER_PK || "",
             "sedn",
             [amount, secret],
-            relayers[network],
+            BigInt("0"),
+            relayers[ENVIRONMENT][network],
             config.forwarder[network],
           );
           const txHash = JSON.parse(response.result).txHash;
           console.log(`TX: Send tx: ${explorerUrl}/tx/${txHash}`);
           const txReceipt = await signer.provider.getTransactionReceipt(txHash);
-          console.log(`TX: Executed send tx with txHash: ${txHash} and blockHash: ${txReceipt && txReceipt.blockHash || "no tx receipt"}`);
+          console.log(
+            `TX: Executed send tx with txHash: ${txHash} and blockHash: ${
+              (txReceipt && txReceipt.blockHash) || "no tx receipt"
+            }`,
+          );
         } else {
           const sednToUnregistered = await sedn.sedn(amount, secret);
           console.log(`TX: Send tx: ${explorerUrl}/tx/${sednToUnregistered.hash}`);
@@ -285,6 +308,7 @@ describe("Sedn Contract", function () {
           secret,
         );
         const signature = ethers.utils.splitSignature(signedMessage);
+
         // IF GASLESS OR NOT
         if (gasless === true) {
           const response = await sendMetaTx(
@@ -293,14 +317,18 @@ describe("Sedn Contract", function () {
             process.env.RECIPIENT_PK || "",
             "bridgeClaim",
             [solution, secret, till, signature.v, signature.r, signature.s, bungeeUserRequestDict, bungeeBridgeAddress],
-            relayers[network],
+            bungeeValue,
+            relayers[ENVIRONMENT][network],
             config.forwarder[network],
           );
-          console.log("sendMetaTx response", response);
           const txHash = JSON.parse(response.result).txHash;
           console.log(`TX: Claim tx: ${explorerUrl}/tx/${txHash}`);
           const txReceipt = await signer.provider.getTransactionReceipt(txHash);
-          console.log(`TX: Executed claim with txHash: ${txHash} and blockHash: ${txReceipt && txReceipt.blockHash || "no tx receipt"}`);
+          console.log(
+            `TX: Executed claim with txHash: ${txHash} and blockHash: ${
+              (txReceipt && txReceipt.blockHash) || "no tx receipt"
+            }`,
+          );
         } else {
           const bridgeClaim = await sedn
             .connect(recipient)
@@ -313,19 +341,44 @@ describe("Sedn Contract", function () {
               signature.s,
               bungeeUserRequestDict,
               bungeeBridgeAddress,
+              { value: bungeeValue },
             );
           console.log(`TX: Claim tx: ${explorerUrl}/tx/${bridgeClaim.hash}`);
           await bridgeClaim.wait();
         }
         console.log("TX: Executed claim");
+        await waitTillRecipientBalanceIncreased(10 * 60_000, usdcDestination, destinationRecipient, beforeClaim);
         const afterClaim = await usdcDestination.balanceOf(destinationRecipient.address);
         console.log(
           `ACCOUNTS: RecipientDestination balance after 'claim' (${destinationNetwork}:${
             destinationRecipient.address
           }) ${afterClaim.toNumber() / decDivider}`,
         );
-        console.log("INFO: Claimed", afterClaim.sub(beforeClaim).toNumber() / decDivider);
+        const claimedAmount = afterClaim.sub(beforeClaim).toNumber() / decDivider;
+        const bridgeFees = shortAmount - claimedAmount;
+        console.log(`INFO: Claimed ${claimedAmount} with bridge fees of ${bridgeFees} (${bridgeFees / shortAmount * 100}%). Sent ${shortAmount} and received ${claimedAmount}`);
       });
     });
   });
 });
+
+const waitTillRecipientBalanceIncreased = async (maxTimeMs: number, usdcDestination: Contract, recipient: Wallet, initialBalance: BigNumber) => {
+  let startDate = new Date().getTime();
+
+  const executePoll = async (resolve, reject) => {
+    const newBalance = await usdcDestination.balanceOf(recipient.address);
+    const elapsedTimeMs = new Date().getTime() - startDate;
+
+    const claimed = newBalance.sub(initialBalance).toNumber();
+    if (claimed > 0) {
+      return resolve(claimed);
+    } else if (elapsedTimeMs > maxTimeMs) {
+      return reject(new Error(`Exchange took too long to complete. Max time: ${maxTimeMs}ms`));
+    } else {
+      console.log(`Waiting for recipient balance to increase. Elapsed time: ${elapsedTimeMs}ms`);
+      setTimeout(executePoll, 10000, resolve, reject);
+    }
+  };
+
+  return new Promise(executePoll);
+};

@@ -156,12 +156,12 @@ contract Sedn is ERC2771Context, Ownable, IUserRequest {
         bytes32 _s,
         UserRequest calldata _userRequest,
         address bridgeImpl
-    ) public {
+    ) external payable {
         _checkClaim(solution, secret, _msgSender(), payments[secret].amount, _till, _v, _r, _s);
         console.log("Bridge and claiming funds", payments[secret].amount, _msgSender());
         usdcToken.approve(address(registry), payments[secret].amount);
         usdcToken.approve(bridgeImpl, payments[secret].amount);
-        registry.outboundTransferTo(_userRequest);
+        registry.outboundTransferTo{value: msg.value}(_userRequest);
         payments[secret].completed = true;
     }
 
