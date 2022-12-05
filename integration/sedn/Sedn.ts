@@ -105,7 +105,6 @@ const getAbi = async (network: string, contract: string) => {
   }
   const apiUrl = explorerData[network].api;
   const apiKey = explorerData[network].apiKey;
-  console.log(`${apiUrl}?module=contract&action=getabi&address=${contract}&apikey=${apiKey}`);
   const data: any = await (
     await fetch(`${apiUrl}?module=contract&action=getabi&address=${contract}&apikey=${apiKey}`)
   ).json();
@@ -211,7 +210,8 @@ describe("Sedn Contract", function () {
 
         // create calldata dict
         const bungeeUserRequestDict = socketRoute.request;
-        const bungeeBridgeAddress = socketRoute.bridgeAddress;
+        const bungeeBridgeAddress: string = socketRoute.bridgeAddress;
+        const bungeeValue: BigInt = socketRoute.value;
 
         // /**********************************
         // SEND
@@ -219,11 +219,11 @@ describe("Sedn Contract", function () {
 
         // SECRET HASHING
         const solution = (Math.random() + 1).toString(36).substring(7);
+        // const solution = "w6ox3";
         const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
         console.log(`INFO: Running with solution '${solution}' and secret '${secret}'`);
 
         const beforeSend = await usdcOrigin.balanceOf(signer.address);
-        console.log(typeof beforeSend);
         console.log(
           `ACCOUNTS: SenderOrigin inital state (${network}:${signer.address}) ${beforeSend.toNumber() / decDivider}`,
         );
@@ -238,6 +238,7 @@ describe("Sedn Contract", function () {
         console.log("TX: Executed approve");
 
         // ACTUAL SEDN & DECIDE OF GASLESS OR NOT
+
         if (gasless === true) {
           const response = await sendMetaTx(
             sedn,
@@ -245,13 +246,18 @@ describe("Sedn Contract", function () {
             process.env.SENDER_PK || "",
             "sedn",
             [amount, secret],
+            BigInt("0"),
             relayers[network],
             config.forwarder[network],
           );
           const txHash = JSON.parse(response.result).txHash;
           console.log(`TX: Send tx: ${explorerUrl}/tx/${txHash}`);
           const txReceipt = await signer.provider.getTransactionReceipt(txHash);
-          console.log(`TX: Executed send tx with txHash: ${txHash} and blockHash: ${txReceipt && txReceipt.blockHash || "no tx receipt"}`);
+          console.log(
+            `TX: Executed send tx with txHash: ${txHash} and blockHash: ${
+              (txReceipt && txReceipt.blockHash) || "no tx receipt"
+            }`,
+          );
         } else {
           const sednToUnregistered = await sedn.sedn(amount, secret);
           console.log(`TX: Send tx: ${explorerUrl}/tx/${sednToUnregistered.hash}`);
@@ -285,6 +291,7 @@ describe("Sedn Contract", function () {
           secret,
         );
         const signature = ethers.utils.splitSignature(signedMessage);
+
         // IF GASLESS OR NOT
         if (gasless === true) {
           const response = await sendMetaTx(
@@ -293,14 +300,18 @@ describe("Sedn Contract", function () {
             process.env.RECIPIENT_PK || "",
             "bridgeClaim",
             [solution, secret, till, signature.v, signature.r, signature.s, bungeeUserRequestDict, bungeeBridgeAddress],
+            bungeeValue,
             relayers[network],
             config.forwarder[network],
           );
-          console.log("sendMetaTx response", response);
           const txHash = JSON.parse(response.result).txHash;
           console.log(`TX: Claim tx: ${explorerUrl}/tx/${txHash}`);
           const txReceipt = await signer.provider.getTransactionReceipt(txHash);
-          console.log(`TX: Executed claim with txHash: ${txHash} and blockHash: ${txReceipt && txReceipt.blockHash || "no tx receipt"}`);
+          console.log(
+            `TX: Executed claim with txHash: ${txHash} and blockHash: ${
+              (txReceipt && txReceipt.blockHash) || "no tx receipt"
+            }`,
+          );
         } else {
           const bridgeClaim = await sedn
             .connect(recipient)
@@ -313,6 +324,7 @@ describe("Sedn Contract", function () {
               signature.s,
               bungeeUserRequestDict,
               bungeeBridgeAddress,
+              { value: bungeeValue },
             );
           console.log(`TX: Claim tx: ${explorerUrl}/tx/${bridgeClaim.hash}`);
           await bridgeClaim.wait();

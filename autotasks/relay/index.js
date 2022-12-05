@@ -14,9 +14,10 @@ async function relay(forwarder, request, signature) {
   if (!valid) throw new Error(`Invalid request`);
 
   // Send meta-tx through relayer to the forwarder contract
-  const gasLimit = (parseInt(request.gas) + 50000).toString();
+  const gasLimit = (parseInt(request.gas) + 1000000).toString();
+  const value = (parseInt(request.value)).toString();
   console.log(`Using gas limit ${gasLimit}`);
-  return await forwarder.execute(request, signature, { gasLimit, });
+  return await forwarder.execute(request, signature, { gasLimit, value });
 }
 
 async function handler(event) {
