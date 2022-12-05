@@ -10,12 +10,12 @@ const fetchConfig = async () => {
 };
 
 // some params & functions to facilitate metaTX testing / testnet
-const gasless: boolean = true;
+const gasless: boolean = process.env.CONTEXT === 'github' ? true : false;
 const testnet: boolean = false;
 // no testnets need to be included
 const supportedNetworks = ["polygon", "arbitrum"];
 // dependent on use case
-const networksToTest = testnet ? ["arbitrum-goerli"] : ["polygon", "arbitrum"];
+const networksToTest = testnet ? ["arbitrum-goerli"] : process.env.FROM_CHAINS === 'ALL' ? supportedNetworks : process.env.FROM_CHAINS!.split(',');
 
 const relayers: any = {
   polygon:
@@ -169,7 +169,7 @@ describe("Sedn Contract", function () {
         // /**********************************
         // Setup
         // *************************************/
-        const amount = parseInt(1 * 10 ** decimals + ""); // 1$ in USDC
+        const amount = parseInt(parseFloat(process.env.AMOUNT! || '1') * 10 ** decimals + ""); // 1$ in USDC
         const destinationNetwork = testnet ? network : await getRandomRecipientNetwork(network); // only test on testnet as no bridges possible
         const destinationProvider = new ethers.providers.JsonRpcProvider(getRpcUrl(destinationNetwork));
         const destinationRecipient = new ethers.Wallet(process.env.RECIPIENT_PK || "", destinationProvider);
@@ -206,6 +206,7 @@ describe("Sedn Contract", function () {
           },
         );
         const socketRoute = (await socketRouteResponse.json()).result;
+        console.log("Socket Route", 'https://us-central1-sedn-17b18.cloudfunctions.net/getSednParameters/', JSON.stringify({ data: socketRouteRequest }), JSON.stringify(socketRoute));
 
         // create calldata dict
         const bungeeUserRequestDict = socketRoute.request;
