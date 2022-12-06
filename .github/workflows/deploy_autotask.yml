@@ -1,4 +1,4 @@
-name: "CD_AUTOTASK"
+name: "DEPLOY_AUTOTASK"
 
 env:
   INFURA_API_KEY: ${{ secrets.INFURA_API_KEY }}
@@ -20,9 +20,18 @@ env:
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'The config file to use'
+        required: true
+        default: 'prod' 
+        type: choice
+        options:
+        - staging
+        - prod
 
 jobs:
-  cd:
+  deploy:
     runs-on: "ubuntu-latest"
     steps:
       - name: "Check out the repo"
@@ -50,4 +59,6 @@ jobs:
         run: "yarn install --immutable"
 
       - name: "Update the Autotasks"
-        run: "yarn upload"
+        run: "yarn upload:$ENVIRONMENT"
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}

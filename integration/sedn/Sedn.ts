@@ -23,12 +23,22 @@ const supportedNetworks = ["polygon", "arbitrum"];
 const networksToTest = testnet ? ["arbitrum-goerli"] : process.env.FROM_CHAINS === 'ALL' ? supportedNetworks : process.env.FROM_CHAINS!.split(',');
 
 const relayers: any = {
-  polygon:
-    "https://api.defender.openzeppelin.com/autotasks/507b3f04-18d3-41ab-9484-701a01fc2ffe/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/PjcQDaaG11CYHoJJ1Khcj3",
-  arbitrum:
-    "https://api.defender.openzeppelin.com/autotasks/8e4e19b7-0103-4552-ab68-3646966ab186/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/Th57r6KwhiVCjTbJmUwBHa",
-  "arbitrum-goerli":
-    "https://api.defender.openzeppelin.com/autotasks/ce515ed3-d267-4654-8843-e9fe7047c05d/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/NifTewFznuMPfh9t5ehvQ7",
+  prod: {
+    polygon:
+      "https://api.defender.openzeppelin.com/autotasks/507b3f04-18d3-41ab-9484-701a01fc2ffe/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/PjcQDaaG11CYHoJJ1Khcj3",
+    arbitrum:
+      "https://api.defender.openzeppelin.com/autotasks/8e4e19b7-0103-4552-ab68-3646966ab186/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/Th57r6KwhiVCjTbJmUwBHa",
+    "arbitrum-goerli":
+      "https://api.defender.openzeppelin.com/autotasks/ce515ed3-d267-4654-8843-e9fe7047c05d/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/NifTewFznuMPfh9t5ehvQ7",
+  },
+  staging: {
+    polygon:
+      "https://api.defender.openzeppelin.com/autotasks/507b3f04-18d3-41ab-9484-701a01fc2ffe/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/PjcQDaaG11CYHoJJ1Khcj3",
+    arbitrum:
+      "https://api.defender.openzeppelin.com/autotasks/8e4e19b7-0103-4552-ab68-3646966ab186/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/Th57r6KwhiVCjTbJmUwBHa",
+    "arbitrum-goerli":
+      "https://api.defender.openzeppelin.com/autotasks/ce515ed3-d267-4654-8843-e9fe7047c05d/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/NifTewFznuMPfh9t5ehvQ7",
+  }
 };
 
 // Infura URL
@@ -253,7 +263,7 @@ describe("Sedn Contract", function () {
             "sedn",
             [amount, secret],
             BigInt("0"),
-            relayers[network],
+            relayers[ENVIRONMENT][network],
             config.forwarder[network],
           );
           const txHash = JSON.parse(response.result).txHash;
@@ -307,7 +317,7 @@ describe("Sedn Contract", function () {
             "bridgeClaim",
             [solution, secret, till, signature.v, signature.r, signature.s, bungeeUserRequestDict, bungeeBridgeAddress],
             bungeeValue,
-            relayers[network],
+            relayers[ENVIRONMENT][network],
             config.forwarder[network],
           );
           const txHash = JSON.parse(response.result).txHash;
