@@ -1,6 +1,7 @@
 name: "CD_AUTOTASK"
 
 env:
+  INFURA_API_KEY: ${{ secrets.INFURA_API_KEY }}
   MNEMONIC: ${{ secrets.MNEMONIC }}
   DEFENDER_TEAM_KEY: ${{ secrets.DEFENDER_TEAM_KEY }}
   DEFENDER_TEAM_SECRET: ${{ secrets.DEFENDER_TEAM_SECRET }}
@@ -17,7 +18,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  ci:
+  cd:
     runs-on: "ubuntu-latest"
     steps:
       - name: "Check out the repo"
