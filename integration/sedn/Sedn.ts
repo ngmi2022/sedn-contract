@@ -336,7 +336,13 @@ describe("Sedn Contract", function () {
             relayers[ENVIRONMENT][network],
             config.forwarder[network],
           );
-          const txHash = JSON.parse(response.result).txHash;
+          let txHash: string = "";
+          try {
+            txHash = JSON.parse(response.result).txHash;
+          } catch (e) {
+            console.log(`Invalid JSON response`, response, e);
+            throw e;
+          }
           console.log(`TX: Claim tx: ${explorerUrl}/tx/${txHash}`);
           const txReceipt = await signer.provider.getTransactionReceipt(txHash);
           console.log(
