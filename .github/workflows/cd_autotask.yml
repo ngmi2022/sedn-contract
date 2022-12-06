@@ -36,5 +36,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
 
+      - name: "Install the dependencies"
+        run: "yarn install --immutable"
+
       - name: "Update the Autotasks"
         run: "yarn upload"
