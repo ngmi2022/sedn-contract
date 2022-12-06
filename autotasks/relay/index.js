@@ -25,7 +25,7 @@ async function relay(forwarder, request, signature) {
 }
 
 async function handler(event) {
-  const environment = autotaskName.toLowerCase().includes("staging") ? "staging" : "prod";
+  const environment = event.autotaskName.toLowerCase().includes("staging") ? "staging" : "prod";
   console.log(`Autotask name: ${event.autotaskName} (${event.autotaskId}) - Run ID: ${event.autotaskRunId} (environment: ${environment})`);
   const config = await configData(environment);
   // Parse webhook payload
