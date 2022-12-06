@@ -184,7 +184,8 @@ describe("Sedn Contract", function () {
         // /**********************************
         // Setup
         // *************************************/
-        const amount = parseInt(parseFloat(process.env.AMOUNT! || '1') * 10 ** decimals + ""); // 1$ in USDC
+        const shortAmount = parseFloat(process.env.AMOUNT! || '0.50');
+        const amount = parseInt(shortAmount * 10 ** decimals + "");
         const destinationNetwork = testnet ? network : await getRandomRecipientNetwork(network); // only test on testnet as no bridges possible
         const destinationProvider = new ethers.providers.JsonRpcProvider(getRpcUrl(destinationNetwork));
         const destinationRecipient = new ethers.Wallet(process.env.RECIPIENT_PK || "", destinationProvider);
@@ -346,14 +347,38 @@ describe("Sedn Contract", function () {
           await bridgeClaim.wait();
         }
         console.log("TX: Executed claim");
+        await waitTillRecipientBalanceIncreased(10 * 60_000, usdcDestination, destinationRecipient, beforeClaim);
         const afterClaim = await usdcDestination.balanceOf(destinationRecipient.address);
         console.log(
           `ACCOUNTS: RecipientDestination balance after 'claim' (${destinationNetwork}:${
             destinationRecipient.address
           }) ${afterClaim.toNumber() / decDivider}`,
         );
-        console.log("INFO: Claimed", afterClaim.sub(beforeClaim).toNumber() / decDivider);
+        const claimedAmount = afterClaim.sub(beforeClaim).toNumber() / decDivider;
+        const bridgeFees = shortAmount - claimedAmount;
+        console.log(`INFO: Claimed ${claimedAmount} with bridge fees of ${bridgeFees} (${bridgeFees / shortAmount * 100}%). Sent ${shortAmount} and received ${claimedAmount}`);
       });
     });
   });
 });
+
+const waitTillRecipientBalanceIncreased = async (maxTimeMs: number, usdcDestination: Contract, recipient: Wallet, initialBalance: BigNumber) => {
+  let startDate = new Date().getTime();
+
+  const executePoll = async (resolve, reject) => {
+    const newBalance = await usdcDestination.balanceOf(recipient.address);
+    const elapsedTimeMs = new Date().getTime() - startDate;
+
+    const claimed = newBalance.sub(initialBalance).toNumber();
+    if (claimed > 0) {
+      return resolve(claimed);
+    } else if (elapsedTimeMs > maxTimeMs) {
+      return reject(new Error(`Exchange took too long to complete. Max time: ${maxTimeMs}ms`));
+    } else {
+      console.log(`Waiting for recipient balance to increase. Elapsed time: ${elapsedTimeMs}ms`);
+      setTimeout(executePoll, 10000, resolve, reject);
+    }
+  };
+
+  return new Promise(executePoll);
+};
