@@ -29,6 +29,16 @@ on:
         options:
         - staging
         - prod
+  workflow_call:
+    inputs:
+      environment:
+        description: 'The config file to use'
+        required: true
+        default: 'prod' 
+        type: choice
+        options:
+        - staging
+        - prod
 
 jobs:
   deploy:
