@@ -16,6 +16,9 @@ env:
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'autotasks/**'
 
 jobs:
   deploy_staging:
