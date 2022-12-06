@@ -3,7 +3,11 @@ import { Contract } from "ethers";
 
 import { ForwarderAbi } from "../../abis/abis";
 
-const configData = async () => {
+const configData = async (environment) => {
+  if (environment === "staging") {
+    const configData = await (await fetch("https://storage.googleapis.com/sedn-public-config/staging.config.json")).json();
+    return configData;
+  }
   const configData = await (await fetch("https://storage.googleapis.com/sedn-public-config/config.json")).json();
   return configData;
 };
@@ -21,11 +25,12 @@ async function relay(forwarder, request, signature) {
 }
 
 async function handler(event) {
-  const config = await configData();
+  const environment = autotaskName.toLowerCase().includes("staging") ? "staging" : "prod";
+  console.log(`Autotask name: ${event.autotaskName} (${event.autotaskId}) - Run ID: ${event.autotaskRunId} (environment: ${environment})`);
+  const config = await configData(environment);
   // Parse webhook payload
   if (!event.request || !event.request.body) throw new Error(`Missing payload`);
   const { request, signature } = event.request.body;
-  console.log(`Event`, JSON.stringify(event));
   console.log(`Relaying`, JSON.stringify(request));
 
   // Initialize Relayer provider and signer, and forwarder contract
