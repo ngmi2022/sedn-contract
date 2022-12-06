@@ -77,7 +77,7 @@ jobs:
           TO_CHAINS: ${{ inputs.toChains }}
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
-  ci:
+  validate:
     runs-on: "ubuntu-latest"
     steps:
       - name: "Check out the repo"
