@@ -5,7 +5,12 @@ import { BigNumber, Contract, Wallet, ethers } from "ethers";
 import { FakeSigner } from "../../integration/FakeSigner";
 import { sendMetaTx } from "./helper/signer";
 
+const ENVIRONMENT = process.env.ENVIRONMENT || "prod";
+
 const fetchConfig = async () => {
+  if (ENVIRONMENT === "staging") {
+    return await (await fetch("https://storage.googleapis.com/sedn-public-config/staging.config.json?avoidTheCaches=1")).json();
+  }
   return await (await fetch("https://storage.googleapis.com/sedn-public-config/config.json?avoidTheCaches=1")).json();
 };
 
@@ -193,6 +198,7 @@ describe("Sedn Contract", function () {
           toChain: testnet ? "arbitrum" : destinationNetwork,
           recipientAddress: destinationRecipient.address,
           amount: amount / 10 ** decimals,
+          environment: ENVIRONMENT,
         };
 
         const socketRouteResponse: any = await fetch(
