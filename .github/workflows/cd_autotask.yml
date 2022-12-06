@@ -7,8 +7,12 @@ env:
   GOERLI_PK: ${{ secrets.GOERLI_PK }}
   ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
   POLYGONSCAN_API_KEY: ${{ secrets.POLYGONSCAN_API_KEY }}
+  ARBISCAN_API_KEY: ${{ secrets.ARBISCAN_API_KEY }}
   DEFENDER_TEAM_KEY: ${{ secrets.DEFENDER_TEAM_KEY }}
   DEFENDER_TEAM_SECRET: ${{ secrets.DEFENDER_TEAM_SECRET }}
+  SENDER_PK: ${{ secrets.SENDER_PK }}
+  VERIFIER_PK: ${{ secrets.VERIFIER_PK }}
+  RECIPIENT_PK: ${{ secrets.RECIPIENT_PK }}
 
 on:
   workflow_dispatch:
@@ -20,8 +24,15 @@ jobs:
       environment: 'staging'
     secrets: inherit
 
-  deploy_prod:
+  validate_staging:
     needs: [deploy_staging]
+    uses: ./.github/workflows/validate.yml
+    with:
+      environment: 'staging'
+    secrets: inherit
+
+  deploy_prod:
+    needs: [validate_staging]
     uses: ./.github/workflows/deploy_autotask.yml
     with:
       environment: 'prod'

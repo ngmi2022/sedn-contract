@@ -22,7 +22,7 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'The config file to use'
+        description: 'The autotask domain to update'
         required: true
         default: 'prod' 
         type: choice
@@ -32,7 +32,7 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: 'The config file to use'
+        description: 'The autotask domain to update'
         required: true
         type: string
 

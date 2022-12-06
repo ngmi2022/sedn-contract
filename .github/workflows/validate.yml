@@ -40,6 +40,28 @@ on:
         options:
         - staging
         - prod
+  workflow_call:
+    inputs:
+      fromChains:
+        description: 'Comma separated from chains e.g. polygon,arbitrum'
+        required: false
+        default: 'ALL'
+        type: string
+      toChains:
+        description: 'Comma separated recipient chains e.g. polygon,arbitrum'
+        required: false
+        default: 'ALL'
+        type: string
+      amount:
+        description: 'The amount to be sent'
+        default: 0.5
+        required: false
+        type: number
+      environment:
+        description: 'The config file to use'
+        required: true
+        default: 'prod' 
+        type: string
 
 jobs:
   log-the-inputs:
