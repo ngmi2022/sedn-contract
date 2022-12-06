@@ -32,6 +32,14 @@ on:
         default: 0.5
         required: true
         type: number
+      environment:
+        description: 'The config file to use'
+        required: true
+        default: 'prod' 
+        type: choice
+        options:
+        - staging
+        - prod
 
 jobs:
   log-the-inputs:
@@ -45,6 +53,7 @@ jobs:
           FROM_CHAINS: ${{ inputs.fromChains }}
           TO_CHAINS: ${{ inputs.toChains }}
           AMOUNT: ${{ inputs.amount }}
+          ENVIRONMENT: ${{ inputs.environment }}
   ci:
     runs-on: "ubuntu-latest"
     steps:
@@ -73,11 +82,12 @@ jobs:
         run: "yarn install --immutable"
 
       - name: "Validate"
-        run: "yarn integration"
+        run: "yarn integration:$ENVIRONMENT"
         env:
           FROM_CHAINS: ${{ inputs.fromChains }}
           TO_CHAINS: ${{ inputs.toChains }}
           AMOUNT: ${{ inputs.amount }}
+          ENVIRONMENT: ${{ inputs.environment }}
 
       - name: "Add test summary"
         run: |
