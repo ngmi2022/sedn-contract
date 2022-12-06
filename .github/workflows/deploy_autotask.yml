@@ -34,11 +34,7 @@ on:
       environment:
         description: 'The config file to use'
         required: true
-        default: 'prod' 
-        type: choice
-        options:
-        - staging
-        - prod
+        type: string
 
 jobs:
   deploy:
