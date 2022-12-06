@@ -9,18 +9,24 @@ const ENVIRONMENT = process.env.ENVIRONMENT || "prod";
 
 const fetchConfig = async () => {
   if (ENVIRONMENT === "staging") {
-    return await (await fetch("https://storage.googleapis.com/sedn-public-config/staging.config.json?avoidTheCaches=1")).json();
+    return await (
+      await fetch("https://storage.googleapis.com/sedn-public-config/staging.config.json?avoidTheCaches=1")
+    ).json();
   }
   return await (await fetch("https://storage.googleapis.com/sedn-public-config/config.json?avoidTheCaches=1")).json();
 };
 
 // some params & functions to facilitate metaTX testing / testnet
-const gasless: boolean = process.env.CONTEXT === 'github' ? true : false;
+const gasless: boolean = process.env.CONTEXT === "github" ? true : false;
 const testnet: boolean = false;
 // no testnets need to be included
 const supportedNetworks = ["polygon", "arbitrum"];
 // dependent on use case
-const networksToTest = testnet ? ["arbitrum-goerli"] : process.env.FROM_CHAINS === 'ALL' ? supportedNetworks : process.env.FROM_CHAINS!.split(',');
+const networksToTest = testnet
+  ? ["arbitrum-goerli"]
+  : process.env.FROM_CHAINS === "ALL"
+  ? supportedNetworks
+  : process.env.FROM_CHAINS!.split(",");
 
 const relayers: any = {
   prod: {
@@ -38,7 +44,7 @@ const relayers: any = {
       "https://api.defender.openzeppelin.com/autotasks/dba1d31c-cae3-4205-9786-5c2cf22c46af/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/KvtntGhEgoeVhCKA4jmFem",
     "arbitrum-goerli":
       "https://api.defender.openzeppelin.com/autotasks/2d858f46-cc71-4628-af9f-efade0f6b1df/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/DSL3dXteoJuVmagoSrD4Fv",
-  }
+  },
 };
 
 // Infura URL
@@ -184,7 +190,7 @@ describe("Sedn Contract", function () {
         // /**********************************
         // Setup
         // *************************************/
-        const shortAmount = parseFloat(process.env.AMOUNT! || '0.50');
+        const shortAmount = parseFloat(process.env.AMOUNT! || "0.50");
         const amount = parseInt(shortAmount * 10 ** decimals + "");
         const destinationNetwork = testnet ? network : await getRandomRecipientNetwork(network); // only test on testnet as no bridges possible
         const destinationProvider = new ethers.providers.JsonRpcProvider(getRpcUrl(destinationNetwork));
@@ -223,7 +229,12 @@ describe("Sedn Contract", function () {
           },
         );
         const socketRoute = (await socketRouteResponse.json()).result;
-        console.log("Socket Route", 'https://us-central1-sedn-17b18.cloudfunctions.net/getSednParameters/', JSON.stringify({ data: socketRouteRequest }), JSON.stringify(socketRoute));
+        console.log(
+          "Socket Route",
+          "https://us-central1-sedn-17b18.cloudfunctions.net/getSednParameters/",
+          JSON.stringify({ data: socketRouteRequest }),
+          JSON.stringify(socketRoute),
+        );
 
         // create calldata dict
         const bungeeUserRequestDict = socketRoute.request;
@@ -245,7 +256,7 @@ describe("Sedn Contract", function () {
           `ACCOUNTS: SenderOrigin inital state (${network}:${signer.address}) ${beforeSend.toNumber() / decDivider}`,
         );
         // TODO: how can we get a better value for gas limit here?
-        const fees = await feeData(network, signer);
+        let fees = await feeData(network, signer);
         const approve = await usdcOrigin.approve(sedn.address, amount, {
           maxFeePerGas: fees.maxFee,
           maxPriorityFeePerGas: fees.maxPriorityFee,
@@ -276,7 +287,11 @@ describe("Sedn Contract", function () {
             }`,
           );
         } else {
-          const sednToUnregistered = await sedn.sedn(amount, secret);
+          let fees = await feeData(network, signer);
+          const sednToUnregistered = await sedn.sedn(amount, secret, {
+            maxFeePerGas: fees.maxFee,
+            maxPriorityFeePerGas: fees.maxPriorityFee,
+          });
           console.log(`TX: Send tx: ${explorerUrl}/tx/${sednToUnregistered.hash}`);
           await sednToUnregistered.wait();
           console.log("TX: executed send tx");
@@ -330,6 +345,7 @@ describe("Sedn Contract", function () {
             }`,
           );
         } else {
+          let fees = await feeData(network, signer);
           const bridgeClaim = await sedn
             .connect(recipient)
             .bridgeClaim(
@@ -341,7 +357,7 @@ describe("Sedn Contract", function () {
               signature.s,
               bungeeUserRequestDict,
               bungeeBridgeAddress,
-              { value: bungeeValue },
+              { value: bungeeValue, maxFeePerGas: fees.maxFee, maxPriorityFeePerGas: fees.maxPriorityFee },
             );
           console.log(`TX: Claim tx: ${explorerUrl}/tx/${bridgeClaim.hash}`);
           await bridgeClaim.wait();
@@ -356,13 +372,22 @@ describe("Sedn Contract", function () {
         );
         const claimedAmount = afterClaim.sub(beforeClaim).toNumber() / decDivider;
         const bridgeFees = shortAmount - claimedAmount;
-        console.log(`INFO: Claimed ${claimedAmount} with bridge fees of ${bridgeFees} (${bridgeFees / shortAmount * 100}%). Sent ${shortAmount} and received ${claimedAmount}`);
+        console.log(
+          `INFO: Claimed ${claimedAmount} with bridge fees of ${bridgeFees} (${
+            (bridgeFees / shortAmount) * 100
+          }%). Sent ${shortAmount} and received ${claimedAmount}`,
+        );
       });
     });
   });
 });
 
-const waitTillRecipientBalanceIncreased = async (maxTimeMs: number, usdcDestination: Contract, recipient: Wallet, initialBalance: BigNumber) => {
+const waitTillRecipientBalanceIncreased = async (
+  maxTimeMs: number,
+  usdcDestination: Contract,
+  recipient: Wallet,
+  initialBalance: BigNumber,
+) => {
   let startDate = new Date().getTime();
 
   const executePoll = async (resolve, reject) => {
