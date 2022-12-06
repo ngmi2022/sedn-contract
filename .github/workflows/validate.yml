@@ -49,6 +49,7 @@ jobs:
           echo "From Chains: $FROM_CHAINS"
           echo "To Chains: $TO_CHAINS"
           echo "Amount: $AMOUNT"
+          echo "Environment: $ENVIRONMENT"
         env:
           FROM_CHAINS: ${{ inputs.fromChains }}
           TO_CHAINS: ${{ inputs.toChains }}
