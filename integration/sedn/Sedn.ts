@@ -1,7 +1,7 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
 import fetch from "cross-fetch";
 import { BigNumber, Contract, Wallet, ethers } from "ethers";
-
+import { expect } from "chai";
 import { FakeSigner } from "../../integration/FakeSigner";
 import { sendMetaTx } from "./helper/signer";
 
@@ -9,18 +9,24 @@ const ENVIRONMENT = process.env.ENVIRONMENT || "prod";
 
 const fetchConfig = async () => {
   if (ENVIRONMENT === "staging") {
-    return await (await fetch("https://storage.googleapis.com/sedn-public-config/staging.config.json?avoidTheCaches=1")).json();
+    return await (
+      await fetch("https://storage.googleapis.com/sedn-public-config/staging.config.json?avoidTheCaches=1")
+    ).json();
   }
   return await (await fetch("https://storage.googleapis.com/sedn-public-config/config.json?avoidTheCaches=1")).json();
 };
 
 // some params & functions to facilitate metaTX testing / testnet
-const gasless: boolean = process.env.CONTEXT === 'github' ? true : false;
+//const gasless: boolean = process.env.CONTEXT === "github" ? true : true;
 const testnet: boolean = false;
 // no testnets need to be included
 const supportedNetworks = ["polygon", "arbitrum"];
 // dependent on use case
-const networksToTest = testnet ? ["arbitrum-goerli"] : process.env.FROM_CHAINS === 'ALL' ? supportedNetworks : process.env.FROM_CHAINS!.split(',');
+const networksToTest = testnet
+  ? ["arbitrum-goerli"]
+  : process.env.FROM_CHAINS === "ALL"
+  ? supportedNetworks
+  : process.env.FROM_CHAINS!.split(",");
 
 const relayers: any = {
   prod: {
@@ -38,7 +44,7 @@ const relayers: any = {
       "https://api.defender.openzeppelin.com/autotasks/dba1d31c-cae3-4205-9786-5c2cf22c46af/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/KvtntGhEgoeVhCKA4jmFem",
     "arbitrum-goerli":
       "https://api.defender.openzeppelin.com/autotasks/2d858f46-cc71-4628-af9f-efade0f6b1df/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/DSL3dXteoJuVmagoSrD4Fv",
-  }
+  },
 };
 
 // Infura URL
@@ -184,7 +190,7 @@ describe("Sedn Contract", function () {
         // /**********************************
         // Setup
         // *************************************/
-        const shortAmount = parseFloat(process.env.AMOUNT! || '0.50');
+        const shortAmount = parseFloat(process.env.AMOUNT! || "0.50");
         const amount = parseInt(shortAmount * 10 ** decimals + "");
         const destinationNetwork = testnet ? network : await getRandomRecipientNetwork(network); // only test on testnet as no bridges possible
         const destinationProvider = new ethers.providers.JsonRpcProvider(getRpcUrl(destinationNetwork));
@@ -201,6 +207,8 @@ describe("Sedn Contract", function () {
           } (${destinationNetwork})`,
         );
 
+        expect((await usdcOrigin.balanceOf(signer.address)).toNumber()).to.be.greaterThanOrEqual(amount, 'Insufficient funds');
+        
         // /**********************************
         // Get the Bungee/Socket Route
         // *************************************/
@@ -223,7 +231,12 @@ describe("Sedn Contract", function () {
           },
         );
         const socketRoute = (await socketRouteResponse.json()).result;
-        console.log("Socket Route", 'https://us-central1-sedn-17b18.cloudfunctions.net/getSednParameters/', JSON.stringify({ data: socketRouteRequest }), JSON.stringify(socketRoute));
+        console.log(
+          "Socket Route",
+          "https://us-central1-sedn-17b18.cloudfunctions.net/getSednParameters/",
+          JSON.stringify({ data: socketRouteRequest }),
+          JSON.stringify(socketRoute),
+        );
 
         // create calldata dict
         const bungeeUserRequestDict = socketRoute.request;
@@ -245,18 +258,18 @@ describe("Sedn Contract", function () {
           `ACCOUNTS: SenderOrigin inital state (${network}:${signer.address}) ${beforeSend.toNumber() / decDivider}`,
         );
         // TODO: how can we get a better value for gas limit here?
-        const fees = await feeData(network, signer);
+        let fees = await feeData(network, signer);
         const approve = await usdcOrigin.approve(sedn.address, amount, {
           maxFeePerGas: fees.maxFee,
           maxPriorityFeePerGas: fees.maxPriorityFee,
         });
         console.log(`TX: Approve tx: ${explorerUrl}/tx/${approve.hash}`);
-        await approve.wait();
-        console.log("TX: Executed approve");
+        const approveReceipt = await approve.wait();
+        console.log("TX: Executed approve", await getTxCostInUSD(approveReceipt));
 
         // ACTUAL SEDN & DECIDE OF GASLESS OR NOT
 
-        if (gasless === true) {
+        if (false) { // sender pays for sending
           const response = await sendMetaTx(
             sedn,
             signer,
@@ -269,17 +282,19 @@ describe("Sedn Contract", function () {
           );
           const txHash = JSON.parse(response.result).txHash;
           console.log(`TX: Send tx: ${explorerUrl}/tx/${txHash}`);
-          const txReceipt = await signer.provider.getTransactionReceipt(txHash);
+          const txReceipt: any = await getTxReceipt(60_000, signer, txHash);
           console.log(
-            `TX: Executed send tx with txHash: ${txHash} and blockHash: ${
-              (txReceipt && txReceipt.blockHash) || "no tx receipt"
-            }`,
+            `TX: Executed send tx with txHash: ${txHash} and blockHash: ${txReceipt.blockHash}`,
           );
         } else {
-          const sednToUnregistered = await sedn.sedn(amount, secret);
+          let fees = await feeData(network, signer);
+          const sednToUnregistered = await sedn.sedn(amount, secret, {
+            maxFeePerGas: fees.maxFee,
+            maxPriorityFeePerGas: fees.maxPriorityFee,
+          });
           console.log(`TX: Send tx: ${explorerUrl}/tx/${sednToUnregistered.hash}`);
-          await sednToUnregistered.wait();
-          console.log("TX: executed send tx");
+          const sednReceipt = await sednToUnregistered.wait();
+          console.log("TX: executed send tx", await getTxCostInUSD(sednReceipt));
         }
         // check sedn
         const afterSend = await usdcOrigin.balanceOf(signer.address);
@@ -310,7 +325,7 @@ describe("Sedn Contract", function () {
         const signature = ethers.utils.splitSignature(signedMessage);
 
         // IF GASLESS OR NOT
-        if (gasless === true) {
+        if (true) { // withdraw is gasless
           const response = await sendMetaTx(
             sedn,
             recipient,
@@ -321,15 +336,18 @@ describe("Sedn Contract", function () {
             relayers[ENVIRONMENT][network],
             config.forwarder[network],
           );
-          const txHash = JSON.parse(response.result).txHash;
+          let txHash: string = "";
+          try {
+            txHash = JSON.parse(response.result).txHash;
+          } catch (e) {
+            console.log(`Invalid JSON response`, response, e);
+            throw e;
+          }
           console.log(`TX: Claim tx: ${explorerUrl}/tx/${txHash}`);
-          const txReceipt = await signer.provider.getTransactionReceipt(txHash);
-          console.log(
-            `TX: Executed claim with txHash: ${txHash} and blockHash: ${
-              (txReceipt && txReceipt.blockHash) || "no tx receipt"
-            }`,
-          );
+          const txReceipt: any = await getTxReceipt(60_000, signer, txHash);
+          console.log(`TX: Executed claim with txHash: ${txHash} and blockHash: ${txReceipt.blockHash} and txCost ${await getTxCostInUSD(txReceipt)}`);
         } else {
+          let fees = await feeData(network, signer);
           const bridgeClaim = await sedn
             .connect(recipient)
             .bridgeClaim(
@@ -341,13 +359,13 @@ describe("Sedn Contract", function () {
               signature.s,
               bungeeUserRequestDict,
               bungeeBridgeAddress,
-              { value: bungeeValue },
+              { value: bungeeValue, maxFeePerGas: fees.maxFee, maxPriorityFeePerGas: fees.maxPriorityFee },
             );
           console.log(`TX: Claim tx: ${explorerUrl}/tx/${bridgeClaim.hash}`);
           await bridgeClaim.wait();
         }
         console.log("TX: Executed claim");
-        await waitTillRecipientBalanceIncreased(10 * 60_000, usdcDestination, destinationRecipient, beforeClaim);
+        await waitTillRecipientBalanceIncreased(50 * 60_000, usdcDestination, destinationRecipient, beforeClaim, decDivider, destinationNetwork);
         const afterClaim = await usdcDestination.balanceOf(destinationRecipient.address);
         console.log(
           `ACCOUNTS: RecipientDestination balance after 'claim' (${destinationNetwork}:${
@@ -356,13 +374,24 @@ describe("Sedn Contract", function () {
         );
         const claimedAmount = afterClaim.sub(beforeClaim).toNumber() / decDivider;
         const bridgeFees = shortAmount - claimedAmount;
-        console.log(`INFO: Claimed ${claimedAmount} with bridge fees of ${bridgeFees} (${bridgeFees / shortAmount * 100}%). Sent ${shortAmount} and received ${claimedAmount}`);
+        console.log(
+          `INFO: Claimed ${claimedAmount} with bridge fees of ${bridgeFees} (${
+            (bridgeFees / shortAmount) * 100
+          }%). Sent ${shortAmount} and received ${claimedAmount}`,
+        );
       });
     });
   });
 });
 
-const waitTillRecipientBalanceIncreased = async (maxTimeMs: number, usdcDestination: Contract, recipient: Wallet, initialBalance: BigNumber) => {
+const waitTillRecipientBalanceIncreased = async (
+  maxTimeMs: number,
+  usdcDestination: Contract,
+  recipient: Wallet,
+  initialBalance: BigNumber,
+  decDivider: number,
+  recipientNetwork: string
+) => {
   let startDate = new Date().getTime();
 
   const executePoll = async (resolve, reject) => {
@@ -375,10 +404,39 @@ const waitTillRecipientBalanceIncreased = async (maxTimeMs: number, usdcDestinat
     } else if (elapsedTimeMs > maxTimeMs) {
       return reject(new Error(`Exchange took too long to complete. Max time: ${maxTimeMs}ms`));
     } else {
-      console.log(`Waiting for recipient balance to increase. Elapsed time: ${elapsedTimeMs}ms`);
+      console.log(`Waiting for recipient balance to increase. Elapsed time: ${elapsedTimeMs}ms. ${recipientNetwork}:${recipient.address} balance: ${newBalance.toNumber() / decDivider}`);
       setTimeout(executePoll, 10000, resolve, reject);
     }
   };
 
   return new Promise(executePoll);
+};
+
+const getTxReceipt = async (
+  maxTimeMs: number,
+  signer: Wallet,
+  txHash: string,
+) => {
+  let startDate = new Date().getTime();
+
+  const executePoll = async (resolve, reject) => {
+    const txReceipt = await signer.provider.getTransactionReceipt(txHash);
+    const elapsedTimeMs = new Date().getTime() - startDate;
+
+    if (txReceipt) {
+      return resolve(txReceipt);
+    } else if (elapsedTimeMs > maxTimeMs) {
+      return reject(new Error(`TX Receipt long to complete. Max time: ${maxTimeMs}ms`));
+    } else {
+      console.log(`Waiting for tx receipt. Elapsed time: ${elapsedTimeMs}ms.`);
+      setTimeout(executePoll, 5000, resolve, reject);
+    }
+  };
+
+  return new Promise(executePoll);
+};
+
+const getTxCostInUSD = async (receipt: any) => {
+  const gwei = receipt.effectiveGasPrice.mul(receipt.gasUsed);
+  return gwei.toString();
 };
