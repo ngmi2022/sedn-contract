@@ -76,7 +76,7 @@ const explorerData: any = {
     apiKey: process.env.ETHERSCAN_API_KEY || "",
   },
   polygon: {
-    url: "https://polygonscan.com",
+    url: "https://explorer.bitquery.io/matic",
     api: "https://api.polygonscan.com/api",
     apiKey: process.env.POLYGONSCAN_API_KEY || "",
   },
