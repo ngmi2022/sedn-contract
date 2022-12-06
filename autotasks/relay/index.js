@@ -25,6 +25,7 @@ async function handler(event) {
   // Parse webhook payload
   if (!event.request || !event.request.body) throw new Error(`Missing payload`);
   const { request, signature } = event.request.body;
+  console.log(`Event`, JSON.stringify(event));
   console.log(`Relaying`, JSON.stringify(request));
 
   // Initialize Relayer provider and signer, and forwarder contract
