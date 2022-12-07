@@ -365,7 +365,7 @@ describe("Sedn Contract", function () {
           await bridgeClaim.wait();
         }
         console.log("TX: Executed claim");
-        await waitTillRecipientBalanceIncreased(25 * 60_000, usdcDestination, destinationRecipient, beforeClaim, decDivider, destinationNetwork);
+        await waitTillRecipientBalanceIncreased(50 * 60_000, usdcDestination, destinationRecipient, beforeClaim, decDivider, destinationNetwork);
         const afterClaim = await usdcDestination.balanceOf(destinationRecipient.address);
         console.log(
           `ACCOUNTS: RecipientDestination balance after 'claim' (${destinationNetwork}:${
