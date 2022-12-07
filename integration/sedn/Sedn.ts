@@ -1,7 +1,7 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
 import fetch from "cross-fetch";
 import { BigNumber, Contract, Wallet, ethers } from "ethers";
-
+import { expect } from "chai";
 import { FakeSigner } from "../../integration/FakeSigner";
 import { sendMetaTx } from "./helper/signer";
 
@@ -207,6 +207,8 @@ describe("Sedn Contract", function () {
           } (${destinationNetwork})`,
         );
 
+        expect((await usdcOrigin.balanceOf(signer.address)).toNumber()).to.be.greaterThanOrEqual(amount, 'Insufficient funds');
+        
         // /**********************************
         // Get the Bungee/Socket Route
         // *************************************/
