@@ -265,7 +265,7 @@ describe("Sedn Contract", function () {
         });
         console.log(`TX: Approve tx: ${explorerUrl}/tx/${approve.hash}`);
         const approveReceipt = await approve.wait();
-        console.log("TX: Executed approve", (await getTxCost(approveReceipt)).toString());
+        console.log("TX: Executed approve", await getTxCostInUSD(approveReceipt));
 
         // ACTUAL SEDN & DECIDE OF GASLESS OR NOT
 
@@ -294,7 +294,7 @@ describe("Sedn Contract", function () {
           });
           console.log(`TX: Send tx: ${explorerUrl}/tx/${sednToUnregistered.hash}`);
           const sednReceipt = await sednToUnregistered.wait();
-          console.log("TX: executed send tx", (await getTxCost(sednReceipt)).toString());
+          console.log("TX: executed send tx", await getTxCostInUSD(sednReceipt));
         }
         // check sedn
         const afterSend = await usdcOrigin.balanceOf(signer.address);
@@ -345,7 +345,7 @@ describe("Sedn Contract", function () {
           }
           console.log(`TX: Claim tx: ${explorerUrl}/tx/${txHash}`);
           const txReceipt: any = await getTxReceipt(60_000, signer, txHash);
-          console.log(`TX: Executed claim with txHash: ${txHash} and blockHash: ${txReceipt.blockHash} and txCost ${(await getTxCost(txReceipt)).toString()}`);
+          console.log(`TX: Executed claim with txHash: ${txHash} and blockHash: ${txReceipt.blockHash} and txCost ${await getTxCostInUSD(txReceipt)}`);
         } else {
           let fees = await feeData(network, signer);
           const bridgeClaim = await sedn
@@ -436,6 +436,7 @@ const getTxReceipt = async (
   return new Promise(executePoll);
 };
 
-const getTxCost = async (receipt: any) => {
-  return receipt.effectiveGasPrice.mul(receipt.gasUsed);
+const getTxCostInUSD = async (receipt: any) => {
+  const gwei = receipt.effectiveGasPrice.mul(receipt.gasUsed);
+  return gwei.toString();
 };
