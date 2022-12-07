@@ -1,7 +1,8 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
+import { expect } from "chai";
 import fetch from "cross-fetch";
 import { BigNumber, Contract, Wallet, ethers } from "ethers";
-import { expect } from "chai";
+
 import { FakeSigner } from "../../integration/FakeSigner";
 import { sendMetaTx } from "./helper/signer";
 
@@ -102,6 +103,17 @@ const explorerData: any = {
   },
 };
 
+const nativeAssetIds: any = {
+  mainnet: "ethereum",
+  polygon: "matic-netowrk",
+  arbitrum: "ethereum",
+  "arbitrum-goerli": "ethereum",
+  aurora: "ethereum",
+  avalanche: "avalanche-2",
+  fantom: "fantom",
+  optimisim: "ethereum",
+};
+
 export const feeData = async (network: string, signer: Wallet) => {
   switch (network) {
     case "polygon":
@@ -187,6 +199,7 @@ describe("Sedn Contract", function () {
         const explorerUrl = explorerData[network].url;
         const decimals = await usdcOrigin.decimals();
         const decDivider = parseInt(10 ** decimals + "");
+        const nativeAssetId = nativeAssetIds[network];
         // /**********************************
         // Setup
         // *************************************/
@@ -207,8 +220,11 @@ describe("Sedn Contract", function () {
           } (${destinationNetwork})`,
         );
 
-        expect((await usdcOrigin.balanceOf(signer.address)).toNumber()).to.be.greaterThanOrEqual(amount, 'Insufficient funds');
-        
+        expect((await usdcOrigin.balanceOf(signer.address)).toNumber()).to.be.greaterThanOrEqual(
+          amount,
+          "Insufficient funds",
+        );
+
         // /**********************************
         // Get the Bungee/Socket Route
         // *************************************/
@@ -265,11 +281,12 @@ describe("Sedn Contract", function () {
         });
         console.log(`TX: Approve tx: ${explorerUrl}/tx/${approve.hash}`);
         const approveReceipt = await approve.wait();
-        console.log("TX: Executed approve", await getTxCostInUSD(approveReceipt));
+        console.log("TX: Executed approve", await getTxCostInUSD(approveReceipt, nativeAssetId));
 
         // ACTUAL SEDN & DECIDE OF GASLESS OR NOT
 
-        if (false) { // sender pays for sending
+        if (false) {
+          // sender pays for sending
           const response = await sendMetaTx(
             sedn,
             signer,
@@ -283,9 +300,7 @@ describe("Sedn Contract", function () {
           const txHash = JSON.parse(response.result).txHash;
           console.log(`TX: Send tx: ${explorerUrl}/tx/${txHash}`);
           const txReceipt: any = await getTxReceipt(60_000, signer, txHash);
-          console.log(
-            `TX: Executed send tx with txHash: ${txHash} and blockHash: ${txReceipt.blockHash}`,
-          );
+          console.log(`TX: Executed send tx with txHash: ${txHash} and blockHash: ${txReceipt.blockHash}`);
         } else {
           let fees = await feeData(network, signer);
           const sednToUnregistered = await sedn.sedn(amount, secret, {
@@ -294,7 +309,7 @@ describe("Sedn Contract", function () {
           });
           console.log(`TX: Send tx: ${explorerUrl}/tx/${sednToUnregistered.hash}`);
           const sednReceipt = await sednToUnregistered.wait();
-          console.log("TX: executed send tx", await getTxCostInUSD(sednReceipt));
+          console.log("TX: executed send tx", await getTxCostInUSD(sednReceipt, nativeAssetId));
         }
         // check sedn
         const afterSend = await usdcOrigin.balanceOf(signer.address);
@@ -325,7 +340,8 @@ describe("Sedn Contract", function () {
         const signature = ethers.utils.splitSignature(signedMessage);
 
         // IF GASLESS OR NOT
-        if (true) { // withdraw is gasless
+        if (true) {
+          // withdraw is gasless
           const response = await sendMetaTx(
             sedn,
             recipient,
@@ -345,7 +361,11 @@ describe("Sedn Contract", function () {
           }
           console.log(`TX: Claim tx: ${explorerUrl}/tx/${txHash}`);
           const txReceipt: any = await getTxReceipt(60_000, signer, txHash);
-          console.log(`TX: Executed claim with txHash: ${txHash} and blockHash: ${txReceipt.blockHash} and txCost ${await getTxCostInUSD(txReceipt)}`);
+          console.log(
+            `TX: Executed claim with txHash: ${txHash} and blockHash: ${
+              txReceipt.blockHash
+            } and txCost ${await getTxCostInUSD(txReceipt, nativeAssetId)}`,
+          );
         } else {
           let fees = await feeData(network, signer);
           const bridgeClaim = await sedn
@@ -365,7 +385,14 @@ describe("Sedn Contract", function () {
           await bridgeClaim.wait();
         }
         console.log("TX: Executed claim");
-        await waitTillRecipientBalanceIncreased(50 * 60_000, usdcDestination, destinationRecipient, beforeClaim, decDivider, destinationNetwork);
+        await waitTillRecipientBalanceIncreased(
+          50 * 60_000,
+          usdcDestination,
+          destinationRecipient,
+          beforeClaim,
+          decDivider,
+          destinationNetwork,
+        );
         const afterClaim = await usdcDestination.balanceOf(destinationRecipient.address);
         console.log(
           `ACCOUNTS: RecipientDestination balance after 'claim' (${destinationNetwork}:${
@@ -390,7 +417,7 @@ const waitTillRecipientBalanceIncreased = async (
   recipient: Wallet,
   initialBalance: BigNumber,
   decDivider: number,
-  recipientNetwork: string
+  recipientNetwork: string,
 ) => {
   let startDate = new Date().getTime();
 
@@ -404,7 +431,11 @@ const waitTillRecipientBalanceIncreased = async (
     } else if (elapsedTimeMs > maxTimeMs) {
       return reject(new Error(`Exchange took too long to complete. Max time: ${maxTimeMs}ms`));
     } else {
-      console.log(`Waiting for recipient balance to increase. Elapsed time: ${elapsedTimeMs}ms. ${recipientNetwork}:${recipient.address} balance: ${newBalance.toNumber() / decDivider}`);
+      console.log(
+        `Waiting for recipient balance to increase. Elapsed time: ${elapsedTimeMs}ms. ${recipientNetwork}:${
+          recipient.address
+        } balance: ${newBalance.toNumber() / decDivider}`,
+      );
       setTimeout(executePoll, 10000, resolve, reject);
     }
   };
@@ -412,11 +443,7 @@ const waitTillRecipientBalanceIncreased = async (
   return new Promise(executePoll);
 };
 
-const getTxReceipt = async (
-  maxTimeMs: number,
-  signer: Wallet,
-  txHash: string,
-) => {
+const getTxReceipt = async (maxTimeMs: number, signer: Wallet, txHash: string) => {
   let startDate = new Date().getTime();
 
   const executePoll = async (resolve, reject) => {
@@ -436,7 +463,11 @@ const getTxReceipt = async (
   return new Promise(executePoll);
 };
 
-const getTxCostInUSD = async (receipt: any) => {
-  const gwei = receipt.effectiveGasPrice.mul(receipt.gasUsed);
-  return gwei.toString();
+const getTxCostInUSD = async (receipt: any, assetId: string) => {
+  const ether = ethers.utils.formatEther(receipt.effectiveGasPrice.mul(receipt.gasUsed)); // 1 ether = 10^18 Wei, all networks supported by socket have 10^18 Wei in their fee currency, even BSC BNB
+  console.log("INFO: tx ether value", ether);
+  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${assetId}&vs_currencies=usd`;
+  const priceData = await fetch(url).then(reponse => reponse.json());
+  const actualDollarValue = parseFloat(ether) * priceData[assetId].usd;
+  return actualDollarValue.toString() + " USD";
 };
