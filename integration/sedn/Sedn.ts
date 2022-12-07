@@ -17,7 +17,7 @@ const fetchConfig = async () => {
 };
 
 // some params & functions to facilitate metaTX testing / testnet
-const gasless: boolean = process.env.CONTEXT === "github" ? true : false;
+//const gasless: boolean = process.env.CONTEXT === "github" ? true : true;
 const testnet: boolean = false;
 // no testnets need to be included
 const supportedNetworks = ["polygon", "arbitrum"];
@@ -76,7 +76,7 @@ const explorerData: any = {
     apiKey: process.env.ETHERSCAN_API_KEY || "",
   },
   polygon: {
-    url: "https://explorer.bitquery.io/matic",
+    url: "https://polygonscan.com",
     api: "https://api.polygonscan.com/api",
     apiKey: process.env.POLYGONSCAN_API_KEY || "",
   },
@@ -264,12 +264,12 @@ describe("Sedn Contract", function () {
           maxPriorityFeePerGas: fees.maxPriorityFee,
         });
         console.log(`TX: Approve tx: ${explorerUrl}/tx/${approve.hash}`);
-        await approve.wait();
-        console.log("TX: Executed approve");
+        const approveReceipt = await approve.wait();
+        console.log("TX: Executed approve", (await getTxCost(approveReceipt)).toNumber());
 
         // ACTUAL SEDN & DECIDE OF GASLESS OR NOT
 
-        if (gasless === true) {
+        if (false) { // sender pays for sending
           const response = await sendMetaTx(
             sedn,
             signer,
@@ -282,11 +282,9 @@ describe("Sedn Contract", function () {
           );
           const txHash = JSON.parse(response.result).txHash;
           console.log(`TX: Send tx: ${explorerUrl}/tx/${txHash}`);
-          const txReceipt = await signer.provider.getTransactionReceipt(txHash);
+          const txReceipt: any = await getTxReceipt(60_000, signer, txHash);
           console.log(
-            `TX: Executed send tx with txHash: ${txHash} and blockHash: ${
-              (txReceipt && txReceipt.blockHash) || "no tx receipt"
-            }`,
+            `TX: Executed send tx with txHash: ${txHash} and blockHash: ${txReceipt.blockHash}`,
           );
         } else {
           let fees = await feeData(network, signer);
@@ -295,8 +293,8 @@ describe("Sedn Contract", function () {
             maxPriorityFeePerGas: fees.maxPriorityFee,
           });
           console.log(`TX: Send tx: ${explorerUrl}/tx/${sednToUnregistered.hash}`);
-          await sednToUnregistered.wait();
-          console.log("TX: executed send tx");
+          const sednReceipt = await sednToUnregistered.wait();
+          console.log("TX: executed send tx", (await getTxCost(sednReceipt)).toNumber());
         }
         // check sedn
         const afterSend = await usdcOrigin.balanceOf(signer.address);
@@ -327,7 +325,7 @@ describe("Sedn Contract", function () {
         const signature = ethers.utils.splitSignature(signedMessage);
 
         // IF GASLESS OR NOT
-        if (gasless === true) {
+        if (true) { // withdraw is gasless
           const response = await sendMetaTx(
             sedn,
             recipient,
@@ -346,12 +344,8 @@ describe("Sedn Contract", function () {
             throw e;
           }
           console.log(`TX: Claim tx: ${explorerUrl}/tx/${txHash}`);
-          const txReceipt = await signer.provider.getTransactionReceipt(txHash);
-          console.log(
-            `TX: Executed claim with txHash: ${txHash} and blockHash: ${
-              (txReceipt && txReceipt.blockHash) || "no tx receipt"
-            }`,
-          );
+          const txReceipt: any = await getTxReceipt(60_000, signer, txHash);
+          console.log(`TX: Executed claim with txHash: ${txHash} and blockHash: ${txReceipt.blockHash} and txCost ${(await getTxCost(txReceipt)).toNumber()}`);
         } else {
           let fees = await feeData(network, signer);
           const bridgeClaim = await sedn
@@ -371,7 +365,7 @@ describe("Sedn Contract", function () {
           await bridgeClaim.wait();
         }
         console.log("TX: Executed claim");
-        await waitTillRecipientBalanceIncreased(25 * 60_000, usdcDestination, destinationRecipient, beforeClaim);
+        await waitTillRecipientBalanceIncreased(25 * 60_000, usdcDestination, destinationRecipient, beforeClaim, decDivider, destinationNetwork);
         const afterClaim = await usdcDestination.balanceOf(destinationRecipient.address);
         console.log(
           `ACCOUNTS: RecipientDestination balance after 'claim' (${destinationNetwork}:${
@@ -395,6 +389,8 @@ const waitTillRecipientBalanceIncreased = async (
   usdcDestination: Contract,
   recipient: Wallet,
   initialBalance: BigNumber,
+  decDivider: number,
+  recipientNetwork: string
 ) => {
   let startDate = new Date().getTime();
 
@@ -408,10 +404,38 @@ const waitTillRecipientBalanceIncreased = async (
     } else if (elapsedTimeMs > maxTimeMs) {
       return reject(new Error(`Exchange took too long to complete. Max time: ${maxTimeMs}ms`));
     } else {
-      console.log(`Waiting for recipient balance to increase. Elapsed time: ${elapsedTimeMs}ms`);
+      console.log(`Waiting for recipient balance to increase. Elapsed time: ${elapsedTimeMs}ms. ${recipientNetwork}:${recipient.address} balance: ${newBalance.toNumber() / decDivider}`);
       setTimeout(executePoll, 10000, resolve, reject);
     }
   };
 
   return new Promise(executePoll);
+};
+
+const getTxReceipt = async (
+  maxTimeMs: number,
+  signer: Wallet,
+  txHash: string,
+) => {
+  let startDate = new Date().getTime();
+
+  const executePoll = async (resolve, reject) => {
+    const txReceipt = await signer.provider.getTransactionReceipt(txHash);
+    const elapsedTimeMs = new Date().getTime() - startDate;
+
+    if (txReceipt) {
+      return resolve(txReceipt);
+    } else if (elapsedTimeMs > maxTimeMs) {
+      return reject(new Error(`TX Receipt long to complete. Max time: ${maxTimeMs}ms`));
+    } else {
+      console.log(`Waiting for tx receipt. Elapsed time: ${elapsedTimeMs}ms.`);
+      setTimeout(executePoll, 5000, resolve, reject);
+    }
+  };
+
+  return new Promise(executePoll);
+};
+
+const getTxCost = async (receipt: any) => {
+  return receipt.effectiveGasPrice.mul(receipt.gasUsed);
 };
