@@ -476,8 +476,8 @@ const getTxCostInUSD = async (receipt: any, assetId: string) => {
 };
 
 const checkTxStatus = async (receipt: TransactionReceipt) => {
-  const logs = receipt.logs || 0;
-  if (logs === undefined || logs.length === 0) {
+  const logs = receipt.logs || [];
+  if (typeof logs === 'undefined' || logs.length === 0) {
     throw new Error("Transaction xecuted, but reverted");
   }
 };
