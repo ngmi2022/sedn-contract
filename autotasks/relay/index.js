@@ -1,5 +1,5 @@
 import { DefenderRelayProvider, DefenderRelaySigner } from "defender-relay-client/lib/ethers";
-import { Contract } from "ethers";
+import { Contract, BigNumber } from "ethers";
 
 import { ForwarderAbi } from "../../abis/abis";
 
@@ -18,9 +18,11 @@ async function relay(forwarder, request, signature) {
   if (!valid) throw new Error(`Invalid request`);
 
   // Send meta-tx through relayer to the forwarder contract
-  const gasLimit = (parseInt(request.gas) + 1000000).toString();
+  const gasEstimate = await forwarder.estimateGas.execute(request, signature);
+  console.log(gasEstimate)
+  const gasLimit = gasEstimate.add(BigNumber.from("4000000"));
   const value = (parseInt(request.value)).toString();
-  console.log(`Using gas limit ${gasLimit}`);
+  console.log(`Using gas limit ${gasLimit.toString()}`);
   return await forwarder.execute(request, signature, { gasLimit, value });
 }
 

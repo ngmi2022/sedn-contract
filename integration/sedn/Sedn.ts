@@ -7,6 +7,7 @@ import { FakeSigner } from "../../integration/FakeSigner";
 import { sendMetaTx } from "./helper/signer";
 
 const ENVIRONMENT = process.env.ENVIRONMENT || "prod";
+const USE_STARGATE = process.env.USE_STARGATE === "true" ? true : false;
 
 const fetchConfig = async () => {
   if (ENVIRONMENT === "staging") {
@@ -18,7 +19,7 @@ const fetchConfig = async () => {
 };
 
 // some params & functions to facilitate metaTX testing / testnet
-//const gasless: boolean = process.env.CONTEXT === "github" ? true : true;
+const gasless: boolean = process.env.CONTEXT === "github" ? true : false;
 const testnet: boolean = false;
 // no testnets need to be included
 const supportedNetworks = ["polygon", "arbitrum"];
@@ -105,7 +106,7 @@ const explorerData: any = {
 
 const nativeAssetIds: any = {
   mainnet: "ethereum",
-  polygon: "matic-netowrk",
+  polygon: "matic-network",
   arbitrum: "ethereum",
   "arbitrum-goerli": "ethereum",
   aurora: "ethereum",
@@ -203,7 +204,7 @@ describe("Sedn Contract", function () {
         // /**********************************
         // Setup
         // *************************************/
-        const shortAmount = parseFloat(process.env.AMOUNT! || "0.50");
+        const shortAmount = parseFloat(process.env.AMOUNT! || "1.00");
         const amount = parseInt(shortAmount * 10 ** decimals + "");
         const destinationNetwork = testnet ? network : await getRandomRecipientNetwork(network); // only test on testnet as no bridges possible
         const destinationProvider = new ethers.providers.JsonRpcProvider(getRpcUrl(destinationNetwork));
@@ -228,16 +229,26 @@ describe("Sedn Contract", function () {
         // /**********************************
         // Get the Bungee/Socket Route
         // *************************************/
+
+        // GATEKEEPER FOR STARGATE
+        let excludeBridges = "stargate";
+        if (amount > 10 ** decimals) {
+          excludeBridges = "";
+        }
+
         const socketRouteRequest = {
           fromChain: testnet ? "polygon" : network,
           toChain: testnet ? "arbitrum" : destinationNetwork,
           recipientAddress: destinationRecipient.address,
           amount: amount / 10 ** decimals,
+          excludeBridges: excludeBridges,
+          useStargate: USE_STARGATE,
           environment: ENVIRONMENT,
         };
 
         const socketRouteResponse: any = await fetch(
           "https://us-central1-sedn-17b18.cloudfunctions.net/getSednParameters/",
+          // "http://127.0.0.1:5001/sedn-17b18/us-central1/getSednParameters",
           {
             method: "POST",
             headers: {
@@ -265,7 +276,7 @@ describe("Sedn Contract", function () {
 
         // SECRET HASHING
         const solution = (Math.random() + 1).toString(36).substring(7);
-        // const solution = "w6ox3";
+        // const solution = "bbftm";
         const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
         console.log(`INFO: Running with solution '${solution}' and secret '${secret}'`);
 
@@ -274,6 +285,7 @@ describe("Sedn Contract", function () {
           `ACCOUNTS: SenderOrigin inital state (${network}:${signer.address}) ${beforeSend.toNumber() / decDivider}`,
         );
         // TODO: how can we get a better value for gas limit here?
+
         let fees = await feeData(network, signer);
         const approve = await usdcOrigin.approve(sedn.address, amount, {
           maxFeePerGas: fees.maxFee,
