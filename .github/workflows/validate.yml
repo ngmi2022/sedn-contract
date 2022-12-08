@@ -29,7 +29,7 @@ on:
         type: string
       amount:
         description: 'The amount to be sent'
-        default: 0.5
+        default: 1.0
         required: true
         type: number
       environment:

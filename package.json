@@ -98,8 +98,8 @@
     "integration:prod": "ENVIRONMENT=prod hardhat test --config hardhat.config.integration.ts",
     "typechain": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat typechain",
     "build": "rollup -c",
-    "upload:prod": "ENVIRONMENT=prod yarn build && node autotasks/upload",
-    "upload:staging": "ENVIRONMENT=staging yarn build && node autotasks/upload"
+    "upload:prod": "yarn build && ENVIRONMENT=prod node autotasks/upload",
+    "upload:staging": "yarn build && ENVIRONMENT=staging node autotasks/upload"
   },
   "dependencies": {
     "@chainlink/contracts": "^0.4.1",

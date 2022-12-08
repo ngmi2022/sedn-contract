@@ -1,15 +1,12 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { addresses } from "@socket.tech/ll-core";
 import { expect } from "chai";
-import { Address } from "defender-relay-client";
 import { BigNumber, Contract } from "ethers";
-import { ObjectEncodingOptions } from "fs";
 import { ethers, network } from "hardhat";
 import { it } from "mocha";
 
 import { FakeSigner } from "../../integration/FakeSigner";
 import { deploySedn } from "../../integration/sedn.contract";
-import { signMetaTxRequest } from "../../integration/sedn/helper/signer";
 import { Sedn } from "../../src/types/contracts/Sedn.sol/Sedn";
 import { restoreSnapshot, takeSnapshot } from "../utils/network";
 
@@ -123,7 +120,7 @@ describe("Sedn", function () {
     });
 
     it("should send funds to an unregistered user on a different chain", async function () {
-      const amount = 10;
+      const amount = 10 * 10 ** 6;
       await contract.deployed();
 
       // Send
@@ -138,20 +135,22 @@ describe("Sedn", function () {
 
       // Claim
       // construct necessary calldata for method execution
-      const toChainId = 100;
+
+      // Claim
+      // construct necessary calldata for method execution
+      const toChainId = 137;
 
       // data construct for middleware, which is not used in this test transaction
       const miWaId = 0;
       const miOpNativeAmt = 0;
       const inToken = usdc.address;
-      const miData = "0x";
+      const miData = "0x0000000000000000000000000000000000000000000000000000000000000000";
       const middlewareRequest = [miWaId, miOpNativeAmt, inToken, miData];
 
       // data construct for hop bridge, which is used in this test transaction
-      const briId = 18;
+      const briId = 12;
       const briOpNativeAmt = 0;
-      const briData =
-        "0x0000000000000000000000003666f603cc164936c1b87e207f36beba4ac5f18a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000018413b7dcb40000000000000000000000000000000000000000000000000000000000000001";
+      const briData = "0x0000000000000000000000000000000000000000000000000000000000000000";
       const bridgeRequest = [briId, briOpNativeAmt, inToken, briData];
 
       // create calldata dict
@@ -179,10 +178,10 @@ describe("Sedn", function () {
           signature.r,
           signature.s,
           userRequestDict,
-          "0x4C9faD010D8be90Aba505c85eacc483dFf9b8Fa9",
+          "0x1Aba89fC7ff67D27ccaa51893c46FD1e5fEE924B",
         );
       const afterClaim = await usdc.balanceOf(contract.address);
-      expect(beforeClaim.sub(afterClaim)).to.equal(10);
+      expect(beforeClaim.sub(afterClaim)).to.equal(amount);
     });
   });
 });
