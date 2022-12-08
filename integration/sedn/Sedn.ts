@@ -1,7 +1,9 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
-import { expect } from "chai";
+import { TransactionReceipt } from "@ethersproject/providers";
+import { assert, expect } from "chai";
 import fetch from "cross-fetch";
 import { BigNumber, Contract, Wallet, ethers } from "ethers";
+import { check } from "prettier";
 
 import { FakeSigner } from "../../integration/FakeSigner";
 import { sendMetaTx } from "./helper/signer";
@@ -373,6 +375,7 @@ describe("Sedn Contract", function () {
           }
           console.log(`TX: Claim tx: ${explorerUrl}/tx/${txHash}`);
           const txReceipt: any = await getTxReceipt(60_000, signer, txHash);
+          await checkTxStatus(txReceipt);
           console.log(
             `TX: Executed claim with txHash: ${txHash} and blockHash: ${
               txReceipt.blockHash
@@ -482,4 +485,11 @@ const getTxCostInUSD = async (receipt: any, assetId: string) => {
   const priceData = await fetch(url).then(reponse => reponse.json());
   const actualDollarValue = parseFloat(ether) * priceData[assetId].usd;
   return actualDollarValue.toString() + " USD";
+};
+
+const checkTxStatus = async (receipt: TransactionReceipt) => {
+  const logs = receipt.logs || [];
+  if (typeof logs === 'undefined' || logs.length === 0) {
+    throw new Error("Transaction xecuted, but reverted");
+  }
 };
