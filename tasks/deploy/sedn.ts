@@ -11,7 +11,7 @@ function timeout(ms: number) {
 }
 
 const getConfig = async () => {
-  const data: any = await (await fetch("https://storage.googleapis.com/sedn-public-config/config.json")).json();
+  const data: any = await (await fetch("https://storage.googleapis.com/sedn-public-config/v2.config.json")).json();
   return data;
 };
 

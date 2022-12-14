@@ -35,6 +35,7 @@ const chainIds = {
   hardhat: 31337,
   mainnet: 1,
   "optimism-mainnet": 10,
+  "optimism-goerli": 420,
   "polygon-mainnet": 137,
   "polygon-mumbai": 80001,
   rinkeby: 4,
@@ -102,6 +103,7 @@ const config: HardhatUserConfig = {
       goerli: process.env.ETHERSCAN_API_KEY || "",
       sepolia: process.env.ETHERSCAN_API_KEY || "",
       "arbitrum-goerli": process.env.ARBISCAN_API_KEY || "",
+      "optimism-goerli": process.env.OPTIMISM_API_KEY || "",
     },
     customChains: [
       {
@@ -110,6 +112,14 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: "https://api-goerli.arbiscan.io/api?",
           browserURL: "https://goerli.arbiscan.io/",
+        },
+      },
+      {
+        network: "optimism-goerli",
+        chainId: 420,
+        urls: {
+          apiURL: "https://api-goerli-optimistic.etherscan.io/api?",
+          browserURL: "https://goerli-optimism.etherscan.io/",
         },
       },
     ],
@@ -143,6 +153,7 @@ const config: HardhatUserConfig = {
     gnosis: getChainConfig("gnosis"),
     goerli: getChainConfig("goerli"),
     "arbitrum-goerli": getChainConfig("arbitrum-goerli"),
+    "optimism-goerli": getChainConfig("optimism-goerli"),
   },
   paths: {
     artifacts: "./artifacts",

@@ -13,7 +13,7 @@ contract SednUSDC is ERC20 {
     /**
      * @dev Constructor that gives msg.sender all of existing tokens.
      */
-    constructor (uint256 initialSupply) ERC20("SednUSDC", "USDC") {
+    constructor (uint256 initialSupply) ERC20("testUSDC", "USDC") {
         _mint(msg.sender, initialSupply * (10 ** 6));
     }
         function decimals() override public pure returns (uint8) {
