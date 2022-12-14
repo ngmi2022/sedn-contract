@@ -34,7 +34,8 @@ const chainIds = {
   bsc: 56,
   hardhat: 31337,
   mainnet: 1,
-  "optimism-mainnet": 10,
+  optimism: 10,
+  "optimism-goerli": 420,
   "polygon-mainnet": 137,
   "polygon-mumbai": 80001,
   rinkeby: 4,
@@ -77,6 +78,8 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
       accounts = [process.env.GOERLI_PK];
     case "arbitrum-goerli":
       jsonRpcUrl = "https://arbitrum-goerli.infura.io/v3/" + infuraApiKey;
+    case "optimism":
+      jsonRpcUrl = "https://optimism-mainnet.infura.io//v3/" + infuraApiKey;
     default:
       jsonRpcUrl = "https://" + chain + ".infura.io/v3/" + infuraApiKey;
   }
@@ -102,6 +105,7 @@ const config: HardhatUserConfig = {
       goerli: process.env.ETHERSCAN_API_KEY || "",
       sepolia: process.env.ETHERSCAN_API_KEY || "",
       "arbitrum-goerli": process.env.ARBISCAN_API_KEY || "",
+      "optimism-goerli": process.env.OPTIMISM_API_KEY || "",
     },
     customChains: [
       {
@@ -110,6 +114,14 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: "https://api-goerli.arbiscan.io/api?",
           browserURL: "https://goerli.arbiscan.io/",
+        },
+      },
+      {
+        network: "optimism-goerli",
+        chainId: 420,
+        urls: {
+          apiURL: "https://api-goerli-optimistic.etherscan.io/api?",
+          browserURL: "https://goerli-optimism.etherscan.io/",
         },
       },
     ],
@@ -135,7 +147,7 @@ const config: HardhatUserConfig = {
     avalanche: getChainConfig("avalanche"),
     bsc: getChainConfig("bsc"),
     mainnet: getChainConfig("mainnet"),
-    optimism: getChainConfig("optimism-mainnet"),
+    optimism: getChainConfig("optimism"),
     "polygon-mainnet": getChainConfig("polygon-mainnet"),
     "polygon-mumbai": getChainConfig("polygon-mumbai"),
     rinkeby: getChainConfig("rinkeby"),
@@ -143,6 +155,7 @@ const config: HardhatUserConfig = {
     gnosis: getChainConfig("gnosis"),
     goerli: getChainConfig("goerli"),
     "arbitrum-goerli": getChainConfig("arbitrum-goerli"),
+    "optimism-goerli": getChainConfig("optimism-goerli"),
   },
   paths: {
     artifacts: "./artifacts",

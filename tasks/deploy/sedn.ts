@@ -11,7 +11,7 @@ function timeout(ms: number) {
 }
 
 const getConfig = async () => {
-  const data: any = await (await fetch("https://storage.googleapis.com/sedn-public-config/config.json")).json();
+  const data: any = await (await fetch("https://storage.googleapis.com/sedn-public-config/v2.config.json")).json();
   return data;
 };
 
@@ -23,11 +23,13 @@ task("deploy:Sedn").setAction(async function (taskArguments: TaskArguments, { et
     ch_id !== 31337 ? addresses[ch_id][registry] : "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0";
   const sednFactory: Sedn__factory = await ethers.getContractFactory("Sedn");
   const configData = await getConfig();
+  const name = "SednUSDC";
+  const symbol = "sdnUSDC";
   const trustedForwarder = configData.forwarder[network.name];
   const verifier = configData.verifier;
   const sedn: Sedn = await sednFactory
     .connect(signers[0])
-    .deploy(configData.usdc[network.name].contract, registryAddress, verifier, trustedForwarder);
+    .deploy(configData.usdc[network.name].contract, registryAddress, verifier, name, symbol, trustedForwarder);
   await sedn.deployed();
   console.log("Sedn deployed to: ", sedn.address);
 
@@ -37,7 +39,14 @@ task("deploy:Sedn").setAction(async function (taskArguments: TaskArguments, { et
     await run("verify:verify", {
       address: sedn.address,
       network: network.name,
-      constructorArguments: [configData.usdc[network.name].contract, registryAddress, verifier, trustedForwarder],
+      constructorArguments: [
+        configData.usdc[network.name].contract,
+        registryAddress,
+        verifier,
+        name,
+        symbol,
+        trustedForwarder,
+      ],
     });
   }
 });
