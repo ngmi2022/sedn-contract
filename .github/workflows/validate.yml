@@ -21,8 +21,11 @@ on:
       testnet:
         description: 'tick for testnet (livenet not supported yet)'
         required: true
-        default: true
-        type: boolean
+        default: testnet
+        type: choice
+        options:
+        - testnet
+        - livenet
       amount:
         description: 'The amount to be sent'
         default: 1.0
