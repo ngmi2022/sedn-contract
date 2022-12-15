@@ -275,7 +275,6 @@ contract SednTestnet is ERC2771Context, Ownable, IUserRequest{
 
         uint256 fromBalance = _balances[owner];
         require(fromBalance >= amount, "Withdrawal amount exceeds balance");
-        _balances[owner] = fromBalance - amount;
         console.log("Bridge and claiming funds", amount, _msgSender());
         console.log("UserRequest", _userRequest.amount, _userRequest.receiverAddress, _userRequest.toChainId);
         console.log("BridgeImpl", bridgeImpl);

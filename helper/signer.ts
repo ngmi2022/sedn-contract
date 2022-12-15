@@ -1,8 +1,9 @@
 import { SignTypedDataVersion, signTypedData } from "@metamask/eth-sig-util";
 import { fetch } from "cross-fetch";
-import { Contract, Signer, ethers } from "ethers";
+import { Contract, Signer, Wallet, ethers } from "ethers";
 
-import { ForwarderAbi } from "../../../abis/abis";
+import { ForwarderAbi } from "../abis/abis";
+import { explorerData, feeData, getTxCostInUSD, getTxReceipt } from "./utils";
 
 const EIP712Domain = [
   { name: "name", type: "string" },
@@ -62,10 +63,10 @@ export async function sendMetaTx(
   funcName: string,
   funcArgs: any[],
   txValue: BigInt,
-  url: string,
+  relayerWebhook: string,
   forwarderAddress: string,
 ) {
-  if (!url) throw new Error(`Missing relayer url`);
+  if (!relayerWebhook) throw new Error(`Missing relayer webhook url`);
 
   const forwarder = new ethers.Contract(forwarderAddress, ForwarderAbi, signer);
   const from = await signer.getAddress();
@@ -74,7 +75,7 @@ export async function sendMetaTx(
   const value = txValue.toString();
 
   const request = await signMetaTxRequest(signerKey, forwarder, { to, from, data, value });
-  const response = await fetch(url, {
+  const response = await fetch(relayerWebhook, {
     method: "POST",
     body: JSON.stringify(request),
     headers: { "Content-Type": "application/json", "Accept-Encoding": "identity" },
@@ -84,9 +85,54 @@ export async function sendMetaTx(
   return response;
 }
 
+export async function sendTx(
+  contract: Contract,
+  signer: Wallet,
+  signerKey: string,
+  funcName: string,
+  funcArgs: any[],
+  txValue: BigInt,
+  network: string,
+  gasless: boolean,
+  relayerWebhook?: string,
+  forwarderAddress?: string,
+) {
+  let txReceipt: any = null;
+  let txHash: string = "";
+  if (gasless) {
+    if (!relayerWebhook) throw new Error(`Missing relayer webhook url`);
+    if (!forwarderAddress) throw new Error(`Missing forwarder address`);
+    const response = await sendMetaTx(
+      contract,
+      signer,
+      signerKey,
+      funcName,
+      funcArgs,
+      txValue,
+      relayerWebhook,
+      forwarderAddress,
+    );
+    txHash = JSON.parse(response.result).txHash;
+    console.log(`TX: Send gasless tx: ${explorerData[network].url}/tx/${txHash}`);
+    txReceipt = await getTxReceipt(60_000, signer, txHash);
+    console.log(`TX: Executed send tx with txHash: ${txHash} and blockHash: ${txReceipt.blockHash}`);
+  } else {
+    let fees = await feeData(network, signer);
+    const lenfuncArgs = funcArgs.push({ maxFeePerGas: fees.maxFee, maxPriorityFeePerGas: fees.maxPriorityFee });
+    const tx = await contract.connect(signer).functions[funcName](...funcArgs);
+    txHash = tx.hash;
+    console.log(`TX: Send tx: ${explorerData[network].url}/tx/${txHash}`);
+    txReceipt = await tx.wait();
+  }
+  console.log(`TX: Executed send tx with txHash: ${txHash} and blockHash: ${txReceipt.blockHash}`);
+  console.log(`TX: Cost: ${await getTxCostInUSD(txReceipt, network)}`);
+  return txReceipt;
+}
+
 module.exports = {
   signMetaTxRequest,
   buildRequest,
   buildTypedData,
   sendMetaTx,
+  sendTx,
 };
