@@ -9,9 +9,6 @@ function timeout(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// usdc address on Sepolia
-const usdcTokenAddress: string = "0xA30D67979d4Ce07b5467533B633AD23285434C4A";
-
 // gets public SednC config dict
 const config = async () => {
   const configData: any = await (
@@ -30,6 +27,7 @@ task("deploy:testnet").setAction(async function (taskArguments: TaskArguments, {
   const symbol = "sdnUSDC";
   const trustedForwarder = configData.forwarder[network.name];
   const verifier = configData.verifier;
+  const usdcTokenAddress = configData.usdc[network.name].contract;
   const sedn: SednTestnet = await sednFactory
     .connect(signers[0])
     .deploy(usdcTokenAddress, registryAddress, verifier, name, symbol, trustedForwarder);

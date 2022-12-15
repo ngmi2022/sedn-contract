@@ -5,7 +5,7 @@ import { BigNumber, Contract } from "ethers";
 import { ethers, network } from "hardhat";
 import { it } from "mocha";
 
-import { FakeSigner } from "../../integration/FakeSigner";
+import { FakeSigner } from "../../helper/FakeSigner";
 import { deploySedn } from "../../integration/sedn.contract";
 import { Sedn } from "../../src/types/contracts/Sedn.sol/Sedn";
 import { restoreSnapshot, takeSnapshot } from "../utils/network";
