@@ -21,7 +21,7 @@ on:
       testnet:
         description: 'choose chain environment (livenet not supported yet)'
         required: true
-        default: testnet
+        default: 'testnet'
         type: choice
         options:
         - testnet
@@ -44,11 +44,8 @@ on:
       testnet:
         description: 'choose chain environment (livenet not supported yet)'
         required: true
-        default: testnet
-        type: choice
-        options:
-        - testnet
-        - livenet
+        default: 'testnet'
+        type: string
       amount:
         description: 'The amount to be sent'
         default: 1.0
