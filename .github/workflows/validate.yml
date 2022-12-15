@@ -42,10 +42,13 @@ on:
   workflow_call:
     inputs:
       testnet:
-        description: 'boolean to decide between testnet and livenet testing'
+        description: 'tick for testnet (livenet not supported yet)'
         required: true
-        default: true
-        type: boolean
+        default: testnet
+        type: choice
+        options:
+        - testnet
+        - livenet
       amount:
         description: 'The amount to be sent'
         default: 1.0
