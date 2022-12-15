@@ -30,8 +30,7 @@ const amountEnv = process.env.AMOUNT || "1.00";
 
 // some params & functions to facilitate metaTX testing / testnet
 const gasless: boolean = process.env.CONTEXT === "github" ? true : false;
-// const testnet: boolean = process.env.TESTNET === "TRUE" ? true : false; // we need to include this in workflow
-const testnet = true;
+const testnet: boolean = process.env.TESTNET === "TRUE" ? true : false; // we need to include this in workflow
 // no testnets need to be included
 const networksToTest = testnet ? ["arbitrum-goerli", "optimism-goerli"] : ["polygon", "arbitrum", "optimism"];
 

@@ -8,6 +8,7 @@ env:
   ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
   POLYGONSCAN_API_KEY: ${{ secrets.POLYGONSCAN_API_KEY }}
   ARBISCAN_API_KEY: ${{ secrets.ARBISCAN_API_KEY }}
+  OPTIMISM_API_KEY: '6IT5B9GETPQYIWNCKMMKQY25WZ133CF62F'
   SENDER_PK: ${{ secrets.SENDER_PK }}
   VERIFIER_PK: ${{ secrets.VERIFIER_PK }}
   RECIPIENT_PK: ${{ secrets.RECIPIENT_PK }}
@@ -17,16 +18,11 @@ env:
 on:
   workflow_dispatch:
     inputs:
-      fromChains:
-        description: 'Comma separated from chains e.g. polygon,arbitrum'
+      testnet:
+        description: 'boolean to decide between testnet and livenet testing'
         required: true
-        default: 'ALL'
-        type: string
-      toChains:
-        description: 'Comma separated recipient chains e.g. polygon,arbitrum'
-        required: true
-        default: 'ALL'
-        type: string
+        default: true
+        type: boolean
       amount:
         description: 'The amount to be sent'
         default: 1.0
@@ -42,19 +38,14 @@ on:
         - prod
   workflow_call:
     inputs:
-      fromChains:
-        description: 'Comma separated from chains e.g. polygon,arbitrum'
-        required: false
-        default: 'ALL'
-        type: string
-      toChains:
-        description: 'Comma separated recipient chains e.g. polygon,arbitrum'
-        required: false
-        default: 'ALL'
-        type: string
+      testnet:
+        description: 'boolean to decide between testnet and livenet testing'
+        required: true
+        default: true
+        type: boolean
       amount:
         description: 'The amount to be sent'
-        default: 0.5
+        default: 1.0
         required: false
         type: number
       environment:
@@ -68,13 +59,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo "From Chains: $FROM_CHAINS"
-          echo "To Chains: $TO_CHAINS"
+          echo "testnet: $TESTNET"
           echo "Amount: $AMOUNT"
           echo "Environment: $ENVIRONMENT"
         env:
-          FROM_CHAINS: ${{ inputs.fromChains }}
-          TO_CHAINS: ${{ inputs.toChains }}
+          TESTNET: ${{ inputs.testnet }}
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
   validate:
@@ -107,8 +96,7 @@ jobs:
       - name: "Validate"
         run: "yarn integration:$ENVIRONMENT"
         env:
-          FROM_CHAINS: ${{ inputs.fromChains }}
-          TO_CHAINS: ${{ inputs.toChains }}
+          TESTNET: ${{ inputs.testnet }}
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
 

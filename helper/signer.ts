@@ -3,7 +3,7 @@ import { fetch } from "cross-fetch";
 import { Contract, Signer, Wallet, ethers } from "ethers";
 
 import { ForwarderAbi } from "../abis/abis";
-import { config, explorerData, feeData, getTxCostInUSD, getTxReceipt } from "./utils";
+import { explorerData, feeData, getTxCostInUSD, getTxReceipt } from "./utils";
 
 const EIP712Domain = [
   { name: "name", type: "string" },
