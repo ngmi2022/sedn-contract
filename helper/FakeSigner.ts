@@ -3,8 +3,8 @@ import { Sign } from "crypto";
 import { BigNumber, Wallet } from "ethers";
 import { ethers } from "ethers";
 
-import ABI from "../../sedn-contract/artifacts/contracts/Sedn.sol/Sedn.json";
-import { Sedn } from "./../src/types/contracts/Sedn.sol/Sedn";
+import ABI from "../artifacts/contracts/Sedn.sol/Sedn.json";
+import { Sedn } from "../src/types/contracts/Sedn.sol/Sedn";
 
 export class FakeSigner {
   signer: Wallet;

@@ -79,7 +79,8 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
     case "arbitrum-goerli":
       jsonRpcUrl = "https://arbitrum-goerli.infura.io/v3/" + infuraApiKey;
     case "optimism":
-      jsonRpcUrl = "https://optimism-mainnet.infura.io//v3/" + infuraApiKey;
+      jsonRpcUrl = "https://optimism-mainnet.infura.io";
+    // jsonRpcUrl = "https://optimism-mainnet.infura.io/v3/" + infuraApiKey;
     default:
       jsonRpcUrl = "https://" + chain + ".infura.io/v3/" + infuraApiKey;
   }
@@ -99,6 +100,7 @@ const config: HardhatUserConfig = {
       bsc: process.env.BSCSCAN_API_KEY || "",
       mainnet: process.env.ETHERSCAN_API_KEY || "",
       optimisticEthereum: process.env.OPTIMISM_API_KEY || "",
+      optimism: process.env.OPTIMISM_API_KEY || "",
       polygon: process.env.POLYGONSCAN_API_KEY || "",
       polygonMumbai: process.env.POLYGONSCAN_API_KEY || "",
       rinkeby: process.env.ETHERSCAN_API_KEY || "",
