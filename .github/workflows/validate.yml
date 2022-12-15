@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       testnet:
-        description: 'tick for testnet (livenet not supported yet)'
+        description: 'choose chain environment (livenet not supported yet)'
         required: true
         default: testnet
         type: choice
@@ -42,7 +42,7 @@ on:
   workflow_call:
     inputs:
       testnet:
-        description: 'tick for testnet (livenet not supported yet)'
+        description: 'choose chain environment (livenet not supported yet)'
         required: true
         default: testnet
         type: choice
