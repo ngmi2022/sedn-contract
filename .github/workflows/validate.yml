@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       testnet:
-        description: 'boolean to decide between testnet and livenet testing'
+        description: 'tick for testnet (livenet not supported yet)'
         required: true
         default: true
         type: boolean
