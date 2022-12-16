@@ -32,7 +32,7 @@ const amountEnv = process.env.AMOUNT || "1.00";
 const gasless: boolean = process.env.CONTEXT === "github" ? true : false;
 const testnet: boolean = process.env.TESTNET === "testnet" ? true : false; // we need to include this in workflow
 // no testnets need to be included
-const networksToTest = testnet ? ["arbitrum-goerli", "optimism-goerli"] : ["polygon"]; // "optimism", "arbitrum"
+const networksToTest = testnet ? ["arbitrum-goerli", "optimism-goerli"] : ["arbitrum", "polygon"]; // "optimism", "arbitrum"
 const destinationNetworks = ["polygon", "arbitrum"];
 
 // necessary relayer balance for each network, NOT IN BIG NUMBER, BUT FLOATS
