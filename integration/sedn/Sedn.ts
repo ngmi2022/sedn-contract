@@ -9,7 +9,6 @@ import {
   checkTxStatus,
   explorerData,
   feeData,
-  feeData,
   fetchConfig,
   getAbi,
   getRpcUrl,
@@ -33,7 +32,8 @@ const amountEnv = process.env.AMOUNT || "1.00";
 const gasless: boolean = process.env.CONTEXT === "github" ? true : false;
 const testnet: boolean = process.env.TESTNET === "testnet" ? true : false; // we need to include this in workflow
 // no testnets need to be included
-const networksToTest = testnet ? ["arbitrum-goerli", "optimism-goerli"] : ["arbitrum"]; // "optimism", "polygon"
+const networksToTest = testnet ? ["arbitrum-goerli", "optimism-goerli"] : ["arbitrum", "polygon"]; // "optimism", "arbitrum"
+const destinationNetworks = ["polygon", "arbitrum"];
 
 // necessary relayer balance for each network, NOT IN BIG NUMBER, BUT FLOATS
 const minRelayerBalance: any = {
@@ -53,7 +53,7 @@ const minRelayerBalance: any = {
 // *************************************/
 
 const getRandomRecipientNetwork = async (fromNetwork: string) => {
-  const networks = networksToTest.filter(network => network !== fromNetwork);
+  const networks = destinationNetworks.filter(network => network !== fromNetwork);
   const randomIndex = Math.floor(Math.random() * networks.length);
   return networks[randomIndex];
 };
@@ -126,8 +126,11 @@ const checkAllowance = async (usdcOrigin: Contract, signer: Wallet, sedn: Contra
   // console.log("allowance", allowance, "vs. amount", amount);
   if (allowance < amount) {
     const increasedAllowance = amount - allowance;
-    const fees = feeData((await signer.provider.getNetwork()).name, signer);
-    const approve = await usdcOrigin.connect(signer).increaseAllowance(sedn.address, increasedAllowance, fees);
+    const fees = await feeData((await signer.provider.getNetwork()).name, signer);
+    const approve = await usdcOrigin.connect(signer).increaseAllowance(sedn.address, increasedAllowance, {
+      maxFeePerGas: fees.maxFee,
+      maxPriorityFeePerGas: fees.maxPriorityFee,
+    });
     await approve.wait();
     console.log("INFO: Allowance increased");
   }
@@ -160,8 +163,11 @@ const checkFunding = async (
     } else {
       // check allowance & if necessary increase approve
       const allowanceChecked = await checkAllowance(usdcOrigin, signer, sedn, amount); // check allowance
-      const fees = feeData((await signer.provider.getNetwork()).name, signer);
-      const txSend = await sedn.connect(signer).sednKnown(amount, signer.address, fees); // fund signer w/o testing
+      const fees = await feeData((await signer.provider.getNetwork()).name, signer);
+      const txSend = await sedn.connect(signer).sednKnown(amount, signer.address, {
+        maxFeePerGas: fees.maxFee,
+        maxPriorityFeePerGas: fees.maxPriorityFee,
+      }); // fund signer w/o testing
       await txSend.wait();
       await waitTillRecipientBalanceChanged(60_000, sedn, signer, BigNumber.from(sednBalanceSigner.toString()));
       console.log("INFO: Funded signer");
@@ -293,8 +299,11 @@ describe("Sedn Contract", function () {
         const usdcBeforeSednContract = await usdcOrigin.balanceOf(sedn.address);
         const sednBeforeSednSigner = await sedn.balanceOf(signer.address);
         // TODO: put this shit in helper so its not duplicated
-        const fees = feeData((await signer.provider.getNetwork()).name, signer);
-        const tx = await sedn.connect(signer).sednKnown(amount, signer.address, fees); // send amount to signer itself
+        const fees = await feeData((await signer.provider.getNetwork()).name, signer);
+        const tx = await sedn.connect(signer).sednKnown(amount, signer.address, {
+          maxFeePerGas: fees.maxFee,
+          maxPriorityFeePerGas: fees.maxPriorityFee,
+        }); // send amount to signer itself
         await tx.wait();
         // for some reason the usdcBalance does not update quickly enough
         await waitTillRecipientBalanceChanged(60_000, usdcOrigin, signer, usdcBeforeSednSigner);
@@ -318,8 +327,11 @@ describe("Sedn Contract", function () {
         const [solution, secret] = generateSecret();
 
         // always gasfull
-        const fees = feeData((await signer.provider.getNetwork()).name, signer);
-        const txSedn = await sedn.connect(signer).sednUnknown(amount, secret, fees);
+        const fees = await feeData((await signer.provider.getNetwork()).name, signer);
+        const txSedn = await sedn.connect(signer).sednUnknown(amount, secret, {
+          maxFeePerGas: fees.maxFee,
+          maxPriorityFeePerGas: fees.maxPriorityFee,
+        });
         const txReceipt = await txSedn.wait();
         await waitTillRecipientBalanceChanged(60_000, usdcOrigin, signer, usdcBeforeSednSigner);
         // check sending

@@ -148,15 +148,25 @@ export const getAbi = async (network: string, contract: string) => {
 };
 
 export const feeData = async (network: string, signer: Wallet) => {
+  let fees: any = {};
   switch (network) {
     case "polygon":
-      const fees = await fetch("https://gasstation-mainnet.matic.network/v2").then(response => response.json());
+      fees = await fetch("https://gasstation-mainnet.matic.network/v2").then(response => response.json());
+      console.log("INFO: Polygon fee market is used");
+      return {
+        maxFee: ethers.utils.parseUnits(Math.ceil(fees.fast.maxFee) + "", "gwei"),
+        maxPriorityFee: ethers.utils.parseUnits(Math.ceil(fees.fast.maxPriorityFee) + "", "gwei"),
+      };
+    case "matic":
+      fees = await fetch("https://gasstation-mainnet.matic.network/v2").then(response => response.json());
+      console.log("INFO: Polygon fee market is used");
       return {
         maxFee: ethers.utils.parseUnits(Math.ceil(fees.fast.maxFee) + "", "gwei"),
         maxPriorityFee: ethers.utils.parseUnits(Math.ceil(fees.fast.maxPriorityFee) + "", "gwei"),
       };
     default:
       const feesData = await signer.provider?.getFeeData();
+      console.log("INFO: Standard fee market is used");
       return {
         maxFee: feesData.maxFeePerGas,
         maxPriorityFee: feesData.maxPriorityFeePerGas,
