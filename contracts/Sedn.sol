@@ -252,12 +252,12 @@ contract Sedn is ERC2771Context, Ownable, IUserRequest{
     /**
      * WITHDRAW
      */
-    function withdraw(uint256 amount) external {
+    function withdraw(uint256 amount, address to) external {
         require(_msgSender() != address(0), "Transfer from the zero address");
         uint256 fromBalance = _balances[_msgSender()];
         require(fromBalance >= amount, "Transfer amount exceeds balance");
         usdcToken.approve(address(this), amount); // do we need this approve?
-        require(usdcToken.transferFrom(address(this), _msgSender(), amount), "transferFrom failed");
+        require(usdcToken.transferFrom(address(this), to, amount), "transferFrom failed");
         _balances[_msgSender()] = fromBalance - amount;
     }
 
