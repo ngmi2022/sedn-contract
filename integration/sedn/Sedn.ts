@@ -150,7 +150,7 @@ const checkFunding = async (
     } USDC on sedn; Needed amount ${amount / 10 ** 6}`,
   );
   if (sednBalanceSigner < amount) {
-    if (sednBalanceRecipient > amount) {
+    if (sednBalanceRecipient >= amount) {
       // swap signer and recipient
       useSigner = recipient;
       useRecipient = signer;
