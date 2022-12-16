@@ -123,8 +123,8 @@ export async function sendTx(
     console.log(`TX: Send tx: ${explorerData[network].url}/tx/${txHash}`);
     txReceipt = await tx.wait();
   }
-  console.log(`TX: Executed send tx with txHash: ${txHash} and blockHash: ${txReceipt.blockHash}`);
-  console.log(`TX: Cost: ${await getTxCostInUSD(txReceipt, network)}`);
+  console.log(`TX: Executed send tx with txHash: ${txHash}`);
+  console.log(`TX: Dollar cost: ${await getTxCostInUSD(txReceipt, network)}`);
   return txReceipt;
 }
 
