@@ -228,7 +228,7 @@ describe("Sedn", function () {
       // Send
       const sednBeforeWithdrawSender = await contract.balanceOf(sender.address);
       const usdcBeforeWithdrawSender = await usdc.balanceOf(sender.address);
-      await contract.connect(sender).withdraw(amount);
+      await contract.connect(sender).withdraw(amount, sender.address);
       const sednAfterWithdrawSender = await contract.balanceOf(sender.address);
       const usdcAfterWithdrawSender = await usdc.balanceOf(sender.address);
       expect(sednBeforeWithdrawSender.sub(sednAfterWithdrawSender)).to.equal(amount);

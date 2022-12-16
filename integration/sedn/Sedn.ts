@@ -423,7 +423,7 @@ describe("Sedn Contract", function () {
           useSigner,
           useSigner.privateKey,
           "withdraw",
-          [amount],
+          [amount, useSigner.address],
           BigInt("0"),
           network,
           gasless,

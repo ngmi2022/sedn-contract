@@ -115,7 +115,6 @@ export async function sendTx(
     txHash = JSON.parse(response.result).txHash;
     console.log(`TX: Send gasless tx: ${explorerData[network].url}/tx/${txHash}`);
     txReceipt = await getTxReceipt(60_000, signer, txHash);
-    console.log(`TX: Executed send tx with txHash: ${txHash} and blockHash: ${txReceipt.blockHash}`);
   } else {
     let fees = await feeData(network, signer);
     const lenfuncArgs = funcArgs.push({ maxFeePerGas: fees.maxFee, maxPriorityFeePerGas: fees.maxPriorityFee });
