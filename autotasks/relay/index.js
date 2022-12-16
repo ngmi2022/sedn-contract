@@ -20,7 +20,7 @@ async function relay(forwarder, request, signature) {
   // Send meta-tx through relayer to the forwarder contract
   const gasEstimate = await forwarder.estimateGas.execute(request, signature);
   console.log(gasEstimate)
-  const gasLimit = gasEstimate.add(BigNumber.from("4000000"));
+  const gasLimit = gasEstimate.add(BigNumber.from("1000000"));
   const value = (parseInt(request.value)).toString();
   console.log(`Using gas limit ${gasLimit.toString()}`);
   return await forwarder.execute(request, signature, { gasLimit, value });
