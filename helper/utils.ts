@@ -28,7 +28,7 @@ export const getTxCostInUSD = async (receipt: any, network: string) => {
     default:
       nativeAmount = ethers.utils.formatEther(receipt.effectiveGasPrice.mul(receipt.gasUsed));
   }
-  console.log("TX: Cost in native value", nativeAmount);
+  console.log("TX: Native cost:", nativeAmount);
 
   // USD Price part
   const assetId = config.nativeAssetIds[network];

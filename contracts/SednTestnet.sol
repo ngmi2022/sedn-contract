@@ -253,12 +253,12 @@ contract SednTestnet is ERC2771Context, Ownable, IUserRequest{
     /**
      * WITHDRAW
      */
-    function withdraw(uint256 amount) public returns (bool) {
+    function withdraw(uint256 amount, address to) public returns (bool) {
         require(_msgSender() != address(0), "Transfer from the zero address");
         uint256 fromBalance = _balances[_msgSender()];
         require(fromBalance >= amount, "Transfer amount exceeds balance");
         usdcToken.approve(address(this), amount); // do we need this approve?
-        require(usdcToken.transferFrom(address(this), _msgSender(), amount), "transferFrom failed");
+        require(usdcToken.transferFrom(address(this), to, amount), "transferFrom failed");
         _balances[_msgSender()] = fromBalance - amount;
         return true;
     }
@@ -278,7 +278,7 @@ contract SednTestnet is ERC2771Context, Ownable, IUserRequest{
         console.log("Bridge and claiming funds", amount, _msgSender());
         console.log("UserRequest", _userRequest.amount, _userRequest.receiverAddress, _userRequest.toChainId);
         console.log("BridgeImpl", bridgeImpl);
-        require(withdraw(amount), "withdraw failed");
+        require(withdraw(amount, to), "withdraw failed");
     }
 
     function bridgeClaim(

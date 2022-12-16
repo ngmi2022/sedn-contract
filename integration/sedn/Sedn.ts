@@ -9,6 +9,7 @@ import {
   checkTxStatus,
   explorerData,
   feeData,
+  feeData,
   fetchConfig,
   getAbi,
   getRpcUrl,
@@ -32,7 +33,7 @@ const amountEnv = process.env.AMOUNT || "1.00";
 const gasless: boolean = process.env.CONTEXT === "github" ? true : false;
 const testnet: boolean = process.env.TESTNET === "testnet" ? true : false; // we need to include this in workflow
 // no testnets need to be included
-const networksToTest = testnet ? ["arbitrum-goerli", "optimism-goerli"] : ["polygon", "arbitrum", "optimism"];
+const networksToTest = testnet ? ["arbitrum-goerli", "optimism-goerli"] : ["arbitrum"]; // "optimism", "polygon"
 
 // necessary relayer balance for each network, NOT IN BIG NUMBER, BUT FLOATS
 const minRelayerBalance: any = {
@@ -75,10 +76,10 @@ const waitTillRecipientBalanceIncreased = async (
     if (claimed > 0) {
       return resolve(claimed);
     } else if (elapsedTimeMs > maxTimeMs) {
-      return reject(new Error(`Exchange took too long to complete. Max time: ${maxTimeMs}ms`));
+      return reject(new Error(`TX: Exchange took too long to complete. Max time: ${maxTimeMs}ms`));
     } else {
       console.log(
-        `Waiting for recipient balance to increase. Elapsed time: ${elapsedTimeMs}ms. ${recipientNetwork}:${
+        `TX: Waiting for recipient balance to increase. Elapsed time: ${elapsedTimeMs}ms. ${recipientNetwork}:${
           recipient.address
         } balance: ${newBalance.toNumber() / decDivider}`,
       );
@@ -105,10 +106,10 @@ const waitTillRecipientBalanceChanged = async (
     if (claimed != 0) {
       return resolve(claimed);
     } else if (elapsedTimeMs > maxTimeMs) {
-      return reject(new Error(`Exchange took too long to complete. Max time: ${maxTimeMs}ms`));
+      return reject(new Error(`TX: Exchange took too long to complete. Max time: ${maxTimeMs}ms`));
     } else {
       console.log(
-        `Waiting for recipient balance to change. Elapsed time: ${elapsedTimeMs}ms. ${
+        `TX: Waiting for recipient balance to change. Elapsed time: ${elapsedTimeMs}ms. ${
           signer.address
         } balance: ${newBalance.toNumber()}`,
       );
@@ -125,9 +126,10 @@ const checkAllowance = async (usdcOrigin: Contract, signer: Wallet, sedn: Contra
   // console.log("allowance", allowance, "vs. amount", amount);
   if (allowance < amount) {
     const increasedAllowance = amount - allowance;
-    const approve = await usdcOrigin.connect(signer).increaseAllowance(sedn.address, increasedAllowance);
+    const fees = feeData((await signer.provider.getNetwork()).name, signer);
+    const approve = await usdcOrigin.connect(signer).increaseAllowance(sedn.address, increasedAllowance, fees);
     await approve.wait();
-    console.log("checkAllowance: Allowance increased");
+    console.log("INFO: Allowance increased");
   }
   return true;
 };
@@ -144,20 +146,25 @@ const checkFunding = async (
   const sednBalanceRecipient = parseInt((await sedn.connect(signer).balanceOf(recipient.address)).toString()); // make sure its number
   let useSigner = signer;
   let useRecipient = recipient;
-  console.log("sednBalanceSigner", sednBalanceSigner, "sednBalanceRecipient", sednBalanceRecipient, "amount", amount);
+  console.log(
+    `INFO: Signer has ${sednBalanceSigner / 10 ** 6} USDC on sedn, Recipient has ${
+      sednBalanceRecipient / 10 ** 6
+    } USDC on sedn; Needed amount ${amount / 10 ** 6}`,
+  );
   if (sednBalanceSigner < amount) {
-    if (sednBalanceRecipient > amount) {
+    if (sednBalanceRecipient >= amount) {
       // swap signer and recipient
       useSigner = recipient;
       useRecipient = signer;
-      console.log("checkFunding: Switched signers");
+      console.log("INFO: Switched signers");
     } else {
       // check allowance & if necessary increase approve
       const allowanceChecked = await checkAllowance(usdcOrigin, signer, sedn, amount); // check allowance
-      const txSend = await sedn.connect(signer).sednKnown(amount, signer.address); // fund signer w/o testing
+      const fees = feeData((await signer.provider.getNetwork()).name, signer);
+      const txSend = await sedn.connect(signer).sednKnown(amount, signer.address, fees); // fund signer w/o testing
       await txSend.wait();
       await waitTillRecipientBalanceChanged(60_000, sedn, signer, BigNumber.from(sednBalanceSigner.toString()));
-      console.log("checkFunding: Funded signer");
+      console.log("INFO: Funded signer");
     }
   }
   return [useSigner, useRecipient];
@@ -230,7 +237,7 @@ describe("Sedn Contract", function () {
         const senderBalance = await usdcOrigin.balanceOf(signer.address);
         const senderNative: number = parseFloat((await signer.provider.getBalance(signer.address)).toString());
         // console.log("Sender Balance", senderBalance.toString());
-        expect(senderBalance).to.be.gt(ethers.utils.parseUnits("10", "mwei")); // TBD
+        expect(senderBalance).to.be.gt(ethers.utils.parseUnits("2", "mwei")); // TBD
         // console.log("senderNative", senderNative, minRelayerBalance[network]);
         expect(senderNative).to.be.gt(minRelayerBalance[network]);
 
@@ -238,7 +245,7 @@ describe("Sedn Contract", function () {
         const recipientBalance = await usdcOrigin.balanceOf(recipient.address);
         const recipientNative: number = parseFloat((await signer.provider.getBalance(recipient.address)).toString());
         // console.log("recipient Balance", recipientBalance.toString());
-        expect(recipientBalance).to.be.gt(ethers.utils.parseUnits("10", "mwei")); // TBD
+        // expect(recipientBalance).to.be.gt(ethers.utils.parseUnits("0", "mwei")); // TBD
         // console.log("recipientNative", recipientNative, minRelayerBalance[network]);
         expect(recipientNative).to.be.gt(minRelayerBalance[network]);
       });
@@ -286,7 +293,8 @@ describe("Sedn Contract", function () {
         const usdcBeforeSednContract = await usdcOrigin.balanceOf(sedn.address);
         const sednBeforeSednSigner = await sedn.balanceOf(signer.address);
         // TODO: put this shit in helper so its not duplicated
-        const tx = await sedn.connect(signer).sednKnown(amount, signer.address); // send amount to signer itself
+        const fees = feeData((await signer.provider.getNetwork()).name, signer);
+        const tx = await sedn.connect(signer).sednKnown(amount, signer.address, fees); // send amount to signer itself
         await tx.wait();
         // for some reason the usdcBalance does not update quickly enough
         await waitTillRecipientBalanceChanged(60_000, usdcOrigin, signer, usdcBeforeSednSigner);
@@ -310,7 +318,8 @@ describe("Sedn Contract", function () {
         const [solution, secret] = generateSecret();
 
         // always gasfull
-        const txSedn = await sedn.connect(signer).sednUnknown(amount, secret);
+        const fees = feeData((await signer.provider.getNetwork()).name, signer);
+        const txSedn = await sedn.connect(signer).sednUnknown(amount, secret, fees);
         const txReceipt = await txSedn.wait();
         await waitTillRecipientBalanceChanged(60_000, usdcOrigin, signer, usdcBeforeSednSigner);
         // check sending
@@ -423,7 +432,7 @@ describe("Sedn Contract", function () {
           useSigner,
           useSigner.privateKey,
           "withdraw",
-          [amount],
+          [amount, useSigner.address],
           BigInt("0"),
           network,
           gasless,
@@ -480,24 +489,30 @@ describe("Sedn Contract", function () {
           environment: ENVIRONMENT,
         };
 
-        const socketRouteResponse: any = await fetch(
-          "https://us-central1-sedn-17b18.cloudfunctions.net/getSednParameters/",
-          // "http://127.0.0.1:5001/sedn-17b18/us-central1/getSednParameters",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ data: socketRouteRequest }),
+        const cloudFunctionUrl = "https://us-central1-sedn-17b18.cloudfunctions.net/getSednParameters/";
+        // const cloudFunctionUrl = "http://127.0.0.1:5001/sedn-17b18/us-central1/getSednParameters";
+
+        const socketRouteResponse: any = await fetch(cloudFunctionUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
           },
-        );
+          body: JSON.stringify({ data: socketRouteRequest }),
+        });
         const socketRoute = (await socketRouteResponse.json()).result;
-        console.log(
-          "Socket Route",
-          "https://us-central1-sedn-17b18.cloudfunctions.net/getSednParameters/",
-          JSON.stringify({ data: socketRouteRequest }),
-          JSON.stringify(socketRoute),
-        );
+        console.log("INFO: Socket Route");
+        console.log("INFO: -- URL used:", cloudFunctionUrl);
+        console.log("INFO: -- Args sent:", JSON.stringify(socketRouteRequest));
+        console.log("INFO: -- Response:");
+        console.log("INFO: ---- UserRequest:");
+        console.log("INFO: ------ receiverAddress:", socketRoute.request.receiverAddress);
+        console.log("INFO: ------ toChainId:", socketRoute.request.toChainId);
+        console.log("INFO: ------ amount:", socketRoute.request.amount);
+        console.log("INFO: ------ bridgeAddress:", socketRoute.bridgeAddress);
+        console.log("INFO: ------ middlewareRequest:", JSON.stringify(socketRoute.request.middlewareRequest));
+        console.log("INFO: ------ bridgeRequest:", JSON.stringify(socketRoute.request.bridgeRequest));
+        console.log("INFO: ---- bridgeAddress:", socketRoute.bridgeAddress);
+        console.log("INFO: ---- Value:", socketRoute.value);
 
         // create calldata dict
         const bungeeUserRequestDict = socketRoute.request;
