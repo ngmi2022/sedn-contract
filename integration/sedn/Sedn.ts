@@ -459,7 +459,7 @@ describe("Sedn Contract", function () {
       });
       // we need to figure out how we can specify the "only" keyword for a
       // single test on live-chains to ensure that we don't piss too much gas
-      it("should send funds to an unregistered user who claims it on a different chain", async function () {
+      it("should bridgeWithdraw funds to a given address", async function () {
         // check and adapt funding balances of signer
         let [useSigner, useRecipient] = await checkFunding(usdcOrigin, signer, recipient, sedn, amount);
 
