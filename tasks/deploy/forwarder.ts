@@ -17,7 +17,6 @@ task("deploy:forwarder").setAction(async function (taskArguments: TaskArguments,
   console.log("Forwarder deployed to: ", forwarder.address);
   if (network.name !== "hardhat") {
     // Verify contract on Etherscan
-    console.log(network.name);
     await timeout(60000); // We may have to wait a bit until etherscan can read the contract
     await run("verify:verify", {
       address: forwarder.address,

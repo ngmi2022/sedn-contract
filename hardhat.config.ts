@@ -61,7 +61,6 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
       break;
     case "polygon-mainnet":
       jsonRpcUrl = "https://polygon-rpc.com/";
-      accounts = [process.env.POLYGON_PK];
       break;
     case "polygon-mumbai":
       jsonRpcUrl = "https://rpc-mumbai.maticvigil.com/";
@@ -75,12 +74,13 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
       break;
     case "goerli":
       jsonRpcUrl = "https://goerli.infura.io/v3/";
-      accounts = [process.env.GOERLI_PK];
+      break;
     case "arbitrum-goerli":
       jsonRpcUrl = "https://arbitrum-goerli.infura.io/v3/" + infuraApiKey;
+      break;
     case "optimism":
-      jsonRpcUrl = "https://optimism-mainnet.infura.io";
-    // jsonRpcUrl = "https://optimism-mainnet.infura.io/v3/" + infuraApiKey;
+      jsonRpcUrl = "https://optimism-mainnet.infura.io/v3/" + infuraApiKey;
+      break;
     default:
       jsonRpcUrl = "https://" + chain + ".infura.io/v3/" + infuraApiKey;
   }
