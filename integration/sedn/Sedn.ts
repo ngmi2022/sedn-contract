@@ -1,10 +1,13 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
+import { TransactionResponse } from "@ethersproject/providers";
+import axios from "axios";
 import { expect } from "chai";
 import fetch from "cross-fetch";
 import { BigNumber, Contract, Wallet, ethers } from "ethers";
+import { parseUnits } from "ethers/lib/utils";
 
 import { FakeSigner } from "../../helper/FakeSigner";
-import { sendMetaTx, sendTx } from "../../helper/signer";
+import { sendTx } from "../../helper/signer";
 import {
   checkTxStatus,
   explorerData,
@@ -14,8 +17,10 @@ import {
   getRpcUrl,
   getTxCostInUSD,
   getTxReceipt,
+  shuffle,
   sleep,
 } from "../../helper/utils";
+import { ITransaction, IWireRequest, IWireResponse, IWithdrawRequest, sednVars } from "../interfaces/index";
 
 // /**********************************
 // INTEGRATION PARAMS / ENVIRONMENT VARIABLES
@@ -23,10 +28,18 @@ import {
 
 const ENVIRONMENT = process.env.ENVIRONMENT || "prod";
 const USE_STARGATE = process.env.USE_STARGATE === "true" ? true : false;
-const signerPk = process.env.SENDER_PK || "";
-const recipientPk = process.env.RECIPIENT_PK || "";
-const verifierPk = process.env.VERIFIER_PK || "";
-const amountEnv = process.env.AMOUNT || "1.00";
+const SIGNER_PK = process.env.SENDER_PK || "";
+const RECIPIENT_PK = process.env.RECIPIENT_PK || "";
+const UNFUNDED_SIGNER_PK = process.env.UNFUNDED_SIGNER_PK || "";
+const VERIFIER_PK = process.env.VERIFIER_PK || "";
+const AMOUNT_ENV = process.env.AMOUNT || "1.00";
+const JEST_ENV = process.env.JEST_ENV || "prod";
+const API_URLS: any = {
+  prod: "https://us-central1-sedn-17b18.cloudfunctions.net",
+  staging: "https://us-central1-staging-sedn.cloudfunctions.net",
+  dev: "http://127.0.0.1:5001/sedn-17b18/us-central1",
+};
+const API_URL = API_URLS[JEST_ENV];
 
 // some params & functions to facilitate metaTX testing / testnet
 const gasless: boolean = process.env.CONTEXT === "github" ? true : false;
@@ -196,6 +209,139 @@ const generateClaimArgs = async (
   return [solution, secret, till, signature.v, signature.r, signature.s];
 };
 
+const createRandomFundingScenario = (
+  networksToTest: string[],
+  amountToSend: BigNumber,
+  amounts: BigNumber[],
+  amountCheck: boolean,
+) => {
+  if (networksToTest.length < 2) {
+    throw new Error("Need at least two networks to test");
+  }
+  if (amounts.length > networksToTest.length) {
+    throw new Error("Cannot have more amounts than networks to test");
+  }
+  const totalAmountsAvailable = amounts.reduce((a, b) => a.add(b), BigNumber.from(0));
+  if (amountCheck) {
+    if (totalAmountsAvailable < amountToSend) {
+      throw new Error("Cannot have less amounts available than amount to send");
+    }
+  }
+  let networkFunding: any = {};
+  let value: BigNumber;
+  let networks = shuffle(networksToTest);
+  networks.forEach((network, index) => {
+    if (index < amounts.length) {
+      value = amounts[index];
+    } else {
+      value = BigNumber.from(0);
+    }
+    networkFunding[network] = value;
+  });
+
+  return networkFunding;
+};
+
+const instantiateFundingScenario = async (
+  networksToTest: string[],
+  scenarioEOA: any,
+  scenarioSedn: any,
+  sednVars: any,
+) => {
+  let usdcBalanceUnfundedBefore: BigNumber;
+  let usdcBalanceUnfundedTarget: BigNumber;
+  let sednBalanceUnfundedBefore: BigNumber;
+  let sednBalanceUnfundedTarget: BigNumber;
+  let usdcDifference: BigNumber;
+  let sednDifference: BigNumber;
+  let tx: TransactionResponse;
+  const zeroBig: BigNumber = BigNumber.from(0);
+  const minusOneBig: BigNumber = BigNumber.from("-1");
+  // check and potentially fund USDC on unfundedSigner for EOA
+  console.log(`INFO: Checking and potentially adapting USDC EOA Balances for Target Values according to Scenarios...`);
+  for (const network of networksToTest) {
+    usdcBalanceUnfundedBefore = await sednVars[network].usdcOrigin
+      .connect(sednVars[network].unfundedSigner)
+      .balanceOf(sednVars[network].unfundedSigner.address);
+    usdcBalanceUnfundedTarget = scenarioEOA[network];
+    usdcDifference = usdcBalanceUnfundedTarget.sub(usdcBalanceUnfundedBefore); // positive means we need to add funds, negative means we need to remove funds
+    if (usdcDifference.toString() != "0") {
+      console.log(`INFO: Funding unfundedSigner on ${network} with ${usdcBalanceUnfundedTarget} USDC on EOA...`);
+      if (usdcDifference < zeroBig) {
+        tx = await sednVars[network].usdcOrigin
+          .connect(sednVars[network].unfundedSigner)
+          .transfer(sednVars[network].signer.address, usdcDifference.mul(minusOneBig));
+        await tx.wait();
+        await waitTillRecipientBalanceChanged(
+          60_000,
+          sednVars[network].usdcOrigin,
+          sednVars[network].unfundedSigner,
+          usdcBalanceUnfundedBefore,
+        );
+      } else {
+        tx = await sednVars[network].usdcOrigin
+          .connect(sednVars[network].signer)
+          .transfer(sednVars[network].unfundedSigner.address, usdcDifference);
+        await tx.wait();
+        await waitTillRecipientBalanceChanged(
+          60_000,
+          sednVars[network].usdcOrigin,
+          sednVars[network].unfundedSigner,
+          usdcBalanceUnfundedBefore,
+        );
+      }
+    }
+    console.log(
+      `INFO: Successful funding of unfundedSigner on ${network} with ${usdcBalanceUnfundedTarget} USDC on EOA`,
+    );
+  }
+  // check and potentially fund USDC on unfundedRecipient for Sedn
+  console.log(`INFO: Checking and potentially adapting USDC Sedn Balances for Target Values according to Scenarios...`);
+  for (const network of networksToTest) {
+    sednBalanceUnfundedBefore = await sednVars[network].sedn
+      .connect(sednVars[network].unfundedSigner)
+      .balanceOf(sednVars[network].unfundedSigner.address);
+    sednBalanceUnfundedTarget = scenarioSedn[network];
+    sednDifference = sednBalanceUnfundedTarget.sub(sednBalanceUnfundedBefore); // positive means we need to add funds, negative means we need to remove funds
+    if (sednDifference.toString() != "0") {
+      console.log(`INFO: funding unfundedSigner on ${network} with ${sednBalanceUnfundedTarget} USDC on Sedn...`);
+      if (sednDifference < zeroBig) {
+        tx = await sednVars[network].sedn
+          .connect(sednVars[network].unfundedSigner)
+          .transferKnown(sednDifference.mul(minusOneBig), sednVars[network].signer.address);
+        await tx.wait();
+        await waitTillRecipientBalanceChanged(
+          60_000,
+          sednVars[network].sedn,
+          sednVars[network].unfundedSigner,
+          sednBalanceUnfundedBefore,
+        );
+      } else {
+        await checkAllowance(
+          sednVars[network].usdcOrigin,
+          sednVars[network].signer,
+          sednVars[network].sedn,
+          parseInt(sednDifference.toString()),
+        );
+        tx = await sednVars[network].sedn
+          .connect(sednVars[network].signer)
+          .sednKnown(sednDifference, sednVars[network].unfundedSigner.address);
+        await tx.wait();
+        await waitTillRecipientBalanceChanged(
+          60_000,
+          sednVars[network].sedn,
+          sednVars[network].unfundedSigner,
+          sednBalanceUnfundedBefore,
+        );
+      }
+    }
+    console.log(
+      `INFO: Successful funding of unfundedSigner on ${network} with ${sednBalanceUnfundedTarget} USDC on Sedn`,
+    );
+  }
+  return true;
+};
+
 // /**********************************
 // INTEGRATION TESTS
 // *************************************/
@@ -207,9 +353,12 @@ describe("Sedn Contract", function () {
 
     // TODO: support other providers
     const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(network));
-    const signer = new ethers.Wallet(signerPk, provider);
-    const verifier = new ethers.Wallet(verifierPk, provider);
-    const recipient = new ethers.Wallet(recipientPk, provider);
+    const signer = new ethers.Wallet(SIGNER_PK, provider);
+    const verifier = new ethers.Wallet(VERIFIER_PK, provider);
+    const recipient = new ethers.Wallet(RECIPIENT_PK, provider);
+    const unfundedSigner = new ethers.Wallet(UNFUNDED_SIGNER_PK, provider);
+    const relayerWebhook = config.relayerWebhooks[network];
+    const forwarder = config.forwarder[network];
     // Get Sedn
     const sedn = new ethers.Contract(sednContract, await getAbi(network, sednContract), signer);
     const usdcOrigin = new ethers.Contract(
@@ -217,10 +366,33 @@ describe("Sedn Contract", function () {
       await getAbi(network, config.usdc[network].abi),
       signer,
     );
-    return { sedn, usdcOrigin, signer, verifier, config, recipient };
+    const trusted = new FakeSigner(verifier, sedn.address);
+    if (trusted.getAddress() !== config.verifier) {
+      const error = new Error(`Using the wrong verifier: expected ${config.verifier} got ${trusted.getAddress()}`);
+      console.error(error);
+      throw error;
+    }
+    await sleep(1000);
+    const decimals = await usdcOrigin.decimals();
+    const decDivider = parseInt(10 ** decimals + "");
+    const amount = parseInt(parseFloat(AMOUNT_ENV) * decDivider + "");
+    return {
+      sedn,
+      usdcOrigin,
+      signer,
+      verifier,
+      config,
+      recipient,
+      unfundedSigner,
+      trusted,
+      decDivider,
+      amount,
+      relayerWebhook,
+      forwarder,
+    };
   }
   networksToTest.forEach(function (network) {
-    describe(`Funding for wallets ${network}`, function () {
+    describe.skip(`Funding for wallets ${network}`, function () {
       let usdcOrigin: Contract;
       let signer: Wallet;
       let recipient: Wallet;
@@ -240,10 +412,11 @@ describe("Sedn Contract", function () {
         expect(relayerBalance).to.be.gt(minRelayerBalance[network]);
 
         // SENDER CHECKS
-        const senderBalance = await usdcOrigin.balanceOf(signer.address);
+        const senderBalance: BigNumber = await usdcOrigin.balanceOf(signer.address);
         const senderNative: number = parseFloat((await signer.provider.getBalance(signer.address)).toString());
         // console.log("Sender Balance", senderBalance.toString());
-        expect(senderBalance).to.be.gt(ethers.utils.parseUnits("2", "mwei")); // TBD
+        // @ts-ignore
+        expect(senderBalance).to.be.gt(parseUnits("2", "mwei")); // TBD
         // console.log("senderNative", senderNative, minRelayerBalance[network]);
         expect(senderNative).to.be.gt(minRelayerBalance[network]);
 
@@ -251,14 +424,14 @@ describe("Sedn Contract", function () {
         const recipientBalance = await usdcOrigin.balanceOf(recipient.address);
         const recipientNative: number = parseFloat((await signer.provider.getBalance(recipient.address)).toString());
         // console.log("recipient Balance", recipientBalance.toString());
-        // expect(recipientBalance).to.be.gt(ethers.utils.parseUnits("0", "mwei")); // TBD
+        // expect(recipientBalance).to.be.gt(parseUnits("0", "mwei")); // TBD
         // console.log("recipientNative", recipientNative, minRelayerBalance[network]);
         expect(recipientNative).to.be.gt(minRelayerBalance[network]);
       });
     });
   });
   networksToTest.forEach(function (network) {
-    describe(`Sedn on ${network}`, function () {
+    describe(`Sedn functionality`, function () {
       let sedn: Contract;
       let usdcOrigin: Contract;
       let signer: Wallet;
@@ -274,23 +447,15 @@ describe("Sedn Contract", function () {
         sedn = deployed.sedn;
         usdcOrigin = deployed.usdcOrigin;
         signer = deployed.signer;
-        config = deployed.config;
         recipient = deployed.recipient;
-        decDivider = parseInt(10 ** (await usdcOrigin.decimals()) + "");
-        amount = parseInt(parseFloat(amountEnv) * decDivider + "");
-        relayerWebhook = config.relayerWebhooks[network];
-        forwarder = config.forwarder[network];
-
-        trusted = new FakeSigner(deployed.verifier, sedn.address);
-        if (trusted.getAddress() !== deployed.config.verifier) {
-          const error = new Error(
-            `Using the wrong verifier: expected ${deployed.config.verifier} got ${trusted.getAddress()}`,
-          );
-          console.error(error);
-          throw error;
-        }
+        trusted = deployed.trusted;
+        config = deployed.config;
+        decDivider = deployed.decDivider;
+        amount = deployed.amount;
+        relayerWebhook = deployed.relayerWebhook;
+        forwarder = deployed.forwarder;
       });
-      it("should send funds to a registered user", async function () {
+      it.skip("should correctly send funds to a registered user", async function () {
         // check allowance & if necessary increase approve
         const allowanceChecked = await checkAllowance(usdcOrigin, signer, sedn, amount);
 
@@ -316,7 +481,7 @@ describe("Sedn Contract", function () {
         expect(usdcAfterSednContract.sub(usdcBeforeSednContract)).to.equal(amount);
         expect(sednAfterSednSigner.sub(sednBeforeSednSigner)).to.equal(amount);
       });
-      it("should send funds to an unregistered user", async function () {
+      it.skip("should send funds to an unregistered user", async function () {
         // check allowance & if necessary increase approve
         const allowanceChecked = await checkAllowance(usdcOrigin, signer, sedn, amount);
 
@@ -361,7 +526,7 @@ describe("Sedn Contract", function () {
         const sednAfterClaimRecipient = await sedn.balanceOf(recipient.address);
         expect(sednAfterClaimRecipient.sub(sednBeforeClaimRecipient)).to.equal(amount);
       });
-      it("should transfer funds to an unregistered user", async function () {
+      it.skip("should transfer funds to an unregistered user", async function () {
         // check and adapt funding balances of signer
         let [useSigner, useRecipient] = await checkFunding(usdcOrigin, signer, recipient, sedn, amount);
 
@@ -406,7 +571,7 @@ describe("Sedn Contract", function () {
         const sednAfterClaimRecipient = await sedn.balanceOf(useRecipient.address);
         expect(sednAfterClaimRecipient.sub(sednBeforeClaimRecipient)).to.equal(amount);
       });
-      it("should transfer funds to a registered user", async function () {
+      it.skip("should transfer funds to a registered user", async function () {
         // check and adapt funding balances of signer
         let [useSigner, useRecipient] = await checkFunding(usdcOrigin, signer, recipient, sedn, amount);
 
@@ -431,7 +596,7 @@ describe("Sedn Contract", function () {
         expect(sednBeforeTransferSigner.sub(sednAfterTransferSigner)).to.equal(amount);
         expect(sednAfterTransferRecipient.sub(sednBeforeTransferRecipient)).to.equal(amount);
       });
-      it("should withdraw funds to a given address", async function () {
+      it.skip("should withdraw funds to a given address", async function () {
         // check and adapt funding balances of signer
         let [useSigner, useRecipient] = await checkFunding(usdcOrigin, signer, recipient, sedn, amount);
 
@@ -459,7 +624,7 @@ describe("Sedn Contract", function () {
       });
       // we need to figure out how we can specify the "only" keyword for a
       // single test on live-chains to ensure that we don't piss too much gas
-      it("should bridgeWithdraw funds to a given address", async function () {
+      it.skip("should bridgeWithdraw funds to a given address", async function () {
         // check and adapt funding balances of signer
         let [useSigner, useRecipient] = await checkFunding(usdcOrigin, signer, recipient, sedn, amount);
 
@@ -587,6 +752,114 @@ describe("Sedn Contract", function () {
           }%). Sent ${amount / decDivider} and received ${claimedAmount}`,
         );
       });
+    });
+  });
+  describe(`Sedn multichain testing`, function () {
+    let sednVars: { [network: string]: any } = {};
+    let deployed: any;
+    beforeEach(async function () {
+      sednVars = [];
+      for (const network of networksToTest) {
+        deployed = await getSedn(network);
+        sednVars[network] = deployed;
+      }
+    });
+    it(`should be able to correctly sedn funds`, async function () {
+      // partially randomized scenario creation
+      const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
+      const firstNetwork = networksToTest[0];
+      const scenarioEOA = createRandomFundingScenario(networksToTest, sednVars[firstNetwork].amount, caseEOA, true);
+      const scenarioSedn = createRandomFundingScenario(networksToTest, BigNumber.from("0"), [], true);
+      const fundingEstablished = await instantiateFundingScenario(networksToTest, scenarioEOA, scenarioSedn, sednVars);
+      // build request for API
+      const randomPhoneNumber = "+4917661597640";
+      const wireRequest: IWireRequest = {
+        senderAddress: sednVars[firstNetwork].unfundedSigner.address,
+        recipientId: randomPhoneNumber,
+        amount: sednVars[firstNetwork].amount,
+        testnet: testnet,
+      };
+
+      try {
+        console.log(
+          `curl -X POST "${API_URL + "/wire"}" -d '${JSON.stringify({
+            data: wireRequest,
+          })}' -H 'Content-Type: application/json'`,
+        );
+        const { status, data } = await axios.post(`${API_URL + "/wire"}/`, {
+          data: wireRequest,
+        });
+        console.log(data);
+        console.log(data.result.transactions);
+      } catch (e) {
+        console.log(e);
+        throw e;
+      }
+    });
+    it(`should be able to correctly transfer funds`, async function () {
+      // partially randomized scenario creation
+      const caseSedn = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need usdcBalance
+      const firstNetwork = networksToTest[0];
+      const scenarioEOA = createRandomFundingScenario(networksToTest, BigNumber.from("0"), [], true);
+      const scenarioSedn = createRandomFundingScenario(networksToTest, sednVars[firstNetwork].amount, caseSedn, true);
+      const fundingEstablished = await instantiateFundingScenario(networksToTest, scenarioEOA, scenarioSedn, sednVars);
+      // build request for API
+      const randomPhoneNumber = "+4917661597640";
+      const wireRequest: IWireRequest = {
+        senderAddress: sednVars[firstNetwork].unfundedSigner.address,
+        recipientId: randomPhoneNumber,
+        amount: sednVars[firstNetwork].amount,
+        testnet: testnet,
+      };
+
+      try {
+        console.log(
+          `curl -X POST "${API_URL + "/wire"}" -d '${JSON.stringify({
+            data: wireRequest,
+          })}' -H 'Content-Type: application/json'`,
+        );
+        const { status, data } = await axios.post(`${API_URL + "/wire"}/`, {
+          data: wireRequest,
+        });
+        console.log(data);
+        console.log(data.result.transactions);
+      } catch (e) {
+        console.log(e);
+        throw e;
+      }
+    });
+    it(`should be able to correctly sedn and transfer funds`, async function () {
+      // partially randomized scenario creation
+      const caseSedn = [parseUnits("0.5", "mwei")]; // 0.5 on sedn = total1.2 amount vs. 1.0 needed
+      const caseEOA = [parseUnits("0.7", "mwei")]; // 0.7 on usdc = total1.2 amount vs. 1.0 needed
+      const firstNetwork = networksToTest[0];
+      const scenarioEOA = createRandomFundingScenario(networksToTest, sednVars[firstNetwork].amount, caseEOA, false);
+      const scenarioSedn = createRandomFundingScenario(networksToTest, sednVars[firstNetwork].amount, caseSedn, false);
+      const fundingEstablished = await instantiateFundingScenario(networksToTest, scenarioEOA, scenarioSedn, sednVars);
+      // build request for API
+      const randomPhoneNumber = "+4917661597640";
+      const wireRequest: IWireRequest = {
+        senderAddress: sednVars[firstNetwork].unfundedSigner.address,
+        recipientId: randomPhoneNumber,
+        amount: sednVars[firstNetwork].amount,
+        testnet: testnet,
+      };
+
+      try {
+        console.log(
+          `curl -X POST "${API_URL + "/wire"}" -d '${JSON.stringify({
+            data: wireRequest,
+          })}' -H 'Content-Type: application/json'`,
+        );
+        const { status, data } = await axios.post(`${API_URL + "/wire"}/`, {
+          data: wireRequest,
+        });
+        console.log(data);
+        console.log(data.result.transactions);
+      } catch (e) {
+        console.log(e);
+        throw e;
+      }
     });
   });
 });
