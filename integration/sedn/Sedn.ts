@@ -229,7 +229,8 @@ const createRandomFundingScenario = (
   }
   let networkFunding: any = {};
   let value: BigNumber;
-  let networks = shuffle(networksToTest);
+  // let networks = shuffle(networksToTest);
+  let networks = networksToTest;
   networks.forEach((network, index) => {
     if (index < amounts.length) {
       value = amounts[index];
@@ -767,6 +768,7 @@ describe("Sedn Contract", function () {
     it(`should be able to correctly sedn funds`, async function () {
       // partially randomized scenario creation
       const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
+      // const caseEOA = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       const firstNetwork = networksToTest[0];
       const scenarioEOA = createRandomFundingScenario(networksToTest, sednVars[firstNetwork].amount, caseEOA, true);
       const scenarioSedn = createRandomFundingScenario(networksToTest, BigNumber.from("0"), [], true);
@@ -790,7 +792,10 @@ describe("Sedn Contract", function () {
           data: wireRequest,
         });
         console.log(data);
-        console.log(data.result.transactions);
+        const txs = data.result.transactions;
+        for (const tx of txs) {
+          console.log(tx);
+        }
       } catch (e) {
         console.log(e);
         throw e;
@@ -799,6 +804,7 @@ describe("Sedn Contract", function () {
     it(`should be able to correctly transfer funds`, async function () {
       // partially randomized scenario creation
       const caseSedn = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need usdcBalance
+      // const caseSedn = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       const firstNetwork = networksToTest[0];
       const scenarioEOA = createRandomFundingScenario(networksToTest, BigNumber.from("0"), [], true);
       const scenarioSedn = createRandomFundingScenario(networksToTest, sednVars[firstNetwork].amount, caseSedn, true);
@@ -822,7 +828,10 @@ describe("Sedn Contract", function () {
           data: wireRequest,
         });
         console.log(data);
-        console.log(data.result.transactions);
+        const txs = data.result.transactions;
+        for (const tx of txs) {
+          console.log(tx);
+        }
       } catch (e) {
         console.log(e);
         throw e;
@@ -855,7 +864,10 @@ describe("Sedn Contract", function () {
           data: wireRequest,
         });
         console.log(data);
-        console.log(data.result.transactions);
+        const txs = data.result.transactions;
+        for (const tx of txs) {
+          console.log(tx);
+        }
       } catch (e) {
         console.log(e);
         throw e;

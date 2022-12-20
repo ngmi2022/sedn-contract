@@ -1,4 +1,4 @@
-import { BigNumber, Contract, Wallet } from "ethers";
+import { BigNumber, BigNumberish, Contract, Wallet } from "ethers";
 
 import { FakeSigner } from "../../helper/FakeSigner";
 
@@ -50,8 +50,49 @@ export interface ITransaction {
   to: string; // recipient address or mobile number
   value: string; // amount to send in USDC, big number
   method: string; // method to call on the contract, either sendKnown, sendHybridKnown, sendUnknown sendHybridUnknown
-  socketRoute?: IGetRouteResponse;
+  args: IKnownArgs | IUnknownArgs | IBridgeWithdrawArgs; // arguments to pass to the method
+  solution?: string; // solution to the secret
   signedTx?: string;
   from?: string; // signer address
 }
 
+export interface IKnownArgs {
+  amount: BigNumberish;
+  to: string;
+  balanceAmount?: BigNumberish;
+}
+
+export interface IUnknownArgs {
+  amount: BigNumberish;
+  secret: string;
+  balanceAmount?: BigNumberish;
+}
+
+export interface IBridgeWithdrawArgs {
+  amount: BigNumberish;
+  balanceAmount?: BigNumberish;
+  userRequest: IBridgeUserRequest;
+  bridgeImpl: string;
+}
+
+export interface IBridgeUserRequest {
+  receiverAddress: string;
+  toChainId: number;
+  amount: BigNumberish;
+  middleWareRequest: IBridgeMiddleWareRequest;
+  BridgeRequest: IBridgeRequest;
+}
+
+export interface IBridgeMiddleWareRequest {
+  id: string;
+  optionalNativeAmount: BigNumberish;
+  inputToken: string;
+  data: string;
+}
+
+export interface IBridgeRequest {
+  id: string;
+  optionalNativeAmount: BigNumberish;
+  inputToken: string;
+  data: string;
+}
