@@ -72,11 +72,12 @@ contract Sedn is ERC2771Context, Ownable, IUserRequest{
     uint256 public nonce = 0;
 
     event TransferKnown(address indexed from, address indexed to, uint256 value);
-    event TransferUnknown(address indexed from, string secret, uint256 value);
+    event TransferUnknown(address indexed from, bytes32 secret, uint256 value);
     event SednKnown(address indexed from, address indexed to, uint256 value);
-    event SednUnknown(address indexed from, string secret, uint256 value);
-    event PaymentClaimed(address indexed recipient, string secret, uint256 value);
+    event SednUnknown(address indexed from, bytes32 secret, uint256 value);
+    event PaymentClaimed(address indexed recipient, bytes32 secret, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
+    event Withdraw (address indexed owner, address indexed to, uint256 value);
 
     struct Payment {
         address from;
@@ -286,7 +287,7 @@ contract Sedn is ERC2771Context, Ownable, IUserRequest{
         usdcToken.approve(address(registry), amount);
         usdcToken.approve(bridgeImpl, amount);
         registry.outboundTransferTo{value: msg.value}(_userRequest);
-        emit Transfer(owner, bridgeImpl, amount);
+        emit Withdraw(owner, to, amount);
     }
 
     function bridgeClaim(
