@@ -75,6 +75,7 @@ contract Sedn is ERC2771Context, Ownable, IUserRequest{
     event TransferUnknown(address indexed from, string secret, uint256 value);
     event SednKnown(address indexed from, address indexed to, uint256 value);
     event SednUnknown(address indexed from, string secret, uint256 value);
+    event PaymentClaimed(address indexed recipient, string secret, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
 
     struct Payment {
@@ -253,6 +254,7 @@ contract Sedn is ERC2771Context, Ownable, IUserRequest{
         uint256 amount = _payments[secret].amount;
         _balances[_msgSender()] += amount; // Add amount to receiver
         _payments[secret].completed = true; // Mark payment as completed
+        emit PaymentClaimed(_msgSender(), secret, _payments[secret].amount);
     }
 
     /**
