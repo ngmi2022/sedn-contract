@@ -249,25 +249,27 @@ contract Sedn is ERC2771Context, Ownable, IUserRequest{
         uint8 _v,
         bytes32 _r,
         bytes32 _s
-    ) public {
+    ) public returns (bool) {
         _checkClaim(solution, secret, _msgSender(), _payments[secret].amount, _till, _v, _r, _s);
         require(_msgSender() != address(0), "Transfer to the zero address not possible");
         uint256 amount = _payments[secret].amount;
         _balances[_msgSender()] += amount; // Add amount to receiver
         _payments[secret].completed = true; // Mark payment as completed
         emit PaymentClaimed(_msgSender(), secret, _payments[secret].amount);
+        return bool(true);
     }
 
     /**
      * WITHDRAW
      */
-    function withdraw(uint256 amount, address to) external {
+    function withdraw(uint256 amount, address to) public returns (bool) {
         require(_msgSender() != address(0), "Transfer from the zero address");
         uint256 fromBalance = _balances[_msgSender()];
         require(fromBalance >= amount, "Transfer amount exceeds balance");
         usdcToken.approve(address(this), amount); // do we need this approve?
         require(usdcToken.transferFrom(address(this), to, amount), "transferFrom failed");
         _balances[_msgSender()] = fromBalance - amount;
+        return bool(true);
     }
 
     function bridgeWithdraw(
@@ -284,9 +286,7 @@ contract Sedn is ERC2771Context, Ownable, IUserRequest{
         require(fromBalance >= amount, "Withdrawal amount exceeds balance");
         _balances[owner] = fromBalance - amount;
         console.log("Bridge and claiming funds", amount, _msgSender());
-        usdcToken.approve(address(registry), amount);
-        usdcToken.approve(bridgeImpl, amount);
-        registry.outboundTransferTo{value: msg.value}(_userRequest);
+        require(withdraw(amount, to), "withdraw failed");
         emit Withdraw(owner, to, amount);
     }
 
@@ -304,7 +304,7 @@ contract Sedn is ERC2771Context, Ownable, IUserRequest{
         console.log("bridgeImpl", bridgeImpl);
         require(claim(solution, secret, _till, _v, _r, _s), "claim failed");
     }
-    
+
     /**
      * HELPERS
      */
