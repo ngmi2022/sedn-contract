@@ -56,7 +56,7 @@ export async function signMetaTxRequest(privateKey: string, forwarder: Contract,
   return { signature, request };
 }
 
-export async function sendMetaTx(
+export async function getSignedTxRequest(
   sednContract: Contract,
   signer: Signer,
   signerKey: string,
@@ -75,6 +75,29 @@ export async function sendMetaTx(
   const value = txValue.toString();
 
   const request = await signMetaTxRequest(signerKey, forwarder, { to, from, data, value });
+  return request;
+}
+
+export async function sendMetaTx(
+  sednContract: Contract,
+  signer: Signer,
+  signerKey: string,
+  funcName: string,
+  funcArgs: any[],
+  txValue: BigInt,
+  relayerWebhook: string,
+  forwarderAddress: string,
+) {
+  const request = await getSignedTxRequest(
+    sednContract,
+    signer,
+    signerKey,
+    funcName,
+    funcArgs,
+    txValue,
+    relayerWebhook,
+    forwarderAddress,
+  );
   const response = await fetch(relayerWebhook, {
     method: "POST",
     body: JSON.stringify(request),
@@ -130,6 +153,7 @@ export async function sendTx(
 
 module.exports = {
   signMetaTxRequest,
+  getSignedTxRequest,
   buildRequest,
   buildTypedData,
   sendMetaTx,

@@ -96,3 +96,27 @@ export interface IBridgeRequest {
   inputToken: string;
   data: string;
 }
+
+export interface IExecution {
+  status: string;
+  type: string;
+  amount: string;
+  recipient: string;
+  transactions: ITransaction[];
+  userId: string;
+}
+
+export interface IExecutionsResponse {
+  executions: IExecution[];
+}
+
+export interface IExecuteTransactionRequest {
+  transactions: ITransaction[];
+  environment?: string;
+  type: string; // send or withdraw
+  recipientIdOrAddress: string; // TODO: remove this later as this API is auth gated
+}
+
+export interface IExecutionStatusRequest {
+  executionId: string;
+}

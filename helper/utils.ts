@@ -192,3 +192,26 @@ export function shuffle<T>(array: T[]): T[] {
 
   return array;
 }
+
+export const getChainFromId = (chainId: number) => {
+  switch (chainId) {
+    case 1:
+      return "mainnet";
+    case 137:
+      return "polygon-mainnet";
+    case 42161:
+      return "arbitrum";
+    case 421613:
+      return "arbitrum-goerli";
+    case 100:
+      return "gnosis";
+    case 11155111:
+      return "sepolia";
+    case 10:
+      return "optimism";
+    case 420:
+      return "optimism-goerli";
+    default:
+      throw new Error(`ChainId ${chainId} not supported`);
+  }
+};

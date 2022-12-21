@@ -5,22 +5,32 @@ import { expect } from "chai";
 import fetch from "cross-fetch";
 import { BigNumber, Contract, Wallet, ethers } from "ethers";
 import { parseUnits } from "ethers/lib/utils";
+import { check } from "prettier";
+import { stringify } from "querystring";
 
 import { FakeSigner } from "../../helper/FakeSigner";
-import { sendTx } from "../../helper/signer";
+import { getSignedTxRequest, sendTx, signMetaTxRequest } from "../../helper/signer";
 import {
   checkTxStatus,
   explorerData,
   feeData,
   fetchConfig,
   getAbi,
+  getChainFromId,
   getRpcUrl,
   getTxCostInUSD,
   getTxReceipt,
   shuffle,
   sleep,
 } from "../../helper/utils";
-import { ITransaction, IWireRequest, IWireResponse, IWithdrawRequest, sednVars } from "../interfaces/index";
+import {
+  IExecuteTransactionRequest,
+  IExecutionsResponse,
+  ITransaction,
+  IWireRequest,
+  IWireResponse,
+  IWithdrawRequest,
+} from "../interfaces/index";
 
 // /**********************************
 // INTEGRATION PARAMS / ENVIRONMENT VARIABLES
@@ -133,12 +143,12 @@ const waitTillRecipientBalanceChanged = async (
   return new Promise(executePoll);
 };
 
-const checkAllowance = async (usdcOrigin: Contract, signer: Wallet, sedn: Contract, amount: number) => {
+const checkAllowance = async (usdcOrigin: Contract, signer: Wallet, sedn: Contract, amount: BigNumber) => {
   // check allowance & if necessary increase approve
-  const allowance = parseInt((await usdcOrigin.allowance(signer.address, sedn.address)).toString());
+  const allowance = await usdcOrigin.allowance(signer.address, sedn.address);
   // console.log("allowance", allowance, "vs. amount", amount);
-  if (allowance < amount) {
-    const increasedAllowance = amount - allowance;
+  if (allowance.lt(amount)) {
+    const increasedAllowance = amount.sub(allowance);
     const fees = await feeData((await signer.provider.getNetwork()).name, signer);
     const approve = await usdcOrigin.connect(signer).increaseAllowance(sedn.address, increasedAllowance, {
       maxFeePerGas: fees.maxFee,
@@ -175,7 +185,7 @@ const checkFunding = async (
       console.log("INFO: Switched signers");
     } else {
       // check allowance & if necessary increase approve
-      const allowanceChecked = await checkAllowance(usdcOrigin, signer, sedn, amount); // check allowance
+      const allowanceChecked = await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount)); // check allowance
       const fees = await feeData((await signer.provider.getNetwork()).name, signer);
       const txSend = await sedn.connect(signer).sednKnown(amount, signer.address, {
         maxFeePerGas: fees.maxFee,
@@ -322,7 +332,7 @@ const instantiateFundingScenario = async (
           sednVars[network].usdcOrigin,
           sednVars[network].signer,
           sednVars[network].sedn,
-          parseInt(sednDifference.toString()),
+          sednDifference,
         );
         tx = await sednVars[network].sedn
           .connect(sednVars[network].signer)
@@ -341,6 +351,100 @@ const instantiateFundingScenario = async (
     );
   }
   return true;
+};
+
+const apiCall = async (apiMethod: string, request: any) => {
+  let responseResult: any;
+  try {
+    console.log(
+      `curl -X POST "${API_URL + "/" + apiMethod}" -d '${JSON.stringify({
+        data: request,
+      })}' -H 'Content-Type: application/json'`,
+    );
+    const { status, data } = await axios.post(`${API_URL + "/wire"}/`, {
+      data: request,
+    });
+    console.log(`INFO: ${apiMethod} response`);
+    console.log("INFO: --  response status", status);
+    console.log("INFO: --  response data", JSON.stringify(data));
+    responseResult = data.result;
+  } catch (e) {
+    console.log(e);
+    throw e;
+  }
+  return responseResult;
+};
+
+const handleTxSignature = async (
+  transaction: ITransaction,
+  sednVars: { [network: string]: any },
+  signerName: string,
+) => {
+  const network = getChainFromId(transaction.chainId);
+  const method = transaction.method;
+  const amount = BigNumber.from(transaction.args.amount);
+  const sednAddress = sednVars[network].sedn.address;
+  const signer = sednVars[network][signerName];
+  const args: any = transaction.args;
+  const value = BigInt(transaction.value);
+  const relayerWebhook = sednVars[network].relayerWebhook;
+  const forwarderAddress = sednVars[network].forwarder;
+  // check what's what
+  switch (method) {
+    case "sendKnown":
+      console.log("INFO: sednKnown; allowance needs to be adjusted.");
+      await checkAllowance(sednVars[network].usdcOrigin, sednVars[network][signerName], sednVars[network].sedn, amount);
+      break;
+    case "sendUnknown":
+      console.log("INFO: sednUnknown; allowance needs to be adjusted.");
+      await checkAllowance(sednVars[network].usdcOrigin, sednVars[network][signerName], sednVars[network].sedn, amount);
+      break;
+    case "transferKnown":
+      console.log("INFOL: transferKnown");
+      break;
+    case "transferUnknown":
+      console.log("INFO: transferUnknown");
+      break;
+    case "hybridKnown":
+      console.log("INFO: hybridKnown; allowance needs to be adjusted.");
+      await checkAllowance(sednVars[network].usdcOrigin, sednVars[network][signerName], sednVars[network].sedn, amount);
+      break;
+    case "hybridUnknown":
+      console.log("INFO: hybridUnknown; allowance needs to be adjusted.");
+      await checkAllowance(sednVars[network].usdcOrigin, sednVars[network][signerName], sednVars[network].sedn, amount);
+      break;
+    case "withdraw":
+      console.log("INFO: withdraw");
+      break;
+    case "bridgeWithdraw":
+      console.log("INFO: bridgeWithdraw");
+      break;
+    default:
+      throw new Error(`Unknown method ${method}`);
+  }
+  console.log(
+    "sednAddress: ",
+    sednAddress,
+    "signer: ",
+    signer.address,
+    "method: ",
+    method,
+    "args: ",
+    args,
+    "value: ",
+    value,
+  );
+  const signedRequest = await getSignedTxRequest(
+    sednAddress,
+    signer,
+    signer.privateKey,
+    method,
+    args,
+    value,
+    relayerWebhook,
+    forwarderAddress,
+  );
+  return JSON.stringify(signedRequest);
 };
 
 // /**********************************
@@ -458,7 +562,7 @@ describe("Sedn Contract", function () {
       });
       it.skip("should correctly send funds to a registered user", async function () {
         // check allowance & if necessary increase approve
-        const allowanceChecked = await checkAllowance(usdcOrigin, signer, sedn, amount);
+        const allowanceChecked = await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount));
 
         // send
         const usdcBeforeSednSigner = await usdcOrigin.balanceOf(signer.address); // should be at least 10
@@ -484,7 +588,7 @@ describe("Sedn Contract", function () {
       });
       it.skip("should send funds to an unregistered user", async function () {
         // check allowance & if necessary increase approve
-        const allowanceChecked = await checkAllowance(usdcOrigin, signer, sedn, amount);
+        const allowanceChecked = await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount));
 
         // send
         const usdcBeforeSednSigner = await usdcOrigin.balanceOf(signer.address);
@@ -765,7 +869,7 @@ describe("Sedn Contract", function () {
         sednVars[network] = deployed;
       }
     });
-    it(`should be able to correctly sedn funds`, async function () {
+    it.only(`should be able to correctly sedn funds`, async function () {
       // partially randomized scenario creation
       const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       // const caseEOA = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
@@ -774,32 +878,36 @@ describe("Sedn Contract", function () {
       const scenarioSedn = createRandomFundingScenario(networksToTest, BigNumber.from("0"), [], true);
       const fundingEstablished = await instantiateFundingScenario(networksToTest, scenarioEOA, scenarioSedn, sednVars);
       // build request for API
-      const randomPhoneNumber = "+4917661597640";
+      const testPhoneNumber = "+4917661597640";
       const wireRequest: IWireRequest = {
         senderAddress: sednVars[firstNetwork].unfundedSigner.address,
-        recipientId: randomPhoneNumber,
+        recipientId: testPhoneNumber,
         amount: sednVars[firstNetwork].amount,
         testnet: testnet,
       };
 
-      try {
-        console.log(
-          `curl -X POST "${API_URL + "/wire"}" -d '${JSON.stringify({
-            data: wireRequest,
-          })}' -H 'Content-Type: application/json'`,
-        );
-        const { status, data } = await axios.post(`${API_URL + "/wire"}/`, {
-          data: wireRequest,
-        });
-        console.log(data);
-        const txs = data.result.transactions;
-        for (const tx of txs) {
-          console.log(tx);
-        }
-      } catch (e) {
-        console.log(e);
-        throw e;
+      // send request to API
+      const wireResponse: IWireResponse = await apiCall("wire", wireRequest);
+
+      // get approve and signatures
+      const transactions: ITransaction[] = wireResponse.transactions;
+      const signedTransactions: ITransaction[] = [];
+      for (const transaction of transactions) {
+        const signedRequest = await handleTxSignature(transaction, sednVars, "unfundedSigner");
+        transaction.signedTx = signedRequest;
+        signedTransactions.push(transaction);
       }
+
+      // build api request
+      const executeTransactionsRequest: IExecuteTransactionRequest = {
+        transactions: signedTransactions,
+        environment: ENVIRONMENT,
+        type: "send",
+        recipientIdOrAddress: testPhoneNumber,
+      };
+      // send signed transactions to API
+      const executeResponse: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
+      console.log("INFO: executeResponse", executeResponse);
     });
     it(`should be able to correctly transfer funds`, async function () {
       // partially randomized scenario creation
