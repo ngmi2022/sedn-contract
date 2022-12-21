@@ -71,7 +71,10 @@ contract Sedn is ERC2771Context, Ownable, IUserRequest{
     address public trustedVerifyAddress;
     uint256 public nonce = 0;
 
-    event Transfer(address indexed from, address indexed to, uint256 value);
+    event TransferKnown(address indexed from, address indexed to, uint256 value);
+    event TransferUnknown(address indexed from, string secret, uint256 value);
+    event SednKnown(address indexed from, address indexed to, uint256 value);
+    event SednUnknown(address indexed from, string secret, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
 
     struct Payment {
@@ -144,6 +147,7 @@ contract Sedn is ERC2771Context, Ownable, IUserRequest{
         require(usdcToken.transferFrom(_msgSender(), address(this), _amount), "Transfer failed");
         require(_payments[secret].secret != secret, "Can not double set secret");
         _payments[secret] = Payment(_msgSender(), _amount, false, secret);
+        emit SednUnknown(_msgSender(), secret, _amount);
     }
 
     function sednKnown(uint256 _amount, address to) external {
@@ -152,33 +156,35 @@ contract Sedn is ERC2771Context, Ownable, IUserRequest{
         // send money to contract
         // allocate balance to receiver
         _balances[to] += _amount;
+        emit SednKnown(_msgSender(), to, _amount);
     }
 
-    function transferUnknown(uint256 balanceAmount, bytes32 secret) external {
-        require(balanceAmount > 0, "Amount must be greater than 0");
+    function transferUnknown(uint256 _amount, bytes32 secret) external {
+        require(_amount > 0, "Amount must be greater than 0");
         require(_payments[secret].secret != secret, "Can not double set secret");
         require(_msgSender() != address(0), "Transfer from the zero address");
 
         uint256 fromBalance = _balances[_msgSender()];
-        require(fromBalance >= balanceAmount, "Transfer amount exceeds balance");
-        _balances[_msgSender()] = fromBalance - balanceAmount; // may want to consider unchecked to save gas
-        _payments[secret] = Payment(_msgSender(), balanceAmount, false, secret); // payment is completed
+        require(fromBalance >= _amount, "Transfer amount exceeds balance");
+        _balances[_msgSender()] = fromBalance - _amount; // may want to consider unchecked to save gas
+        _payments[secret] = Payment(_msgSender(), _amount, false, secret); // payment is completed
+        emit TransferUnknown(_msgSender(), secret, _amount);
     }
 
-    function transferKnown(uint256 amount, address to) public virtual returns (bool) {
+    function transferKnown(uint256 _amount, address to) public virtual returns (bool) {
         address from = _msgSender();
         require(from != address(0), "Transfer from the zero address");
         require(to != address(0), "Transfer to the zero address");
         uint256 fromBalance = _balances[from];
-        require(fromBalance >= amount, "ERC20: transfer amount exceeds balance");
+        require(fromBalance >= _amount, "ERC20: transfer amount exceeds balance");
         unchecked {
-            _balances[from] = fromBalance - amount;
+            _balances[from] = fromBalance - _amount;
             // Overflow not possible: the sum of all balances is capped by totalSupply, and the sum is preserved by
             // decrementing then incrementing.
-            _balances[to] += amount;
+            _balances[to] += _amount;
         }
 
-        emit Transfer(from, to, amount);
+        emit TransferKnown(from, to, _amount);
         return true;
     }
 

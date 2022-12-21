@@ -383,7 +383,7 @@ const handleTxSignature = async (
   const network = getChainFromId(transaction.chainId);
   const method = transaction.method;
   const amount = BigNumber.from(transaction.args.amount);
-  const sednAddress = sednVars[network].sedn.address;
+  const sednContract = sednVars[network].sedn;
   const signer = sednVars[network][signerName];
   const args: any = transaction.args;
   const value = BigInt(transaction.value);
@@ -391,16 +391,16 @@ const handleTxSignature = async (
   const forwarderAddress = sednVars[network].forwarder;
   // check what's what
   switch (method) {
-    case "sendKnown":
+    case "sednKnown":
       console.log("INFO: sednKnown; allowance needs to be adjusted.");
       await checkAllowance(sednVars[network].usdcOrigin, sednVars[network][signerName], sednVars[network].sedn, amount);
       break;
-    case "sendUnknown":
+    case "sednUnknown":
       console.log("INFO: sednUnknown; allowance needs to be adjusted.");
       await checkAllowance(sednVars[network].usdcOrigin, sednVars[network][signerName], sednVars[network].sedn, amount);
       break;
     case "transferKnown":
-      console.log("INFOL: transferKnown");
+      console.log("INFO: transferKnown");
       break;
     case "transferUnknown":
       console.log("INFO: transferUnknown");
@@ -422,20 +422,8 @@ const handleTxSignature = async (
     default:
       throw new Error(`Unknown method ${method}`);
   }
-  console.log(
-    "sednAddress: ",
-    sednAddress,
-    "signer: ",
-    signer.address,
-    "method: ",
-    method,
-    "args: ",
-    args,
-    "value: ",
-    value,
-  );
   const signedRequest = await getSignedTxRequest(
-    sednAddress,
+    sednContract,
     signer,
     signer.privateKey,
     method,
