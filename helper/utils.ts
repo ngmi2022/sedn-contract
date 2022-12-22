@@ -41,7 +41,7 @@ export const getTxCostInUSD = async (receipt: any, network: string) => {
 export const checkTxStatus = async (receipt: TransactionReceipt) => {
   const logs = receipt.logs || [];
   if (typeof logs === "undefined" || logs.length === 0) {
-    throw new Error("Transaction xecuted, but reverted");
+    throw new Error("Transaction executed, but reverted");
   }
 };
 
@@ -175,3 +175,43 @@ export const feeData = async (network: string, signer: Wallet) => {
 };
 
 export const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+export function shuffle<T>(array: T[]): T[] {
+  let currentIndex = array.length,
+    randomIndex;
+
+  // While there remain elements to shuffle.
+  while (currentIndex != 0) {
+    // Pick a remaining element.
+    randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex--;
+
+    // And swap it with the current element.
+    [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+  }
+
+  return array;
+}
+
+export const getChainFromId = (chainId: number) => {
+  switch (chainId) {
+    case 1:
+      return "mainnet";
+    case 137:
+      return "polygon-mainnet";
+    case 42161:
+      return "arbitrum";
+    case 421613:
+      return "arbitrum-goerli";
+    case 100:
+      return "gnosis";
+    case 11155111:
+      return "sepolia";
+    case 10:
+      return "optimism";
+    case 420:
+      return "optimism-goerli";
+    default:
+      throw new Error(`ChainId ${chainId} not supported`);
+  }
+};
