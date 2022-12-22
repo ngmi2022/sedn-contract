@@ -146,7 +146,6 @@ const waitTillRecipientBalanceChanged = async (
 const checkAllowance = async (usdcOrigin: Contract, signer: Wallet, sedn: Contract, amount: BigNumber) => {
   // check allowance & if necessary increase approve
   const allowance = await usdcOrigin.allowance(signer.address, sedn.address);
-  // console.log("allowance", allowance, "vs. amount", amount);
   if (allowance.lt(amount)) {
     const increasedAllowance = amount.sub(allowance);
     const fees = await feeData((await signer.provider.getNetwork()).name, signer);
@@ -361,7 +360,7 @@ const apiCall = async (apiMethod: string, request: any) => {
         data: request,
       })}' -H 'Content-Type: application/json'`,
     );
-    const { status, data } = await axios.post(`${API_URL + "/wire"}/`, {
+    const { status, data } = await axios.post(`${API_URL + "/" + apiMethod}/`, {
       data: request,
     });
     console.log(`INFO: ${apiMethod} response`);
@@ -382,12 +381,11 @@ const handleTxSignature = async (
 ) => {
   const network = getChainFromId(transaction.chainId);
   const method = transaction.method;
-  const amount = BigNumber.from(transaction.args.amount);
+  const amount = BigNumber.from(transaction.args._amount);
   const sednContract = sednVars[network].sedn;
   const signer = sednVars[network][signerName];
-  const args: any = transaction.args;
+  let args: any = transaction.args;
   const value = BigInt(transaction.value);
-  const relayerWebhook = sednVars[network].relayerWebhook;
   const forwarderAddress = sednVars[network].forwarder;
   // check what's what
   switch (method) {
@@ -408,10 +406,12 @@ const handleTxSignature = async (
     case "hybridKnown":
       console.log("INFO: hybridKnown; allowance needs to be adjusted.");
       await checkAllowance(sednVars[network].usdcOrigin, sednVars[network][signerName], sednVars[network].sedn, amount);
+      args = { _amount: amount, balanceAmount: args.balanceAmount, to: args.to };
       break;
     case "hybridUnknown":
       console.log("INFO: hybridUnknown; allowance needs to be adjusted.");
       await checkAllowance(sednVars[network].usdcOrigin, sednVars[network][signerName], sednVars[network].sedn, amount);
+      args = { _amount: amount, balanceAmount: args.balanceAmount, secret: args.secret };
       break;
     case "withdraw":
       console.log("INFO: withdraw");
@@ -427,9 +427,8 @@ const handleTxSignature = async (
     signer,
     signer.privateKey,
     method,
-    args,
+    Object.values(args),
     value,
-    relayerWebhook,
     forwarderAddress,
   );
   return JSON.stringify(signedRequest);
@@ -524,7 +523,7 @@ describe("Sedn Contract", function () {
     });
   });
   networksToTest.forEach(function (network) {
-    describe(`Sedn functionality`, function () {
+    describe.skip(`Sedn functionality`, function () {
       let sedn: Contract;
       let usdcOrigin: Contract;
       let signer: Wallet;
@@ -689,7 +688,7 @@ describe("Sedn Contract", function () {
         expect(sednBeforeTransferSigner.sub(sednAfterTransferSigner)).to.equal(amount);
         expect(sednAfterTransferRecipient.sub(sednBeforeTransferRecipient)).to.equal(amount);
       });
-      it.only("should withdraw funds to a given address", async function () {
+      it("should withdraw funds to a given address", async function () {
         // check and adapt funding balances of signer
         let [useSigner, useRecipient] = await checkFunding(usdcOrigin, signer, recipient, sedn, amount);
 
@@ -717,7 +716,7 @@ describe("Sedn Contract", function () {
       });
       // we need to figure out how we can specify the "only" keyword for a
       // single test on live-chains to ensure that we don't piss too much gas
-      it.only("should bridgeWithdraw funds to a given address", async function () {
+      it("should bridgeWithdraw funds to a given address", async function () {
         // check and adapt funding balances of signer
         let [useSigner, useRecipient] = await checkFunding(usdcOrigin, signer, recipient, sedn, amount);
 
@@ -847,9 +846,11 @@ describe("Sedn Contract", function () {
       });
     });
   });
-  describe.skip(`Sedn multichain testing`, function () {
+  describe(`Sedn multichain testing`, function () {
     let sednVars: { [network: string]: any } = {};
     let deployed: any;
+    const knownPhone = "+4917661597645";
+    const unknownPhone = "+4917661597640";
     beforeEach(async function () {
       sednVars = [];
       for (const network of networksToTest) {
@@ -857,7 +858,7 @@ describe("Sedn Contract", function () {
         sednVars[network] = deployed;
       }
     });
-    it(`should be able to correctly sedn funds`, async function () {
+    it(`should be able to correctly sedn funds to an unknown user`, async function () {
       // partially randomized scenario creation
       const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       // const caseEOA = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
@@ -866,10 +867,9 @@ describe("Sedn Contract", function () {
       const scenarioSedn = createRandomFundingScenario(networksToTest, BigNumber.from("0"), [], true);
       const fundingEstablished = await instantiateFundingScenario(networksToTest, scenarioEOA, scenarioSedn, sednVars);
       // build request for API
-      const testPhoneNumber = "+4917661597640";
       const wireRequest: IWireRequest = {
         senderAddress: sednVars[firstNetwork].unfundedSigner.address,
-        recipientId: testPhoneNumber,
+        recipientId: unknownPhone,
         amount: sednVars[firstNetwork].amount,
         testnet: testnet,
       };
@@ -891,13 +891,52 @@ describe("Sedn Contract", function () {
         transactions: signedTransactions,
         environment: ENVIRONMENT,
         type: "send",
-        recipientIdOrAddress: testPhoneNumber,
+        recipientIdOrAddress: unknownPhone,
       };
       // send signed transactions to API
-      const executeResponse: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
-      console.log("INFO: executeResponse", executeResponse);
+      const executionId: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
+      console.log("INFO: executionIds", executionId);
     });
-    it(`should be able to correctly transfer funds`, async function () {
+    it(`should be able to correctly sedn funds to an known user`, async function () {
+      // partially randomized scenario creation
+      const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
+      // const caseEOA = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
+      const firstNetwork = networksToTest[0];
+      const scenarioEOA = createRandomFundingScenario(networksToTest, sednVars[firstNetwork].amount, caseEOA, true);
+      const scenarioSedn = createRandomFundingScenario(networksToTest, BigNumber.from("0"), [], true);
+      const fundingEstablished = await instantiateFundingScenario(networksToTest, scenarioEOA, scenarioSedn, sednVars);
+      // build request for API
+      const wireRequest: IWireRequest = {
+        senderAddress: sednVars[firstNetwork].unfundedSigner.address,
+        recipientId: knownPhone,
+        amount: sednVars[firstNetwork].amount,
+        testnet: testnet,
+      };
+
+      // send request to API
+      const wireResponse: IWireResponse = await apiCall("wire", wireRequest);
+
+      // get approve and signatures
+      const transactions: ITransaction[] = wireResponse.transactions;
+      const signedTransactions: ITransaction[] = [];
+      for (const transaction of transactions) {
+        const signedRequest = await handleTxSignature(transaction, sednVars, "unfundedSigner");
+        transaction.signedTx = signedRequest;
+        signedTransactions.push(transaction);
+      }
+
+      // build api request
+      const executeTransactionsRequest: IExecuteTransactionRequest = {
+        transactions: signedTransactions,
+        environment: ENVIRONMENT,
+        type: "send",
+        recipientIdOrAddress: knownPhone,
+      };
+      // send signed transactions to API
+      const executionId: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
+      console.log("INFO: executionIds", executionId);
+    });
+    it(`should be able to correctly transfer funds to an unknown user`, async function () {
       // partially randomized scenario creation
       const caseSedn = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need usdcBalance
       // const caseSedn = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
@@ -906,34 +945,76 @@ describe("Sedn Contract", function () {
       const scenarioSedn = createRandomFundingScenario(networksToTest, sednVars[firstNetwork].amount, caseSedn, true);
       const fundingEstablished = await instantiateFundingScenario(networksToTest, scenarioEOA, scenarioSedn, sednVars);
       // build request for API
-      const randomPhoneNumber = "+4917661597640";
       const wireRequest: IWireRequest = {
         senderAddress: sednVars[firstNetwork].unfundedSigner.address,
-        recipientId: randomPhoneNumber,
+        recipientId: unknownPhone,
         amount: sednVars[firstNetwork].amount,
         testnet: testnet,
       };
 
-      try {
-        console.log(
-          `curl -X POST "${API_URL + "/wire"}" -d '${JSON.stringify({
-            data: wireRequest,
-          })}' -H 'Content-Type: application/json'`,
-        );
-        const { status, data } = await axios.post(`${API_URL + "/wire"}/`, {
-          data: wireRequest,
-        });
-        console.log(data);
-        const txs = data.result.transactions;
-        for (const tx of txs) {
-          console.log(tx);
-        }
-      } catch (e) {
-        console.log(e);
-        throw e;
+      // send request to API
+      const wireResponse: IWireResponse = await apiCall("wire", wireRequest);
+
+      // get approve and signatures
+      const transactions: ITransaction[] = wireResponse.transactions;
+      const signedTransactions: ITransaction[] = [];
+      for (const transaction of transactions) {
+        const signedRequest = await handleTxSignature(transaction, sednVars, "unfundedSigner");
+        transaction.signedTx = signedRequest;
+        signedTransactions.push(transaction);
       }
+
+      // build api request
+      const executeTransactionsRequest: IExecuteTransactionRequest = {
+        transactions: signedTransactions,
+        environment: ENVIRONMENT,
+        type: "send",
+        recipientIdOrAddress: unknownPhone,
+      };
+      // send signed transactions to API
+      const executionId: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
+      console.log("INFO: executionIds", executionId);
     });
-    it(`should be able to correctly sedn and transfer funds`, async function () {
+    it(`should be able to correctly transfer funds to an known user`, async function () {
+      // partially randomized scenario creation
+      const caseSedn = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need usdcBalance
+      // const caseSedn = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
+      const firstNetwork = networksToTest[0];
+      const scenarioEOA = createRandomFundingScenario(networksToTest, BigNumber.from("0"), [], true);
+      const scenarioSedn = createRandomFundingScenario(networksToTest, sednVars[firstNetwork].amount, caseSedn, true);
+      const fundingEstablished = await instantiateFundingScenario(networksToTest, scenarioEOA, scenarioSedn, sednVars);
+      // build request for API
+      const wireRequest: IWireRequest = {
+        senderAddress: sednVars[firstNetwork].unfundedSigner.address,
+        recipientId: knownPhone,
+        amount: sednVars[firstNetwork].amount,
+        testnet: testnet,
+      };
+
+      // send request to API
+      const wireResponse: IWireResponse = await apiCall("wire", wireRequest);
+
+      // get approve and signatures
+      const transactions: ITransaction[] = wireResponse.transactions;
+      const signedTransactions: ITransaction[] = [];
+      for (const transaction of transactions) {
+        const signedRequest = await handleTxSignature(transaction, sednVars, "unfundedSigner");
+        transaction.signedTx = signedRequest;
+        signedTransactions.push(transaction);
+      }
+
+      // build api request
+      const executeTransactionsRequest: IExecuteTransactionRequest = {
+        transactions: signedTransactions,
+        environment: ENVIRONMENT,
+        type: "send",
+        recipientIdOrAddress: knownPhone,
+      };
+      // send signed transactions to API
+      const executionId: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
+      console.log("INFO: executionIds", executionId);
+    });
+    it(`should be able to correctly sedn and transfer funds to an unknown user`, async function () {
       // partially randomized scenario creation
       const caseSedn = [parseUnits("0.5", "mwei")]; // 0.5 on sedn = total1.2 amount vs. 1.0 needed
       const caseEOA = [parseUnits("0.7", "mwei")]; // 0.7 on usdc = total1.2 amount vs. 1.0 needed
@@ -942,32 +1023,74 @@ describe("Sedn Contract", function () {
       const scenarioSedn = createRandomFundingScenario(networksToTest, sednVars[firstNetwork].amount, caseSedn, false);
       const fundingEstablished = await instantiateFundingScenario(networksToTest, scenarioEOA, scenarioSedn, sednVars);
       // build request for API
-      const randomPhoneNumber = "+4917661597640";
       const wireRequest: IWireRequest = {
         senderAddress: sednVars[firstNetwork].unfundedSigner.address,
-        recipientId: randomPhoneNumber,
+        recipientId: unknownPhone,
         amount: sednVars[firstNetwork].amount,
         testnet: testnet,
       };
 
-      try {
-        console.log(
-          `curl -X POST "${API_URL + "/wire"}" -d '${JSON.stringify({
-            data: wireRequest,
-          })}' -H 'Content-Type: application/json'`,
-        );
-        const { status, data } = await axios.post(`${API_URL + "/wire"}/`, {
-          data: wireRequest,
-        });
-        console.log(data);
-        const txs = data.result.transactions;
-        for (const tx of txs) {
-          console.log(tx);
-        }
-      } catch (e) {
-        console.log(e);
-        throw e;
+      // send request to API
+      const wireResponse: IWireResponse = await apiCall("wire", wireRequest);
+
+      // get approve and signatures
+      const transactions: ITransaction[] = wireResponse.transactions;
+      const signedTransactions: ITransaction[] = [];
+      for (const transaction of transactions) {
+        const signedRequest = await handleTxSignature(transaction, sednVars, "unfundedSigner");
+        transaction.signedTx = signedRequest;
+        signedTransactions.push(transaction);
       }
+
+      // build api request
+      const executeTransactionsRequest: IExecuteTransactionRequest = {
+        transactions: signedTransactions,
+        environment: ENVIRONMENT,
+        type: "send",
+        recipientIdOrAddress: unknownPhone,
+      };
+      // send signed transactions to API
+      const executionId: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
+      console.log("INFO: executionIds", executionId);
+    });
+    it(`should be able to correctly sedn and transfer funds to an known user`, async function () {
+      // partially randomized scenario creation
+      const caseSedn = [parseUnits("0.5", "mwei")]; // 0.5 on sedn = total1.2 amount vs. 1.0 needed
+      const caseEOA = [parseUnits("0.7", "mwei")]; // 0.7 on usdc = total1.2 amount vs. 1.0 needed
+      const firstNetwork = networksToTest[0];
+      const scenarioEOA = createRandomFundingScenario(networksToTest, sednVars[firstNetwork].amount, caseEOA, false);
+      const scenarioSedn = createRandomFundingScenario(networksToTest, sednVars[firstNetwork].amount, caseSedn, false);
+      const fundingEstablished = await instantiateFundingScenario(networksToTest, scenarioEOA, scenarioSedn, sednVars);
+      // build request for API
+      const wireRequest: IWireRequest = {
+        senderAddress: sednVars[firstNetwork].unfundedSigner.address,
+        recipientId: knownPhone,
+        amount: sednVars[firstNetwork].amount,
+        testnet: testnet,
+      };
+
+      // send request to API
+      const wireResponse: IWireResponse = await apiCall("wire", wireRequest);
+
+      // get approve and signatures
+      const transactions: ITransaction[] = wireResponse.transactions;
+      const signedTransactions: ITransaction[] = [];
+      for (const transaction of transactions) {
+        const signedRequest = await handleTxSignature(transaction, sednVars, "unfundedSigner");
+        transaction.signedTx = signedRequest;
+        signedTransactions.push(transaction);
+      }
+
+      // build api request
+      const executeTransactionsRequest: IExecuteTransactionRequest = {
+        transactions: signedTransactions,
+        environment: ENVIRONMENT,
+        type: "send",
+        recipientIdOrAddress: unknownPhone,
+      };
+      // send signed transactions to API
+      const executionId: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
+      console.log("INFO: executionIds", executionId);
     });
   });
 });

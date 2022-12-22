@@ -57,19 +57,19 @@ export interface ITransaction {
 }
 
 export interface IKnownArgs {
-  amount: BigNumberish;
+  _amount: BigNumberish;
   to: string;
   balanceAmount?: BigNumberish;
 }
 
 export interface IUnknownArgs {
-  amount: BigNumberish;
+  _amount: BigNumberish;
   secret: string;
   balanceAmount?: BigNumberish;
 }
 
 export interface IBridgeWithdrawArgs {
-  amount: BigNumberish;
+  _amount: BigNumberish;
   balanceAmount?: BigNumberish;
   userRequest: IBridgeUserRequest;
   bridgeImpl: string;

@@ -63,11 +63,8 @@ export async function getSignedTxRequest(
   funcName: string,
   funcArgs: any[],
   txValue: BigInt,
-  relayerWebhook: string,
   forwarderAddress: string,
 ) {
-  if (!relayerWebhook) throw new Error(`Missing relayer webhook url`);
-
   const forwarder = new ethers.Contract(forwarderAddress, ForwarderAbi, signer);
   const from = await signer.getAddress();
   const data = sednContract.interface.encodeFunctionData(funcName, funcArgs);
@@ -95,7 +92,6 @@ export async function sendMetaTx(
     funcName,
     funcArgs,
     txValue,
-    relayerWebhook,
     forwarderAddress,
   );
   const response = await fetch(relayerWebhook, {
