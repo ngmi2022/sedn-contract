@@ -107,6 +107,7 @@
     "@rollup/plugin-commonjs": "^23.0.2",
     "@rollup/plugin-json": "^5.0.1",
     "@socket.tech/ll-core": "^0.1.23",
+    "axios": "^1.2.1",
     "cross-fetch": "^3.1.5",
     "defender-autotask-client": "^1.37.0",
     "defender-relay-client": "^1.37.0",

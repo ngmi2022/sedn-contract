@@ -56,6 +56,25 @@ export async function signMetaTxRequest(privateKey: string, forwarder: Contract,
   return { signature, request };
 }
 
+export async function getSignedTxRequest(
+  sednContract: Contract,
+  signer: Signer,
+  signerKey: string,
+  funcName: string,
+  funcArgs: any[],
+  txValue: BigInt,
+  forwarderAddress: string,
+) {
+  const forwarder = new ethers.Contract(forwarderAddress, ForwarderAbi, signer);
+  const from = await signer.getAddress();
+  const data = sednContract.interface.encodeFunctionData(funcName, funcArgs);
+  const to = sednContract.address;
+  const value = txValue.toString();
+
+  const request = await signMetaTxRequest(signerKey, forwarder, { to, from, data, value });
+  return request;
+}
+
 export async function sendMetaTx(
   sednContract: Contract,
   signer: Signer,
@@ -66,15 +85,15 @@ export async function sendMetaTx(
   relayerWebhook: string,
   forwarderAddress: string,
 ) {
-  if (!relayerWebhook) throw new Error(`Missing relayer webhook url`);
-
-  const forwarder = new ethers.Contract(forwarderAddress, ForwarderAbi, signer);
-  const from = await signer.getAddress();
-  const data = sednContract.interface.encodeFunctionData(funcName, funcArgs);
-  const to = sednContract.address;
-  const value = txValue.toString();
-
-  const request = await signMetaTxRequest(signerKey, forwarder, { to, from, data, value });
+  const request = await getSignedTxRequest(
+    sednContract,
+    signer,
+    signerKey,
+    funcName,
+    funcArgs,
+    txValue,
+    forwarderAddress,
+  );
   const response = await fetch(relayerWebhook, {
     method: "POST",
     body: JSON.stringify(request),
@@ -130,6 +149,7 @@ export async function sendTx(
 
 module.exports = {
   signMetaTxRequest,
+  getSignedTxRequest,
   buildRequest,
   buildTypedData,
   sendMetaTx,
