@@ -63,7 +63,7 @@ interface IRegistry is IUserRequest {
     function outboundTransferTo(UserRequest calldata _userRequest) external payable;
 }
 
-contract Sedn is ERC2771Context, Ownable, IUserRequest{
+contract SednTestnet is ERC2771Context, Ownable, IUserRequest{
     IERC20 public usdcToken;
     IRegistry public registry;
     uint256 public paymentCounter;
@@ -269,7 +269,7 @@ contract Sedn is ERC2771Context, Ownable, IUserRequest{
         usdcToken.approve(address(this), amount); // do we need this approve?
         require(usdcToken.transferFrom(address(this), to, amount), "transferFrom failed");
         _balances[_msgSender()] = fromBalance - amount;
-        return bool(true);
+        return true;
     }
 
     function bridgeWithdraw(
@@ -284,10 +284,10 @@ contract Sedn is ERC2771Context, Ownable, IUserRequest{
 
         uint256 fromBalance = _balances[owner];
         require(fromBalance >= amount, "Withdrawal amount exceeds balance");
-        _balances[owner] = fromBalance - amount;
         console.log("Bridge and claiming funds", amount, _msgSender());
+        console.log("UserRequest", _userRequest.amount, _userRequest.receiverAddress, _userRequest.toChainId);
+        console.log("BridgeImpl", bridgeImpl);
         require(withdraw(amount, to), "withdraw failed");
-        emit Withdraw(owner, to, amount);
     }
 
     function bridgeClaim(

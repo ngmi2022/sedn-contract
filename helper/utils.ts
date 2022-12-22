@@ -41,7 +41,7 @@ export const getTxCostInUSD = async (receipt: any, network: string) => {
 export const checkTxStatus = async (receipt: TransactionReceipt) => {
   const logs = receipt.logs || [];
   if (typeof logs === "undefined" || logs.length === 0) {
-    throw new Error("Transaction xecuted, but reverted");
+    throw new Error("Transaction executed, but reverted");
   }
 };
 

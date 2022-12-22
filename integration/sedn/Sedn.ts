@@ -485,7 +485,7 @@ describe("Sedn Contract", function () {
     };
   }
   networksToTest.forEach(function (network) {
-    describe.skip(`Funding for wallets ${network}`, function () {
+    describe(`Funding for wallets ${network}`, function () {
       let usdcOrigin: Contract;
       let signer: Wallet;
       let recipient: Wallet;
@@ -548,7 +548,7 @@ describe("Sedn Contract", function () {
         relayerWebhook = deployed.relayerWebhook;
         forwarder = deployed.forwarder;
       });
-      it.skip("should correctly send funds to a registered user", async function () {
+      it("should correctly send funds to a registered user", async function () {
         // check allowance & if necessary increase approve
         const allowanceChecked = await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount));
 
@@ -574,7 +574,7 @@ describe("Sedn Contract", function () {
         expect(usdcAfterSednContract.sub(usdcBeforeSednContract)).to.equal(amount);
         expect(sednAfterSednSigner.sub(sednBeforeSednSigner)).to.equal(amount);
       });
-      it.skip("should send funds to an unregistered user", async function () {
+      it("should send funds to an unregistered user", async function () {
         // check allowance & if necessary increase approve
         const allowanceChecked = await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount));
 
@@ -619,7 +619,7 @@ describe("Sedn Contract", function () {
         const sednAfterClaimRecipient = await sedn.balanceOf(recipient.address);
         expect(sednAfterClaimRecipient.sub(sednBeforeClaimRecipient)).to.equal(amount);
       });
-      it.skip("should transfer funds to an unregistered user", async function () {
+      it("should transfer funds to an unregistered user", async function () {
         // check and adapt funding balances of signer
         let [useSigner, useRecipient] = await checkFunding(usdcOrigin, signer, recipient, sedn, amount);
 
@@ -664,7 +664,7 @@ describe("Sedn Contract", function () {
         const sednAfterClaimRecipient = await sedn.balanceOf(useRecipient.address);
         expect(sednAfterClaimRecipient.sub(sednBeforeClaimRecipient)).to.equal(amount);
       });
-      it.skip("should transfer funds to a registered user", async function () {
+      it("should transfer funds to a registered user", async function () {
         // check and adapt funding balances of signer
         let [useSigner, useRecipient] = await checkFunding(usdcOrigin, signer, recipient, sedn, amount);
 
@@ -689,7 +689,7 @@ describe("Sedn Contract", function () {
         expect(sednBeforeTransferSigner.sub(sednAfterTransferSigner)).to.equal(amount);
         expect(sednAfterTransferRecipient.sub(sednBeforeTransferRecipient)).to.equal(amount);
       });
-      it.skip("should withdraw funds to a given address", async function () {
+      it.only("should withdraw funds to a given address", async function () {
         // check and adapt funding balances of signer
         let [useSigner, useRecipient] = await checkFunding(usdcOrigin, signer, recipient, sedn, amount);
 
@@ -717,7 +717,7 @@ describe("Sedn Contract", function () {
       });
       // we need to figure out how we can specify the "only" keyword for a
       // single test on live-chains to ensure that we don't piss too much gas
-      it.skip("should bridgeWithdraw funds to a given address", async function () {
+      it.only("should bridgeWithdraw funds to a given address", async function () {
         // check and adapt funding balances of signer
         let [useSigner, useRecipient] = await checkFunding(usdcOrigin, signer, recipient, sedn, amount);
 
@@ -756,7 +756,7 @@ describe("Sedn Contract", function () {
           amount: amount / decDivider,
           excludeBridges: excludeBridges,
           useStargate: USE_STARGATE,
-          environment: ENVIRONMENT,
+          environment: "prod",
         };
 
         const cloudFunctionUrl = "https://us-central1-sedn-17b18.cloudfunctions.net/getSednParameters/";
@@ -847,7 +847,7 @@ describe("Sedn Contract", function () {
       });
     });
   });
-  describe(`Sedn multichain testing`, function () {
+  describe.skip(`Sedn multichain testing`, function () {
     let sednVars: { [network: string]: any } = {};
     let deployed: any;
     beforeEach(async function () {
@@ -857,7 +857,7 @@ describe("Sedn Contract", function () {
         sednVars[network] = deployed;
       }
     });
-    it.only(`should be able to correctly sedn funds`, async function () {
+    it(`should be able to correctly sedn funds`, async function () {
       // partially randomized scenario creation
       const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       // const caseEOA = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
