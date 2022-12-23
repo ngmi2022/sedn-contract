@@ -484,7 +484,7 @@ describe("Sedn Contract", function () {
     };
   }
   networksToTest.forEach(function (network) {
-    describe(`Funding for wallets ${network}`, function () {
+    describe.skip(`Funding for wallets ${network}`, function () {
       let usdcOrigin: Contract;
       let signer: Wallet;
       let recipient: Wallet;
@@ -890,14 +890,14 @@ describe("Sedn Contract", function () {
       const executeTransactionsRequest: IExecuteTransactionRequest = {
         transactions: signedTransactions,
         environment: ENVIRONMENT,
-        type: "send",
+        type: wireResponse.type,
         recipientIdOrAddress: unknownPhone,
       };
       // send signed transactions to API
       const executionId: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
       console.log("INFO: executionIds", executionId);
     });
-    it(`should be able to correctly sedn funds to an known user`, async function () {
+    it.only(`should be able to correctly sedn funds to an known user`, async function () {
       // partially randomized scenario creation
       const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       // const caseEOA = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
@@ -925,11 +925,13 @@ describe("Sedn Contract", function () {
         signedTransactions.push(transaction);
       }
 
+      console.log("DEBUG: wireResponse.type:", wireResponse.type);
+
       // build api request
       const executeTransactionsRequest: IExecuteTransactionRequest = {
         transactions: signedTransactions,
         environment: ENVIRONMENT,
-        type: "send",
+        type: wireResponse.type,
         recipientIdOrAddress: knownPhone,
       };
       // send signed transactions to API
@@ -968,7 +970,7 @@ describe("Sedn Contract", function () {
       const executeTransactionsRequest: IExecuteTransactionRequest = {
         transactions: signedTransactions,
         environment: ENVIRONMENT,
-        type: "send",
+        type: wireResponse.type,
         recipientIdOrAddress: unknownPhone,
       };
       // send signed transactions to API
@@ -1007,7 +1009,7 @@ describe("Sedn Contract", function () {
       const executeTransactionsRequest: IExecuteTransactionRequest = {
         transactions: signedTransactions,
         environment: ENVIRONMENT,
-        type: "send",
+        type: wireResponse.type,
         recipientIdOrAddress: knownPhone,
       };
       // send signed transactions to API
@@ -1046,7 +1048,7 @@ describe("Sedn Contract", function () {
       const executeTransactionsRequest: IExecuteTransactionRequest = {
         transactions: signedTransactions,
         environment: ENVIRONMENT,
-        type: "send",
+        type: wireResponse.type,
         recipientIdOrAddress: unknownPhone,
       };
       // send signed transactions to API
@@ -1085,7 +1087,7 @@ describe("Sedn Contract", function () {
       const executeTransactionsRequest: IExecuteTransactionRequest = {
         transactions: signedTransactions,
         environment: ENVIRONMENT,
-        type: "send",
+        type: wireResponse.type,
         recipientIdOrAddress: unknownPhone,
       };
       // send signed transactions to API
