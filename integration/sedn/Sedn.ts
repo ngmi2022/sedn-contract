@@ -484,7 +484,7 @@ describe("Sedn Contract", function () {
     };
   }
   networksToTest.forEach(function (network) {
-    describe(`Funding for wallets ${network}`, function () {
+    describe.skip(`Funding for wallets ${network}`, function () {
       let usdcOrigin: Contract;
       let signer: Wallet;
       let recipient: Wallet;
@@ -890,7 +890,7 @@ describe("Sedn Contract", function () {
       const executeTransactionsRequest: IExecuteTransactionRequest = {
         transactions: signedTransactions,
         environment: ENVIRONMENT,
-        type: "send",
+        type: wireResponse.type,
         recipientIdOrAddress: unknownPhone,
       };
       // send signed transactions to API
@@ -929,7 +929,7 @@ describe("Sedn Contract", function () {
       const executeTransactionsRequest: IExecuteTransactionRequest = {
         transactions: signedTransactions,
         environment: ENVIRONMENT,
-        type: "send",
+        type: wireResponse.type,
         recipientIdOrAddress: knownPhone,
       };
       // send signed transactions to API
@@ -968,7 +968,7 @@ describe("Sedn Contract", function () {
       const executeTransactionsRequest: IExecuteTransactionRequest = {
         transactions: signedTransactions,
         environment: ENVIRONMENT,
-        type: "send",
+        type: wireResponse.type,
         recipientIdOrAddress: unknownPhone,
       };
       // send signed transactions to API
@@ -1007,7 +1007,7 @@ describe("Sedn Contract", function () {
       const executeTransactionsRequest: IExecuteTransactionRequest = {
         transactions: signedTransactions,
         environment: ENVIRONMENT,
-        type: "send",
+        type: wireResponse.type,
         recipientIdOrAddress: knownPhone,
       };
       // send signed transactions to API
@@ -1046,7 +1046,7 @@ describe("Sedn Contract", function () {
       const executeTransactionsRequest: IExecuteTransactionRequest = {
         transactions: signedTransactions,
         environment: ENVIRONMENT,
-        type: "send",
+        type: wireResponse.type,
         recipientIdOrAddress: unknownPhone,
       };
       // send signed transactions to API
