@@ -858,7 +858,7 @@ describe("Sedn Contract", function () {
         sednVars[network] = deployed;
       }
     });
-    it(`should be able to correctly sedn funds to an unknown user`, async function () {
+    it.only(`should be able to correctly sedn funds to an unknown user`, async function () {
       // partially randomized scenario creation
       const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       // const caseEOA = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
@@ -894,8 +894,10 @@ describe("Sedn Contract", function () {
         recipientIdOrAddress: unknownPhone,
       };
       // send signed transactions to API
-      const executionId: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
+      const executionId = await apiCall("executeTransactions", executeTransactionsRequest);
       console.log("INFO: executionIds", executionId);
+      const executionStatus = await apiCall("executionStatus", { executionId: executionId });
+      console.log(executionStatus);
     });
     it.only(`should be able to correctly sedn funds to an known user`, async function () {
       // partially randomized scenario creation
