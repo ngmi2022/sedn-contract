@@ -434,6 +434,12 @@ const handleTxSignature = async (
   return JSON.stringify(signedRequest);
 };
 
+const getBalance = async (contract: Contract, signer: any) => {
+  const balance = await contract.connect(signer).balanceOf(signer.address);
+  const balanceStr = balance.toString();
+  return balanceStr;
+};
+
 // /**********************************
 // INTEGRATION TESTS
 // *************************************/
@@ -858,7 +864,7 @@ describe("Sedn Contract", function () {
         sednVars[network] = deployed;
       }
     });
-    it.only(`should be able to correctly sedn funds to an unknown user`, async function () {
+    it(`should be able to correctly sedn funds to an unknown user`, async function () {
       // partially randomized scenario creation
       const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       // const caseEOA = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
@@ -899,14 +905,18 @@ describe("Sedn Contract", function () {
       const executionStatus = await apiCall("executionStatus", { executionId: executionId });
       console.log(executionStatus);
     });
-    it.only(`should be able to correctly sedn funds to an known user`, async function () {
+    it(`should be able to correctly sedn funds to an known user`, async function () {
       // partially randomized scenario creation
       const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       // const caseEOA = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       const firstNetwork = networksToTest[0];
+      const secondNetwork = networksToTest[1];
       const scenarioEOA = createRandomFundingScenario(networksToTest, sednVars[firstNetwork].amount, caseEOA, true);
       const scenarioSedn = createRandomFundingScenario(networksToTest, BigNumber.from("0"), [], true);
       const fundingEstablished = await instantiateFundingScenario(networksToTest, scenarioEOA, scenarioSedn, sednVars);
+
+      // get recipient balances for chains
+
       // build request for API
       const wireRequest: IWireRequest = {
         senderAddress: sednVars[firstNetwork].unfundedSigner.address,
@@ -939,6 +949,8 @@ describe("Sedn Contract", function () {
       // send signed transactions to API
       const executionId: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
       console.log("INFO: executionIds", executionId);
+      const executionStatus = await apiCall("executionStatus", { executionId: executionId });
+      console.log(executionStatus);
     });
     it(`should be able to correctly transfer funds to an unknown user`, async function () {
       // partially randomized scenario creation
@@ -978,6 +990,8 @@ describe("Sedn Contract", function () {
       // send signed transactions to API
       const executionId: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
       console.log("INFO: executionIds", executionId);
+      const executionStatus = await apiCall("executionStatus", { executionId: executionId });
+      console.log(executionStatus);
     });
     it(`should be able to correctly transfer funds to an known user`, async function () {
       // partially randomized scenario creation
@@ -1017,6 +1031,8 @@ describe("Sedn Contract", function () {
       // send signed transactions to API
       const executionId: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
       console.log("INFO: executionIds", executionId);
+      const executionStatus = await apiCall("executionStatus", { executionId: executionId });
+      console.log(executionStatus);
     });
     it(`should be able to correctly sedn and transfer funds to an unknown user`, async function () {
       // partially randomized scenario creation
@@ -1056,6 +1072,8 @@ describe("Sedn Contract", function () {
       // send signed transactions to API
       const executionId: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
       console.log("INFO: executionIds", executionId);
+      const executionStatus = await apiCall("executionStatus", { executionId: executionId });
+      console.log(executionStatus);
     });
     it(`should be able to correctly sedn and transfer funds to an known user`, async function () {
       // partially randomized scenario creation
@@ -1095,6 +1113,8 @@ describe("Sedn Contract", function () {
       // send signed transactions to API
       const executionId: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
       console.log("INFO: executionIds", executionId);
+      const executionStatus = await apiCall("executionStatus", { executionId: executionId });
+      console.log(executionStatus);
     });
   });
 });
