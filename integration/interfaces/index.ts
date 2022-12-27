@@ -1,4 +1,4 @@
-import { BigNumber, BigNumberish, Contract, Wallet } from "ethers";
+import { BigNumber, BigNumberish, Contract, Wallet, ethers } from "ethers";
 
 import { FakeSigner } from "../../helper/FakeSigner";
 
@@ -50,7 +50,7 @@ export interface ITransaction {
   to: string; // recipient address or mobile number
   value: string; // amount to send in USDC, big number
   method: string; // method to call on the contract, either sendKnown, sendHybridKnown, sendUnknown sendHybridUnknown
-  args: IKnownArgs | IUnknownArgs | IBridgeWithdrawArgs; // arguments to pass to the method
+  args: IKnownArgs | IUnknownArgs | IBridgeWithdrawArgs | IClaimArgs; // arguments to pass to the method
   solution?: string; // solution to the secret
   signedTx?: string;
   from?: string; // signer address
@@ -66,6 +66,15 @@ export interface IUnknownArgs {
   _amount: BigNumberish;
   secret: string;
   balanceAmount?: BigNumberish;
+}
+
+export interface IClaimArgs {
+  solution: string;
+  secret: string;
+  _till: number;
+  _v: ethers.Signature;
+  _r: ethers.Signature;
+  _s: ethers.Signature;
 }
 
 export interface IBridgeWithdrawArgs {
