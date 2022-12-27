@@ -872,7 +872,7 @@ describe("Sedn Contract", function () {
         sednVars[network] = deployed;
       }
     });
-    it.only(`should be able to correctly sedn funds to an unknown user`, async function () {
+    it(`should be able to correctly sedn funds to an unknown user`, async function () {
       // partially randomized scenario creation
       const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       // const caseEOA = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
@@ -953,7 +953,6 @@ describe("Sedn Contract", function () {
 
       // do the claim
       const executedTransactions = execution.transactions;
-      const claimTransactions: ITransaction[] = [];
       const signedClaimTransactions: ITransaction[] = [];
       for (const tx of executedTransactions) {
         const chainId = tx.chainId;
@@ -1036,7 +1035,7 @@ describe("Sedn Contract", function () {
       expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount); // amount is the same for all
       //networks and represents the complete send amount
     });
-    it.only(`should be able to correctly sedn funds to an known user`, async function () {
+    it(`should be able to correctly sedn funds to an known user`, async function () {
       // partially randomized scenario creation
       const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       // const caseEOA = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
@@ -1148,9 +1147,27 @@ describe("Sedn Contract", function () {
       const caseSedn = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need usdcBalance
       // const caseSedn = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       const firstNetwork = networksToTest[0];
+      const secondNetwork = networksToTest[1];
       const scenarioEOA = createRandomFundingScenario(networksToTest, BigNumber.from("0"), [], true);
       const scenarioSedn = createRandomFundingScenario(networksToTest, sednVars[firstNetwork].amount, caseSedn, true);
-      const fundingEstablished = await instantiateFundingScenario(networksToTest, scenarioEOA, scenarioSedn, sednVars);
+      await instantiateFundingScenario(networksToTest, scenarioEOA, scenarioSedn, sednVars);
+
+      // establish previous sedn balances of unfundedSigner
+      const sednBeforeSednSignerFirstNetwork = BigNumber.from(
+        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].unfundedSigner),
+      );
+      const sednBeforeSednSignerSecondNetwork = BigNumber.from(
+        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].unfundedSigner),
+      );
+
+      // establish previous sedn balances of recipient
+      const sednBeforeSednRecipientFirstNetwork = BigNumber.from(
+        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].recipient),
+      );
+      const sednBeforeSednRecipientSecondNetwork = BigNumber.from(
+        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].recipient),
+      );
+
       // build request for API
       const wireRequest: IWireRequest = {
         senderAddress: sednVars[firstNetwork].unfundedSigner.address,
@@ -1190,6 +1207,103 @@ describe("Sedn Contract", function () {
           execution = await apiCall("executionStatus", { executionId: executionId });
         }
       }
+      // establish usdc balances of unfundedSigner after execution
+      const sednAfterSednSignerFirstNetwork = BigNumber.from(
+        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].unfundedSigner),
+      );
+      const sednAfterSednSignerSecondNetwork = BigNumber.from(
+        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].unfundedSigner),
+      );
+
+      // check correct execution of signer side
+      const totalSednDifferenceSigner = sednBeforeSednSignerFirstNetwork
+        .add(sednBeforeSednSignerSecondNetwork)
+        .sub(sednAfterSednSignerFirstNetwork.add(sednAfterSednSignerSecondNetwork));
+      expect(totalSednDifferenceSigner).to.equal(sednVars[firstNetwork].amount); // amount is the same for all networks and represents the complete send amount
+
+      // do the claim
+      const executedTransactions = execution.transactions;
+      const signedClaimTransactions: ITransaction[] = [];
+      for (const tx of executedTransactions) {
+        const chainId = tx.chainId;
+        const network = getChainFromId(chainId);
+        const to = tx.to;
+        const value = "0";
+        const method = "claim";
+        const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(tx.solution));
+        const recipient = sednVars[network].recipient;
+        const argsNonTyped: any[] = await generateClaimArgs(
+          tx.solution,
+          secret,
+          recipient,
+          sednVars[network].trusted,
+          parseInt(tx.args._amount),
+        );
+        const argsTyped: IClaimArgs = {
+          solution: argsNonTyped[0],
+          secret: argsNonTyped[1],
+          _till: argsNonTyped[2],
+          _v: argsNonTyped[3],
+          _r: argsNonTyped[4],
+          _s: argsNonTyped[5],
+        };
+        // compile and sign claims
+        const claim: ITransaction = {
+          type: "claim",
+          chainId: chainId,
+          to: to,
+          value: value,
+          method: method,
+          args: argsTyped,
+        };
+        const signedRequest = await handleTxSignature(claim, sednVars, "recipient");
+        claim.signedTx = signedRequest;
+        signedClaimTransactions.push(claim);
+      }
+      // build api request
+      const executeClaimTransactionsRequest: IExecuteTransactionRequest = {
+        transactions: signedClaimTransactions,
+        environment: ENVIRONMENT,
+        type: "claim",
+        recipientIdOrAddress: unknownPhone,
+      };
+      // send signed transactions to API#
+      const claimExecutionId = await apiCall("executeTransactions", executeClaimTransactionsRequest);
+      console.log("INFO: executionIds", claimExecutionId);
+      let claimExecution = await apiCall("executionStatus", { executionId: claimExecutionId });
+      console.log(claimExecution);
+      if (claimExecution.status !== "executed") {
+        while (claimExecution.status !== "executed") {
+          console.log("INFO: not executed, retrying", claimExecution);
+          await sleep(1000);
+          execution = await apiCall("executionStatus", { executionId: claimExecutionId });
+        }
+      }
+      await waitTillRecipientBalanceChanged(
+        60_000,
+        sednVars[firstNetwork].sedn,
+        sednVars[firstNetwork].recipient,
+        sednBeforeSednRecipientFirstNetwork,
+      );
+      await waitTillRecipientBalanceChanged(
+        60_000,
+        sednVars[secondNetwork].sedn,
+        sednVars[secondNetwork].recipient,
+        sednBeforeSednRecipientSecondNetwork,
+      );
+      // establish previous sedn balances of recipient
+      const sednAfterSednRecipientFirstNetwork = BigNumber.from(
+        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].recipient),
+      );
+      const sednAfterSednRecipientSecondNetwork = BigNumber.from(
+        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].recipient),
+      );
+      // check correct execution of recipient side
+      const totalSednDifferenceRecipient = sednAfterSednRecipientFirstNetwork
+        .add(sednAfterSednRecipientSecondNetwork)
+        .sub(sednBeforeSednRecipientFirstNetwork.add(sednBeforeSednRecipientSecondNetwork));
+      expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount); // amount is the same for all
+      //networks and represents the complete send amount
     });
     it(`should be able to correctly transfer funds to an known user`, async function () {
       // partially randomized scenario creation
