@@ -4,7 +4,8 @@ import axios from "axios";
 import { expect } from "chai";
 import fetch from "cross-fetch";
 import { BigNumber, Contract, Wallet, ethers } from "ethers";
-import { parseUnits } from "ethers/lib/utils";
+import { hexValue, parseUnits } from "ethers/lib/utils";
+import { validateHeaderValue } from "http";
 import { check } from "prettier";
 import { stringify } from "querystring";
 
@@ -24,6 +25,7 @@ import {
   sleep,
 } from "../../helper/utils";
 import {
+  IClaimArgs,
   IExecuteTransactionRequest,
   IExecutionsResponse,
   ITransaction,
@@ -381,12 +383,15 @@ const handleTxSignature = async (
 ) => {
   const network = getChainFromId(transaction.chainId);
   const method = transaction.method;
-  const amount = BigNumber.from(transaction.args._amount);
   const sednContract = sednVars[network].sedn;
   const signer = sednVars[network][signerName];
   let args: any = transaction.args;
   const value = BigInt(transaction.value);
   const forwarderAddress = sednVars[network].forwarder;
+  let amount = BigNumber.from(0);
+  if ("_amount" in transaction.args) {
+    amount = BigNumber.from(transaction.args._amount);
+  }
   // check what's what
   switch (method) {
     case "sednKnown":
@@ -419,6 +424,9 @@ const handleTxSignature = async (
     case "bridgeWithdraw":
       console.log("INFO: bridgeWithdraw");
       break;
+    case "claim":
+      console.log("INFO: claim");
+      break;
     default:
       throw new Error(`Unknown method ${method}`);
   }
@@ -434,7 +442,7 @@ const handleTxSignature = async (
   return JSON.stringify(signedRequest);
 };
 
-const getBalance = async (contract: Contract, signer: any) => {
+const getBalance = async (contract: Contract, signer: Wallet) => {
   const balance = await contract.connect(signer).balanceOf(signer.address);
   const balanceStr = balance.toString();
   return balanceStr;
@@ -869,9 +877,27 @@ describe("Sedn Contract", function () {
       const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       // const caseEOA = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       const firstNetwork = networksToTest[0];
+      const secondNetwork = networksToTest[1];
       const scenarioEOA = createRandomFundingScenario(networksToTest, sednVars[firstNetwork].amount, caseEOA, true);
       const scenarioSedn = createRandomFundingScenario(networksToTest, BigNumber.from("0"), [], true);
-      const fundingEstablished = await instantiateFundingScenario(networksToTest, scenarioEOA, scenarioSedn, sednVars);
+      await instantiateFundingScenario(networksToTest, scenarioEOA, scenarioSedn, sednVars);
+
+      // establish previous usdc balances of unfundedSigner
+      const usdcBeforeSednSignerFirstNetwork = BigNumber.from(
+        await getBalance(sednVars[firstNetwork].usdcOrigin, sednVars[firstNetwork].unfundedSigner),
+      );
+      const usdcBeforeSednSignerSecondNetwork = BigNumber.from(
+        await getBalance(sednVars[secondNetwork].usdcOrigin, sednVars[secondNetwork].unfundedSigner),
+      );
+
+      // establish previous sedn balances of recipient
+      const sednBeforeSednRecipientFirstNetwork = BigNumber.from(
+        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].recipient),
+      );
+      const sednBeforeSednRecipientSecondNetwork = BigNumber.from(
+        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].recipient),
+      );
+
       // build request for API
       const wireRequest: IWireRequest = {
         senderAddress: sednVars[firstNetwork].unfundedSigner.address,
@@ -902,8 +928,114 @@ describe("Sedn Contract", function () {
       // send signed transactions to API
       const executionId = await apiCall("executeTransactions", executeTransactionsRequest);
       console.log("INFO: executionIds", executionId);
-      const executionStatus = await apiCall("executionStatus", { executionId: executionId });
-      console.log(executionStatus);
+      let execution = await apiCall("executionStatus", { executionId: executionId });
+      console.log(execution);
+      if (execution.status !== "executed") {
+        while (execution.status !== "executed") {
+          console.log("INFO: not executed, retrying", execution);
+          await sleep(1000);
+          execution = await apiCall("executionStatus", { executionId: executionId });
+        }
+      }
+      // establish usdc balances of unfundedSigner after execution
+      const usdcAfterSednSignerFirstNetwork = BigNumber.from(
+        await getBalance(sednVars[firstNetwork].usdcOrigin, sednVars[firstNetwork].unfundedSigner),
+      );
+      const usdcAfterSednSignerSecondNetwork = BigNumber.from(
+        await getBalance(sednVars[secondNetwork].usdcOrigin, sednVars[secondNetwork].unfundedSigner),
+      );
+
+      // check correct execution of signer side
+      const totalUsdcDifferenceSigner = usdcBeforeSednSignerFirstNetwork
+        .add(usdcBeforeSednSignerSecondNetwork)
+        .sub(usdcAfterSednSignerFirstNetwork.add(usdcAfterSednSignerSecondNetwork));
+      expect(totalUsdcDifferenceSigner).to.equal(sednVars[firstNetwork].amount); // amount is the same for all networks and represents the complete send amount
+
+      // do the claim
+      const executedTransactions = execution.transactions;
+      const claimTransactions: ITransaction[] = [];
+      const signedClaimTransactions: ITransaction[] = [];
+      for (const tx of executedTransactions) {
+        const chainId = tx.chainId;
+        const network = getChainFromId(chainId);
+        const to = tx.to;
+        const value = "0";
+        const method = "claim";
+        const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(tx.solution));
+        const recipient = sednVars[network].recipient;
+        const argsNonTyped: any[] = await generateClaimArgs(
+          tx.solution,
+          secret,
+          recipient,
+          sednVars[network].trusted,
+          parseInt(tx.args._amount),
+        );
+        const argsTyped: IClaimArgs = {
+          solution: argsNonTyped[0],
+          secret: argsNonTyped[1],
+          _till: argsNonTyped[2],
+          _v: argsNonTyped[3],
+          _r: argsNonTyped[4],
+          _s: argsNonTyped[5],
+        };
+        console.log("DEBUG: argsTyped", argsTyped);
+        // compile and sign claims
+        const claim: ITransaction = {
+          type: "claim",
+          chainId: chainId,
+          to: to,
+          value: value,
+          method: method,
+          args: argsTyped,
+        };
+        const signedRequest = await handleTxSignature(claim, sednVars, "recipient");
+        claim.signedTx = signedRequest;
+        signedClaimTransactions.push(claim);
+      }
+      // build api request
+      const executeClaimTransactionsRequest: IExecuteTransactionRequest = {
+        transactions: signedClaimTransactions,
+        environment: ENVIRONMENT,
+        type: "claim",
+        recipientIdOrAddress: unknownPhone,
+      };
+      // send signed transactions to API#
+      const claimExecutionId = await apiCall("executeTransactions", executeClaimTransactionsRequest);
+      console.log("INFO: executionIds", claimExecutionId);
+      let claimExecution = await apiCall("executionStatus", { executionId: claimExecutionId });
+      console.log(claimExecution);
+      if (claimExecution.status !== "executed") {
+        while (claimExecution.status !== "executed") {
+          console.log("INFO: not executed, retrying", claimExecution);
+          await sleep(1000);
+          execution = await apiCall("executionStatus", { executionId: claimExecutionId });
+        }
+      }
+      await waitTillRecipientBalanceChanged(
+        60_000,
+        sednVars[firstNetwork].sedn,
+        sednVars[firstNetwork].recipient,
+        sednBeforeSednRecipientFirstNetwork,
+      );
+      await waitTillRecipientBalanceChanged(
+        60_000,
+        sednVars[secondNetwork].sedn,
+        sednVars[secondNetwork].recipient,
+        sednBeforeSednRecipientSecondNetwork,
+      );
+      // establish previous sedn balances of recipient
+      const sednAfterSednRecipientFirstNetwork = BigNumber.from(
+        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].recipient),
+      );
+      const sednAfterSednRecipientSecondNetwork = BigNumber.from(
+        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].recipient),
+      );
+      // check correct execution of recipient side
+      const totalSednDifferenceRecipient = sednAfterSednRecipientFirstNetwork
+        .add(sednAfterSednRecipientSecondNetwork)
+        .sub(sednBeforeSednRecipientFirstNetwork.add(sednBeforeSednRecipientSecondNetwork));
+      expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount); // amount is the same for all
+      //networks and represents the complete send amount
     });
     it(`should be able to correctly sedn funds to an known user`, async function () {
       // partially randomized scenario creation
