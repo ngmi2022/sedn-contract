@@ -872,7 +872,7 @@ describe("Sedn Contract", function () {
         sednVars[network] = deployed;
       }
     });
-    it.only(`should be able to correctly sedn funds to an unknown user`, async function () {
+    it(`should be able to correctly sedn funds to an unknown user`, async function () {
       // partially randomized scenario creation
       const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       // const caseEOA = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
