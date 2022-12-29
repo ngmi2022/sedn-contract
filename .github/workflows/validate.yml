@@ -12,6 +12,7 @@ env:
   SENDER_PK: ${{ secrets.SENDER_PK }}
   VERIFIER_PK: ${{ secrets.VERIFIER_PK }}
   RECIPIENT_PK: ${{ secrets.RECIPIENT_PK }}
+  UNFUNDED_SIGNER_PK: ${{ secrets.UNFUNDED_SIGNER_PK }}
 
   CONTEXT: github
 
@@ -69,6 +70,7 @@ jobs:
           TESTNET: ${{ inputs.testnet }}
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
+          JEST_ENV: ${{ inputs.environment }}
   validate:
     runs-on: "ubuntu-latest"
     steps:
@@ -102,6 +104,7 @@ jobs:
           TESTNET: ${{ inputs.testnet }}
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
+          JEST_ENV: ${{ inputs.environment }}
 
       - name: "Add test summary"
         run: |

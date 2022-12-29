@@ -31,6 +31,7 @@ jobs:
     needs: [deploy_staging]
     uses: ./.github/workflows/validate.yml
     with:
+      api-environment: 'prod'
       environment: 'staging'
       testnet: testnet
     secrets: inherit

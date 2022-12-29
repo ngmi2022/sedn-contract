@@ -31,7 +31,7 @@ async function handler(event) {
   console.log(`Autotask name: ${event.autotaskName} (${event.autotaskId}) - Run ID: ${event.autotaskRunId} (environment: ${environment})`);
   const config = await configData(environment);
   // Parse webhook payload
-  if (!event.request || !event.request.body) throw new Error(`Missing payload`);
+  if (!event.request || !event.request.body || !event.request.body.request || !event.request.body.signature) throw new Error(`Missing payload`);
   const { request, signature } = event.request.body;
   console.log(`Relaying`, JSON.stringify(request));
 
