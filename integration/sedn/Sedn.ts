@@ -1020,6 +1020,7 @@ describe("Sedn Contract", function () {
         execution.transactions,
         unknownPhone,
       );
+      
       // send signed transactions to API#
       const claimExecutionId = await apiCall("executeTransactions", executeClaimTransactionsRequest);
       console.log("INFO: executionIds", claimExecutionId);
@@ -1075,7 +1076,7 @@ describe("Sedn Contract", function () {
       const usdcBeforeSednSignerSecondNetwork = BigNumber.from(
         await getBalance(sednVars[secondNetwork].usdcOrigin, sednVars[secondNetwork].unfundedSigner),
       );
-
+      
       // establish previous sedn balances of recipient
       const sednBeforeSednRecipientFirstNetwork = BigNumber.from(
         await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].recipient),
