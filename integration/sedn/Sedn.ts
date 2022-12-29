@@ -448,6 +448,69 @@ const getBalance = async (contract: Contract, signer: Wallet) => {
   return balanceStr;
 };
 
+const buildClaimRequest = async (
+  sednVars: { [network: string]: any },
+  executedTransactions: ITransaction[],
+  phoneNumber: string,
+) => {
+  // do the claim
+  const signedClaimTransactions: ITransaction[] = [];
+  let amount = BigNumber.from(0);
+  for (const tx of executedTransactions) {
+    const chainId = tx.chainId;
+    const network = getChainFromId(chainId);
+    const to = tx.to;
+    const value = "0";
+    const method = "claim";
+    const solution = tx.solution || "";
+    const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
+    const recipient = sednVars[network].recipient;
+    if ("_amount" in tx.args) {
+      amount = BigNumber.from(tx.args._amount || "0");
+    }
+    if ("balanceAmount" in tx.args) {
+      amount = amount.add(BigNumber.from(tx.args.balanceAmount || "0"));
+    }
+    const amountInt = parseInt(amount.toString());
+    const argsNonTyped: any[] = await generateClaimArgs(
+      solution,
+      secret,
+      recipient,
+      sednVars[network].trusted,
+      amountInt,
+    );
+    const argsTyped: IClaimArgs = {
+      solution: argsNonTyped[0],
+      secret: argsNonTyped[1],
+      _till: argsNonTyped[2],
+      _v: argsNonTyped[3],
+      _r: argsNonTyped[4],
+      _s: argsNonTyped[5],
+    };
+    // compile and sign claims
+    const claim: ITransaction = {
+      type: "claim",
+      chainId: chainId,
+      to: to,
+      value: value,
+      method: method,
+      args: argsTyped,
+      from: sednVars[network].recipient.address,
+    };
+    const signedRequest = await handleTxSignature(claim, sednVars, "recipient");
+    claim.signedTx = signedRequest;
+    signedClaimTransactions.push(claim);
+  }
+  // build api request
+  const executeClaimTransactionsRequest: IExecuteTransactionRequest = {
+    transactions: signedClaimTransactions,
+    environment: ENVIRONMENT,
+    type: "claim",
+    recipientIdOrAddress: phoneNumber,
+  };
+  return executeClaimTransactionsRequest;
+};
+
 // /**********************************
 // INTEGRATION TESTS
 // *************************************/
@@ -951,53 +1014,12 @@ describe("Sedn Contract", function () {
         .sub(usdcAfterSednSignerFirstNetwork.add(usdcAfterSednSignerSecondNetwork));
       expect(totalUsdcDifferenceSigner).to.equal(sednVars[firstNetwork].amount); // amount is the same for all networks and represents the complete send amount
 
-      // do the claim
-      const executedTransactions = execution.transactions;
-      const signedClaimTransactions: ITransaction[] = [];
-      for (const tx of executedTransactions) {
-        const chainId = tx.chainId;
-        const network = getChainFromId(chainId);
-        const to = tx.to;
-        const value = "0";
-        const method = "claim";
-        const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(tx.solution));
-        const recipient = sednVars[network].recipient;
-        const argsNonTyped: any[] = await generateClaimArgs(
-          tx.solution,
-          secret,
-          recipient,
-          sednVars[network].trusted,
-          parseInt(tx.args._amount),
-        );
-        const argsTyped: IClaimArgs = {
-          solution: argsNonTyped[0],
-          secret: argsNonTyped[1],
-          _till: argsNonTyped[2],
-          _v: argsNonTyped[3],
-          _r: argsNonTyped[4],
-          _s: argsNonTyped[5],
-        };
-        // compile and sign claims
-        const claim: ITransaction = {
-          type: "claim",
-          chainId: chainId,
-          to: to,
-          value: value,
-          method: method,
-          args: argsTyped,
-          from: sednVars[network].recipient.address,
-        };
-        const signedRequest = await handleTxSignature(claim, sednVars, "recipient");
-        claim.signedTx = signedRequest;
-        signedClaimTransactions.push(claim);
-      }
       // build api request
-      const executeClaimTransactionsRequest: IExecuteTransactionRequest = {
-        transactions: signedClaimTransactions,
-        environment: ENVIRONMENT,
-        type: "claim",
-        recipientIdOrAddress: unknownPhone,
-      };
+      const executeClaimTransactionsRequest: IExecuteTransactionRequest = await buildClaimRequest(
+        sednVars,
+        execution.transactions,
+        unknownPhone,
+      );
       // send signed transactions to API#
       const claimExecutionId = await apiCall("executeTransactions", executeClaimTransactionsRequest);
       console.log("INFO: executionIds", claimExecutionId);
@@ -1222,53 +1244,8 @@ describe("Sedn Contract", function () {
         .sub(sednAfterSednSignerFirstNetwork.add(sednAfterSednSignerSecondNetwork));
       expect(totalSednDifferenceSigner).to.equal(sednVars[firstNetwork].amount); // amount is the same for all networks and represents the complete send amount
 
-      // do the claim
-      const executedTransactions = execution.transactions;
-      const signedClaimTransactions: ITransaction[] = [];
-      for (const tx of executedTransactions) {
-        const chainId = tx.chainId;
-        const network = getChainFromId(chainId);
-        const to = tx.to;
-        const value = "0";
-        const method = "claim";
-        const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(tx.solution));
-        const recipient = sednVars[network].recipient;
-        const argsNonTyped: any[] = await generateClaimArgs(
-          tx.solution,
-          secret,
-          recipient,
-          sednVars[network].trusted,
-          parseInt(tx.args._amount),
-        );
-        const argsTyped: IClaimArgs = {
-          solution: argsNonTyped[0],
-          secret: argsNonTyped[1],
-          _till: argsNonTyped[2],
-          _v: argsNonTyped[3],
-          _r: argsNonTyped[4],
-          _s: argsNonTyped[5],
-        };
-        // compile and sign claims
-        const claim: ITransaction = {
-          type: "claim",
-          chainId: chainId,
-          to: to,
-          value: value,
-          method: method,
-          args: argsTyped,
-          from: sednVars[network].recipient.address,
-        };
-        const signedRequest = await handleTxSignature(claim, sednVars, "recipient");
-        claim.signedTx = signedRequest;
-        signedClaimTransactions.push(claim);
-      }
       // build api request
-      const executeClaimTransactionsRequest: IExecuteTransactionRequest = {
-        transactions: signedClaimTransactions,
-        environment: ENVIRONMENT,
-        type: "claim",
-        recipientIdOrAddress: unknownPhone,
-      };
+      const executeClaimTransactionsRequest = await buildClaimRequest(sednVars, execution.transactions, unknownPhone);
       // send signed transactions to API#
       const claimExecutionId = await apiCall("executeTransactions", executeClaimTransactionsRequest);
       console.log("INFO: executionIds", claimExecutionId);
@@ -1412,7 +1389,7 @@ describe("Sedn Contract", function () {
       expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount); // amount is the same for all
       //networks and represents the complete send amount
     });
-    it(`should be able to correctly sedn and transfer funds to an unknown user`, async function () {
+    it.only(`should be able to correctly sedn and transfer funds to an unknown user`, async function () {
       // partially randomized scenario creation
       const caseSedn = [parseUnits("0.5", "mwei")]; // 0.5 on sedn = total1.2 amount vs. 1.0 needed
       const caseEOA = [parseUnits("0.7", "mwei")]; // 0.7 on usdc = total1.2 amount vs. 1.0 needed
@@ -1517,54 +1494,13 @@ describe("Sedn Contract", function () {
         );
       expect(totalDifferenceSigner).to.equal(sednVars[firstNetwork].amount); // amount is the same for all networks and represents the complete send amount
 
-      // do the claim
-      const executedTransactions = execution.transactions;
-      const signedClaimTransactions: ITransaction[] = [];
-      for (const tx of executedTransactions) {
-        const chainId = tx.chainId;
-        const network = getChainFromId(chainId);
-        const to = tx.to;
-        const value = "0";
-        const method = "claim";
-        const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(tx.solution));
-        const recipient = sednVars[network].recipient;
-        const argsNonTyped: any[] = await generateClaimArgs(
-          tx.solution,
-          secret,
-          recipient,
-          sednVars[network].trusted,
-          parseInt(tx.args._amount),
-        );
-        const argsTyped: IClaimArgs = {
-          solution: argsNonTyped[0],
-          secret: argsNonTyped[1],
-          _till: argsNonTyped[2],
-          _v: argsNonTyped[3],
-          _r: argsNonTyped[4],
-          _s: argsNonTyped[5],
-        };
-        console.log("INFO: claim args", argsTyped);
-        // compile and sign claims
-        const claim: ITransaction = {
-          type: "claim",
-          chainId: chainId,
-          to: to,
-          value: value,
-          method: method,
-          args: argsTyped,
-          from: sednVars[network].recipient.address,
-        };
-        const signedRequest = await handleTxSignature(claim, sednVars, "recipient");
-        claim.signedTx = signedRequest;
-        signedClaimTransactions.push(claim);
-      }
       // build api request
-      const executeClaimTransactionsRequest: IExecuteTransactionRequest = {
-        transactions: signedClaimTransactions,
-        environment: ENVIRONMENT,
-        type: "claim",
-        recipientIdOrAddress: unknownPhone,
-      };
+      const executeClaimTransactionsRequest: IExecuteTransactionRequest = await buildClaimRequest(
+        sednVars,
+        execution.transactions,
+        unknownPhone,
+      );
+
       // send signed transactions to API#
       const claimExecutionId = await apiCall("executeTransactions", executeClaimTransactionsRequest);
       console.log("INFO: executionIds", claimExecutionId);
@@ -1614,7 +1550,7 @@ describe("Sedn Contract", function () {
       expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount); // amount is the same for all
       //networks and represents the complete send amount
     });
-    it.only(`should be able to correctly sedn and transfer funds to an known user`, async function () {
+    it(`should be able to correctly sedn and transfer funds to an known user`, async function () {
       // partially randomized scenario creation
       const caseSedn = [parseUnits("0.5", "mwei")]; // 0.5 on sedn = total1.2 amount vs. 1.0 needed
       const caseEOA = [parseUnits("0.7", "mwei")]; // 0.7 on usdc = total1.2 amount vs. 1.0 needed
@@ -1689,9 +1625,6 @@ describe("Sedn Contract", function () {
       }
       for (const transaction of execution.transactions) {
         const network = getChainFromId(transaction.chainId);
-        console.log("firstNetwork", firstNetwork);
-        console.log("secondNetwork", secondNetwork);
-        console.log("network", network);
         if (network === firstNetwork) {
           await waitTillRecipientBalanceChanged(
             60_000,
