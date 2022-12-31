@@ -140,6 +140,10 @@ export const getAbi = async (network: string, contract: string) => {
   }
   const apiUrl = explorerData[network].api;
   const apiKey = explorerData[network].apiKey;
+
+  if (apiKey === "") {
+    throw new Error(`API Key for ${network} is not defined`);
+  }
   // console.log(`${apiUrl}?module=contract&action=getabi&address=${contract}&apikey=${apiKey}`);
   const data: any = await (
     await fetch(`${apiUrl}?module=contract&action=getabi&address=${contract}&apikey=${apiKey}`)
