@@ -12,6 +12,8 @@ env:
   SENDER_PK: ${{ secrets.SENDER_PK }}
   VERIFIER_PK: ${{ secrets.VERIFIER_PK }}
   RECIPIENT_PK: ${{ secrets.RECIPIENT_PK }}
+  GOERLI_PK: ${{ secrets.GOERLI_PK }}
+  UNFUNDED_SIGNER_PK: ${{ secrets.UNFUNDED_SIGNER_PK }}
 
   CONTEXT: github
 
