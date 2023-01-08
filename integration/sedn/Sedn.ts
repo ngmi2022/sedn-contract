@@ -49,7 +49,7 @@ const JEST_ENV = process.env.JEST_ENV || "prod";
 const API_URLS: any = {
   prod: "https://us-central1-sedn-17b18.cloudfunctions.net",
   staging: "https://us-central1-staging-sedn.cloudfunctions.net",
-  dev: "http://127.0.0.1:5001/sedn-17b18/us-central1",
+  dev: "http://127.0.0.1:5001/staging-sedn/us-central1",
 };
 const API_URL = API_URLS[JEST_ENV];
 
