@@ -991,13 +991,12 @@ describe("Sedn Contract", function () {
       const executionId = await apiCall("executeTransactions", executeTransactionsRequest);
       console.log("INFO: executionIds", executionId);
       let execution = await apiCall("executionStatus", { executionId: executionId });
-      console.log(execution);
-      if (execution.status !== "executed") {
-        while (execution.status !== "executed") {
-          console.log("INFO: not executed, retrying", execution);
-          await sleep(1000);
-          execution = await apiCall("executionStatus", { executionId: executionId });
-        }
+      console.log(JSON.stringify(execution));
+      while (execution.status !== "executed" && execution.status !== "failed") {
+        console.log("INFO: not executed, retrying", execution);
+        await sleep(5000);
+        execution = await apiCall("executionStatus", { executionId: executionId });
+        console.log(JSON.stringify(execution));
       }
       // establish usdc balances of unfundedSigner after execution
       const usdcAfterSednSignerFirstNetwork = BigNumber.from(
