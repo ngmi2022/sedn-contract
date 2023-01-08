@@ -835,8 +835,7 @@ describe("Sedn Contract", function () {
           environment: "prod",
         };
 
-        const cloudFunctionUrl = "https://us-central1-sedn-17b18.cloudfunctions.net/getSednParameters/";
-        // const cloudFunctionUrl = "http://127.0.0.1:5001/sedn-17b18/us-central1/getSednParameters";
+        const cloudFunctionUrl = `${API_URL}/getSednParameters/`;
 
         const socketRouteResponse: any = await fetch(cloudFunctionUrl, {
           method: "POST",
