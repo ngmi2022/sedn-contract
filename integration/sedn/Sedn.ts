@@ -993,8 +993,8 @@ describe("Sedn Contract", function () {
       let execution = await apiCall("executionStatus", { executionId: executionId });
       console.log(JSON.stringify(execution));
       while (execution.status !== "executed" && execution.status !== "failed") {
-        console.log("INFO: not executed, retrying", execution);
-        await sleep(5000);
+        console.log("INFO: not executed retrying");
+        await sleep(10_000);
         execution = await apiCall("executionStatus", { executionId: executionId });
         console.log(JSON.stringify(execution));
       }
@@ -1027,8 +1027,8 @@ describe("Sedn Contract", function () {
       if (claimExecution.status !== "executed") {
         while (claimExecution.status !== "executed") {
           console.log("INFO: not executed, retrying", claimExecution);
-          await sleep(1000);
-          execution = await apiCall("executionStatus", { executionId: claimExecutionId });
+          await sleep(10_000);
+          claimExecution = await apiCall("executionStatus", { executionId: claimExecutionId });
         }
       }
       await waitTillRecipientBalanceChanged(
@@ -1117,10 +1117,10 @@ describe("Sedn Contract", function () {
       console.log("INFO: executionIds", executionId);
       let execution = await apiCall("executionStatus", { executionId: executionId });
       console.log("INFO: execution:", execution);
-      if (execution.status !== "executed") {
-        while (execution.status !== "executed") {
+      if (execution.status !== "executed" && execution.status !== "failed") {
+        while (execution.status !== "executed" && execution.status !== "failed") {
           console.log("INFO: not executed, retrying", execution);
-          await sleep(1000);
+          await sleep(10_000);
           execution = await apiCall("executionStatus", { executionId: executionId });
         }
       }
@@ -1222,10 +1222,10 @@ describe("Sedn Contract", function () {
       console.log("INFO: executionIds", executionId);
       let execution = await apiCall("executionStatus", { executionId: executionId });
       console.log(execution);
-      if (execution.status !== "executed") {
-        while (execution.status !== "executed") {
+      if (execution.status !== "executed" && execution.status !== "failed") {
+        while (execution.status !== "executed" && execution.status !== "failed") {
           console.log("INFO: not executed, retrying", execution);
-          await sleep(1000);
+          await sleep(10_000);
           execution = await apiCall("executionStatus", { executionId: executionId });
         }
       }
@@ -1250,11 +1250,11 @@ describe("Sedn Contract", function () {
       console.log("INFO: executionIds", claimExecutionId);
       let claimExecution = await apiCall("executionStatus", { executionId: claimExecutionId });
       console.log(claimExecution);
-      if (claimExecution.status !== "executed") {
-        while (claimExecution.status !== "executed") {
-          console.log("INFO: not executed, retrying", claimExecution);
-          await sleep(1000);
-          execution = await apiCall("executionStatus", { executionId: claimExecutionId });
+      if (claimExecution.status !== "executed" && claimExecution.status !== "failed") {
+        while (claimExecution.status !== "executed" && claimExecution.status !== "failed") {
+          console.log("INFO: claim not executed, retrying", claimExecution);
+          await sleep(10_000);
+          claimExecution = await apiCall("executionStatus", { executionId: claimExecutionId });
         }
       }
       await waitTillRecipientBalanceChanged(
@@ -1341,10 +1341,10 @@ describe("Sedn Contract", function () {
       console.log("INFO: executionIds", executionId);
       let execution = await apiCall("executionStatus", { executionId: executionId });
       console.log("INFO: execution:", execution);
-      if (execution.status !== "executed") {
-        while (execution.status !== "executed") {
+      if (execution.status !== "executed" && execution.status !== "failed") {
+        while (execution.status !== "executed" && execution.status !== "failed") {
           console.log("INFO: not executed, retrying", execution);
-          await sleep(1000);
+          await sleep(10_000);
           execution = await apiCall("executionStatus", { executionId: executionId });
         }
       }
@@ -1454,10 +1454,10 @@ describe("Sedn Contract", function () {
       console.log("INFO: executionIds", executionId);
       let execution = await apiCall("executionStatus", { executionId: executionId });
       console.log("INFO: execution:", execution);
-      if (execution.status !== "executed") {
-        while (execution.status !== "executed") {
+      if (execution.status !== "executed" && execution.status !== "failed") {
+        while (execution.status !== "executed" && execution.status !== "failed") {
           console.log("INFO: not executed, retrying", execution);
-          await sleep(1000);
+          await sleep(10_000);
           execution = await apiCall("executionStatus", { executionId: executionId });
         }
       }
@@ -1504,12 +1504,12 @@ describe("Sedn Contract", function () {
       const claimExecutionId = await apiCall("executeTransactions", executeClaimTransactionsRequest);
       console.log("INFO: executionIds", claimExecutionId);
       let claimExecution = await apiCall("executionStatus", { executionId: claimExecutionId });
-      console.log(claimExecution);
-      if (claimExecution.status !== "executed") {
-        while (claimExecution.status !== "executed") {
-          console.log("INFO: not executed, retrying", claimExecution);
-          await sleep(1000);
-          execution = await apiCall("executionStatus", { executionId: claimExecutionId });
+      console.log(JSON.stringify(claimExecution));
+      if (claimExecution.status !== "executed" && claimExecution.status !== "failed") {
+        while (claimExecution.status !== "executed" && claimExecution.status !== "failed") {
+          console.log("INFO: claim not executed, retrying", JSON.stringify(claimExecution));
+          await sleep(10_000);
+          claimExecution = await apiCall("executionStatus", { executionId: claimExecutionId });
         }
       }
 
@@ -1615,10 +1615,10 @@ describe("Sedn Contract", function () {
       console.log("INFO: executionIds", executionId);
       let execution = await apiCall("executionStatus", { executionId: executionId });
       console.log("INFO: execution:", execution);
-      if (execution.status !== "executed") {
-        while (execution.status !== "executed") {
+      if (execution.status !== "executed" && execution.status !== "failed") {
+        while (execution.status !== "executed" && execution.status !== "failed") {
           console.log("INFO: not executed, retrying", execution);
-          await sleep(1000);
+          await sleep(10_000);
           execution = await apiCall("executionStatus", { executionId: executionId });
         }
       }
