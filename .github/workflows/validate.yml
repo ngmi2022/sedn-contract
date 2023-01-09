@@ -40,6 +40,14 @@ on:
         options:
         - staging
         - prod
+      api-environment:
+        description: 'The sedn-api environment to use'
+        required: true
+        default: 'prod' 
+        type: choice
+        options:
+        - staging
+        - prod
   workflow_call:
     inputs:
       testnet:
@@ -57,6 +65,11 @@ on:
         required: true
         default: 'prod' 
         type: string
+      api-environment:
+        description: 'The sedn-api environment to use'
+        required: true
+        default: 'prod' 
+        type: string
 
 jobs:
   log-the-inputs:
@@ -70,7 +83,7 @@ jobs:
           TESTNET: ${{ inputs.testnet }}
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
-          JEST_ENV: ${{ inputs.environment }}
+          JEST_ENV: ${{ inputs.api-environment }}
   validate:
     runs-on: "ubuntu-latest"
     steps:
@@ -104,7 +117,7 @@ jobs:
           TESTNET: ${{ inputs.testnet }}
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
-          JEST_ENV: ${{ inputs.environment }}
+          JEST_ENV: ${{ inputs.api-environment }}
 
       - name: "Add test summary"
         run: |
