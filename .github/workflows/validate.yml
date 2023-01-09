@@ -40,14 +40,6 @@ on:
         options:
         - staging
         - prod
-      api-environment:
-        description: 'The sedn-api environment to use'
-        required: true
-        default: 'prod' 
-        type: choice
-        options:
-        - staging
-        - prod
   workflow_call:
     inputs:
       testnet:
@@ -65,11 +57,6 @@ on:
         required: true
         default: 'prod' 
         type: string
-      api-environment:
-        description: 'The sedn-api environment to use'
-        required: true
-        default: 'prod' 
-        type: string
 
 jobs:
   log-the-inputs:
@@ -83,14 +70,12 @@ jobs:
           TESTNET: ${{ inputs.testnet }}
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
-          JEST_ENV: ${{ inputs.api-environment }}
+          JEST_ENV: ${{ inputs.environment }}
   validate:
     runs-on: "ubuntu-latest"
     steps:
       - name: "Check out the repo"
         uses: "actions/checkout@v3"
-        with:
-          repository: "ngmi2022/sedn-contract"
 
       - name: "Install Node.js"
         uses: "actions/setup-node@v3"
@@ -119,7 +104,7 @@ jobs:
           TESTNET: ${{ inputs.testnet }}
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
-          JEST_ENV: ${{ inputs.api-environment }}
+          JEST_ENV: ${{ inputs.environment }}
 
       - name: "Add test summary"
         run: |
