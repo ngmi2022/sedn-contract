@@ -112,7 +112,8 @@
     "defender-autotask-client": "^1.37.0",
     "defender-relay-client": "^1.37.0",
     "etherscan-api": "^10.2.0",
-    "polygonscan-api": "^1.0.4"
+    "polygonscan-api": "^1.0.4",
+    "sedn-interfaces": "^0.23.1"
   },
   "main": ".solcover.js",
   "directories": {

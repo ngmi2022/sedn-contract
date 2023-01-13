@@ -94,42 +94,42 @@ export const explorerData: any = {
   mainnet: {
     url: "https://etherscan.com",
     api: "https://api.etherscan.io/api",
-    apiKey: process.env.ETHERSCAN_API_KEY || "",
+    apiKey: process.env.ETHERSCAN_API_KEY,
   },
   polygon: {
     url: "https://polygonscan.com",
     api: "https://api.polygonscan.com/api",
-    apiKey: process.env.POLYGONSCAN_API_KEY || "",
+    apiKey: process.env.POLYGONSCAN_API_KEY,
   },
   arbitrum: {
     url: "https://arbiscan.io",
     api: "https://api.arbiscan.io/api",
-    apiKey: process.env.ARBISCAN_API_KEY || "",
+    apiKey: process.env.ARBISCAN_API_KEY,
   },
   goerli: {
     url: "https://goerli.etherscan.io",
     api: "https://api-goerli.etherscan.io/api",
-    apiKey: process.env.ETHERSCAN_API_KEY || "",
+    apiKey: process.env.ETHERSCAN_API_KEY,
   },
   sepolia: {
     url: "https://sepolia.etherscan.io",
     api: "https://api-sepolia.etherscan.io/api",
-    apiKey: process.env.ETHERSCAN_API_KEY || "",
+    apiKey: process.env.ETHERSCAN_API_KEY,
   },
   "arbitrum-goerli": {
     url: "https://goerli.arbiscan.io/",
     api: "https://api-goerli.arbiscan.io/api",
-    apiKey: process.env.ARBISCAN_API_KEY || "",
+    apiKey: process.env.ARBISCAN_API_KEY,
   },
   optimism: {
     url: "https://optimistic.etherscan.io/",
     api: "https://api-optimistic.etherscan.io/",
-    apiKey: process.env.OPTIMISM_API_KEY || "",
+    apiKey: process.env.OPTIMISM_API_KEY,
   },
   "optimism-goerli": {
     url: "https://goerli-optimism.etherscan.io/",
     api: "https://api-goerli-optimistic.etherscan.io/api",
-    apiKey: process.env.OPTIMISM_API_KEY || "",
+    apiKey: process.env.OPTIMISM_API_KEY,
   },
 };
 
