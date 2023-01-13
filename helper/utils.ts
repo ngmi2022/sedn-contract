@@ -140,8 +140,6 @@ export const getAbi = async (network: string, contract: string) => {
   const apiUrl = explorerData[network].api;
   const apiKey = explorerData[network].apiKey;
 
-  console.log(`Getting ABI for ${contract} on ${network}...`, apiUrl, apiKey, process.env.ARBISCAN_API_KEY);
-
   if (!apiKey) {
     throw new Error(`API Key for ${network} is not defined`);
   }
