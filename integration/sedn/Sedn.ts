@@ -1181,7 +1181,7 @@ describe("Sedn Contract", function () {
       expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount); // amount is the same for all
       //networks and represents the complete send amount
     });
-    it.only(`should be able to correctly transfer funds to an unknown user`, async function () {
+    it(`should be able to correctly transfer funds to an unknown user`, async function () {
       // partially randomized scenario creation
       const caseSedn = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need usdcBalance
       // const caseSedn = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
@@ -1371,17 +1371,18 @@ describe("Sedn Contract", function () {
       }
 
       // build api request
-      const executeTransactionsRequest: IExecuteTransactionRequest = {
+      const executeTransactionsRequest: IExecuteTransactionsRequest = {
         transactions: signedTransactions,
-        environment: ENVIRONMENT,
+        environment: ENVIRONMENT as Environment,
         type: wireResponse.type,
         recipientIdOrAddress: knownPhone,
+        memo: "send to known user",
       };
       // send signed transactions to API
       const executionId: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
       console.log("INFO: executionIds", executionId);
       let execution = await apiCall("executionStatus", { executionId: executionId });
-      console.log("INFO: execution:", execution);
+      console.log("DEBUG: execution:", JSON.stringify(execution));
       if (execution.status !== "executed" && execution.status !== "failed") {
         while (execution.status !== "executed" && execution.status !== "failed") {
           console.log("INFO: not executed retrying for ID", executionId);
@@ -1484,17 +1485,18 @@ describe("Sedn Contract", function () {
       }
 
       // build api request
-      const executeTransactionsRequest: IExecuteTransactionRequest = {
+      const executeTransactionsRequest: IExecuteTransactionsRequest = {
         transactions: signedTransactions,
-        environment: ENVIRONMENT,
+        environment: ENVIRONMENT as Environment,
         type: wireResponse.type,
         recipientIdOrAddress: unknownPhone,
+        memo: "send for hybrid to unknown",
       };
       // send signed transactions to API
-      const executionId: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
+      const executionId = await apiCall("executeTransactions", executeTransactionsRequest);
       console.log("INFO: executionIds", executionId);
       let execution = await apiCall("executionStatus", { executionId: executionId });
-      console.log("INFO: execution:", execution);
+      console.log("DEBUG: execution:", JSON.stringify(execution));
       if (execution.status !== "executed" && execution.status !== "failed") {
         while (execution.status !== "executed" && execution.status !== "failed") {
           console.log("INFO: not executed retrying for ID", executionId);
@@ -1534,18 +1536,37 @@ describe("Sedn Contract", function () {
         );
       expect(totalDifferenceSigner).to.equal(sednVars[firstNetwork].amount); // amount is the same for all networks and represents the complete send amount
 
-      // build api request
-      const executeClaimTransactionsRequest: IExecuteTransactionRequest = await buildClaimRequest(
-        sednVars,
-        execution.transactions,
-        unknownPhone,
-      );
+      // build claim request and post to claim endpoint
+      const claimRequest: IClaimRequest = {
+        executionId: executionId,
+        recipientIdOrAddress: sednVars[firstNetwork].recipient.address,
+        // in real life, this can be also the claimants phone number
+      };
+      const claimResponse: IWireResponse = await apiCall("claim", claimRequest);
+
+      // get signatures
+      const claimTransactions: ITransaction[] = claimResponse.transactions;
+      const signedClaimTransactions: ITransaction[] = [];
+      for (const claimTransaction of claimTransactions) {
+        const claimSignedRequest = await handleTxSignature(claimTransaction, sednVars, "recipient");
+        claimTransaction.signedTx = claimSignedRequest;
+        signedClaimTransactions.push(claimTransaction);
+      }
+
+      // build execute api request
+      const executeClaimTransactionsRequest: IExecuteTransactionsRequest = {
+        transactions: signedClaimTransactions,
+        environment: ENVIRONMENT as Environment,
+        type: claimResponse.type,
+        recipientIdOrAddress: sednVars[firstNetwork].recipient.address,
+        memo: "claim for hybrid to unknown",
+      };
 
       // send signed transactions to API#
       const claimExecutionId = await apiCall("executeTransactions", executeClaimTransactionsRequest);
       console.log("INFO: executionIds", claimExecutionId);
       let claimExecution = await apiCall("executionStatus", { executionId: claimExecutionId });
-      console.log(JSON.stringify(claimExecution));
+      console.log("DEBUG: execution:", JSON.stringify(claimExecution));
       if (claimExecution.status !== "executed" && claimExecution.status !== "failed") {
         while (claimExecution.status !== "executed" && claimExecution.status !== "failed") {
           console.log("INFO: not executed retrying for ID", claimExecutionId);
@@ -1645,17 +1666,18 @@ describe("Sedn Contract", function () {
       }
 
       // build api request
-      const executeTransactionsRequest: IExecuteTransactionRequest = {
+      const executeTransactionsRequest: IExecuteTransactionsRequest = {
         transactions: signedTransactions,
-        environment: ENVIRONMENT,
+        environment: ENVIRONMENT as Environment,
         type: wireResponse.type,
         recipientIdOrAddress: unknownPhone,
+        memo: "send for hybrid to known user",
       };
       // send signed transactions to API
       const executionId: IExecutionsResponse = await apiCall("executeTransactions", executeTransactionsRequest);
       console.log("INFO: executionIds", executionId);
       let execution = await apiCall("executionStatus", { executionId: executionId });
-      console.log("INFO: execution:", execution);
+      console.log("DEBUG: execution:", JSON.stringify(execution));
       if (execution.status !== "executed" && execution.status !== "failed") {
         while (execution.status !== "executed" && execution.status !== "failed") {
           console.log("INFO: not executed retrying for ID", executionId);
