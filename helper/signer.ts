@@ -30,7 +30,7 @@ function getMetaTxTypeData(chainId: number, verifyingContract: string) {
     domain: {
       name: "MinimalForwarder",
       version: "0.0.1",
-      chainId,
+      chainId: chainId,
       verifyingContract,
     },
     primaryType: "ForwardRequest",
