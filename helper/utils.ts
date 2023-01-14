@@ -84,7 +84,8 @@ export const getRpcUrl = (network: string) => {
     case "optimism":
       return "https://optimism-mainnet.infura.io/v3/" + infuraKey;
     case "optimism-goerli":
-      return "https://optimism-goerli.infura.io/v3/" + infuraKey;
+      return "https://goerli.optimism.io";
+      //return "https://optimism-goerli.infura.io/v3/" + infuraKey;
     default:
       throw new Error("Network not supported: Infura");
   }
