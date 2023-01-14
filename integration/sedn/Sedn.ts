@@ -286,14 +286,16 @@ const instantiateFundingScenario = async (
     usdcBalanceUnfundedTarget = scenarioEOA[network];
     usdcDifference = usdcBalanceUnfundedTarget.sub(usdcBalanceUnfundedBefore); // positive means we need to add funds, negative means we need to remove funds
     if (usdcDifference.toString() != "0") {
-      console.log(`INFO: Funding unfundedSigner on ${network} with ${usdcBalanceUnfundedTarget} USDC on EOA...`);
+      console.log(`INFO: Funding unfundedSigner on ${network} with ${usdcBalanceUnfundedTarget} USDC on EOA...diff ${usdcDifference.toString()}`);
       if (usdcDifference < zeroBig) {
         tx = await sednVars[network].usdcOrigin
           .connect(sednVars[network].unfundedSigner)
           .transfer(sednVars[network].signer.address, usdcDifference.mul(minusOneBig));
-        const nonce = (await sednVars[network].unfundedSigner.getTransactionCount()) + 1;
+        const nonce = await sednVars[network].unfundedSigner.getTransactionCount() + 1;
         tx.nonce = nonce;
+        console.log(`INFO: Sending tx with nonce ${nonce} and ${network}/${tx.hash}`);
         await tx.wait();
+        console.log(`INFO: Executed tx waiting for balance to change`);
         await waitTillRecipientBalanceChanged(
           60_000,
           sednVars[network].usdcOrigin,
@@ -304,9 +306,11 @@ const instantiateFundingScenario = async (
         tx = await sednVars[network].usdcOrigin
           .connect(sednVars[network].signer)
           .transfer(sednVars[network].unfundedSigner.address, usdcDifference);
-        const nonce = (await sednVars[network].unfundedSigner.getTransactionCount()) + 1;
+        const nonce = await sednVars[network].signer.getTransactionCount() + 1;
         tx.nonce = nonce;
+        console.log(`INFO: Sending tx with nonce ${nonce} and ${network}/${tx.hash}`);
         await tx.wait();
+        console.log(`INFO: Executed tx waiting for balance to change`);
         await waitTillRecipientBalanceChanged(
           60_000,
           sednVars[network].usdcOrigin,
@@ -328,14 +332,16 @@ const instantiateFundingScenario = async (
     sednBalanceUnfundedTarget = scenarioSedn[network];
     sednDifference = sednBalanceUnfundedTarget.sub(sednBalanceUnfundedBefore); // positive means we need to add funds, negative means we need to remove funds
     if (sednDifference.toString() != "0") {
-      console.log(`INFO: funding unfundedSigner on ${network} with ${sednBalanceUnfundedTarget} USDC on Sedn...`);
+      console.log(`INFO: funding unfundedSigner on ${network} with ${sednBalanceUnfundedTarget} USDC on Sedn... (diff ${sednDifference.toString()}))`);
       if (sednDifference < zeroBig) {
         tx = await sednVars[network].sedn
           .connect(sednVars[network].unfundedSigner)
           .transferKnown(sednDifference.mul(minusOneBig), sednVars[network].signer.address);
-        const nonce = (await sednVars[network].signer.getTransactionCount()) + 1;
+        const nonce = await sednVars[network].unfundedSigner.getTransactionCount() + 1;
         tx.nonce = nonce;
+        console.log(`INFO: Sending tx with nonce ${nonce} and ${network}/${tx.hash}`);
         await tx.wait();
+        console.log(`INFO: Executed tx waiting for balance to change`);
         await waitTillRecipientBalanceChanged(
           60_000,
           sednVars[network].sedn,
@@ -352,9 +358,11 @@ const instantiateFundingScenario = async (
         tx = await sednVars[network].sedn
           .connect(sednVars[network].signer)
           .sednKnown(sednDifference, sednVars[network].unfundedSigner.address);
-        const nonce = (await sednVars[network].unfundedSigner.getTransactionCount()) + 1;
+        const nonce = await sednVars[network].signer.getTransactionCount() + 1;
         tx.nonce = nonce;
+        console.log(`INFO: Sending tx with nonce ${nonce} and ${network}/${tx.hash}`);
         await tx.wait();
+        console.log(`INFO: Executed tx waiting for balance to change`);
         await waitTillRecipientBalanceChanged(
           60_000,
           sednVars[network].sedn,
@@ -889,6 +897,7 @@ describe("Sedn Contract", function () {
     });
     it(`should be able to correctly sedn funds to an unknown user`, async function () {
       // partially randomized scenario creation
+      console.log("INFO: Creating random funding scenario");
       const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       // const caseEOA = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       const firstNetwork = networksToTest[0];
@@ -896,7 +905,8 @@ describe("Sedn Contract", function () {
       const scenarioEOA = createRandomFundingScenario(networksToTest, sednVars[firstNetwork].amount, caseEOA, true);
       const scenarioSedn = createRandomFundingScenario(networksToTest, BigNumber.from("0"), [], true);
       await instantiateFundingScenario(networksToTest, scenarioEOA, scenarioSedn, sednVars);
-
+      console.log("INFO: Done funding");
+      
       // establish previous usdc balances of unfundedSigner
       const usdcBeforeSednSignerFirstNetwork = BigNumber.from(
         await getBalance(sednVars[firstNetwork].usdcOrigin, sednVars[firstNetwork].unfundedSigner),
@@ -997,7 +1007,7 @@ describe("Sedn Contract", function () {
       console.log("INFO: claimExecution", claimExecution);
       if (claimExecution.status !== "executed") {
         while (claimExecution.status !== "executed") {
-          console.log("INFO: not executed, retrying", claimExecution);
+          console.log("INFO: not executed, retrying", JSON.stringify(claimExecution));
           await sleep(10_000);
           claimExecution = await apiCall("executionStatus", { executionId: claimExecutionId });
         }
