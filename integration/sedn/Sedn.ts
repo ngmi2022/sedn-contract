@@ -18,12 +18,12 @@ import {
   IWithdrawRequest,
   TransactionType,
 } from "sedn-interfaces";
+import { parseUnits } from "ethers/lib/utils";
 
 import { FakeSigner } from "../../helper/FakeSigner";
-import { getSignedTxRequest, sendTx, signMetaTxRequest } from "../../helper/signer";
+import { getSignedTxRequest, sendTx } from "../../helper/signer";
 import {
   checkTxStatus,
-  explorerData,
   feeData,
   fetchConfig,
   getAbi,
@@ -31,11 +31,16 @@ import {
   getChainId,
   getMax,
   getRpcUrl,
-  getTxCostInUSD,
-  getTxReceipt,
-  shuffle,
   sleep,
 } from "../../helper/utils";
+import {
+  IClaimArgs,
+  IExecuteTransactionRequest,
+  IExecutionsResponse,
+  ITransaction,
+  IWireRequest,
+  IWireResponse,
+} from "../interfaces/index";
 
 // /**********************************
 // INTEGRATION PARAMS / ENVIRONMENT VARIABLES
@@ -43,10 +48,10 @@ import {
 
 const ENVIRONMENT = process.env.ENVIRONMENT || "prod";
 const USE_STARGATE = process.env.USE_STARGATE === "true" ? true : false;
-const SIGNER_PK = process.env.SENDER_PK || "";
-const RECIPIENT_PK = process.env.RECIPIENT_PK || "";
-const UNFUNDED_SIGNER_PK = process.env.UNFUNDED_SIGNER_PK || "";
-const VERIFIER_PK = process.env.VERIFIER_PK || "";
+const SIGNER_PK = process.env.SENDER_PK!;
+const RECIPIENT_PK = process.env.RECIPIENT_PK!;
+const UNFUNDED_SIGNER_PK = process.env.UNFUNDED_SIGNER_PK!;
+const VERIFIER_PK = process.env.VERIFIER_PK!;
 const AMOUNT_ENV = process.env.AMOUNT || "1.00";
 const JEST_ENV = process.env.JEST_ENV || "prod";
 const API_URLS: any = {
