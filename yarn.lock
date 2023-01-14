@@ -5425,7 +5425,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ethers@npm:^5.6.9":
+"ethers@npm:^5.6.9, ethers@npm:^5.7.2":
   version: 5.7.2
   resolution: "ethers@npm:5.7.2"
   dependencies:
@@ -10642,6 +10642,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"sedn-interfaces@npm:^0.23.1":
+  version: 0.23.1
+  resolution: "sedn-interfaces@npm:0.23.1"
+  dependencies:
+    ethers: ^5.7.2
+  checksum: 12b75efa8dea350b109a36dfc6771fb05301c62e361747deaf48771bb9aa362b4e86d07ad1afee40e66cf4c21b44b4a5a281072552627f042fb42480c7d6da5f
+  languageName: node
+  linkType: hard
+
 "sedn@workspace:.":
   version: 0.0.0-use.local
   resolution: "sedn@workspace:."
@@ -10702,6 +10711,7 @@ __metadata:
     prettier-plugin-solidity: ^1.0.0-dev.23
     rollup: ^3.3.0
     rollup-plugin-node-resolve: ^5.2.0
+    sedn-interfaces: ^0.23.1
     shx: ^0.3.4
     solhint: ^3.3.7
     solhint-plugin-prettier: ^0.0.5

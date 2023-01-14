@@ -1,6 +1,6 @@
 import { TransactionReceipt } from "@ethersproject/providers";
 import { fetch } from "cross-fetch";
-import { Wallet, ethers } from "ethers";
+import { BigNumber, Wallet, ethers } from "ethers";
 
 export const fetchConfig = async () => {
   const ENVIRONMENT = process.env.ENVIRONMENT;
@@ -217,4 +217,38 @@ export const getChainFromId = (chainId: number) => {
     default:
       throw new Error(`ChainId ${chainId} not supported`);
   }
+};
+
+export const getChainId = (network: string) => {
+  switch (network) {
+    case "mainnet":
+      return "1";
+    case "polygon":
+    case "polygon-mainnet":
+    case "matic":
+      return "137";
+    case "arbitrum":
+      return "42161";
+    case "arbitrum-goerli":
+      return "421613";
+    case "gnosis":
+      return "100";
+    case "sepolia":
+      return "11155111";
+    case "optimism":
+    case "optimism-mainnet":
+      return "10";
+    case "optimism-goerli":
+      return "420";
+    default:
+      throw new Error(`Network ${network} not supported`);
+  }
+};
+
+export const getMin = function (a: BigNumber, b: BigNumber) {
+  return a.lt(b) ? a : b;
+};
+
+export const getMax = function (a: BigNumber, b: BigNumber) {
+  return a.gt(b) ? a : b;
 };
