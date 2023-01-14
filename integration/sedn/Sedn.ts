@@ -4,11 +4,10 @@ import axios from "axios";
 import { expect } from "chai";
 import fetch from "cross-fetch";
 import { BigNumber, Contract, Wallet, ethers } from "ethers";
-import { TransactionTypes, parseUnits } from "ethers/lib/utils";
+import { parseUnits } from "ethers/lib/utils";
 import {
   ChainId,
   Environment,
-  IClaimArgs,
   IClaimRequest,
   IExecuteTransactionsRequest,
   IExecutionsResponse,
@@ -18,7 +17,6 @@ import {
   IWithdrawRequest,
   TransactionType,
 } from "sedn-interfaces";
-import { parseUnits } from "ethers/lib/utils";
 
 import { FakeSigner } from "../../helper/FakeSigner";
 import { getSignedTxRequest, sendTx } from "../../helper/signer";
@@ -33,14 +31,6 @@ import {
   getRpcUrl,
   sleep,
 } from "../../helper/utils";
-import {
-  IClaimArgs,
-  IExecuteTransactionRequest,
-  IExecutionsResponse,
-  ITransaction,
-  IWireRequest,
-  IWireResponse,
-} from "../interfaces/index";
 
 // /**********************************
 // INTEGRATION PARAMS / ENVIRONMENT VARIABLES
