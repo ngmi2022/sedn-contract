@@ -378,6 +378,10 @@ const apiCall = async (apiMethod: string, request: any) => {
     );
     const { status, data } = await axios.post(`${API_URL + "/" + apiMethod}/`, {
       data: request,
+    }, {
+      headers: {
+        'content-type': 'application/json'
+      }
     });
     console.log(`INFO: ${apiMethod} response`);
     console.log("INFO: --  response status", status);
