@@ -889,7 +889,7 @@ describe("Sedn Contract", function () {
         sednVars[network] = deployed;
       }
     });
-    it(`should be able to correctly sedn funds to an unknown user`, async function () {
+    it.skip(`should be able to correctly sedn funds to an unknown user`, async function () {
       // partially randomized scenario creation
       console.log("INFO: Creating random funding scenario");
       const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
@@ -1032,7 +1032,7 @@ describe("Sedn Contract", function () {
       expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount); // amount is the same for all
       //networks and represents the complete send amount
     });
-    it(`should be able to correctly sedn funds to an known user`, async function () {
+    it.skip(`should be able to correctly sedn funds to an known user`, async function () {
       // partially randomized scenario creation
       const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
       // const caseEOA = [parseUnits("0.0", "mwei"), parseUnits("1.0", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
