@@ -31,6 +31,8 @@ import {
   getRpcUrl,
   sleep,
 } from "../../helper/utils";
+import * as admin from "firebase-admin";
+import { createUserAndGenerateIdToken } from "../../helper/authUtils";
 
 // /**********************************
 // INTEGRATION PARAMS / ENVIRONMENT VARIABLES
@@ -70,6 +72,9 @@ const minRelayerBalance: any = {
   optimism: 0.01,
   "optimism-goerli": 0.01,
 };
+
+admin.initializeApp({ projectId: process.env.GCLOUD_PROJECT });
+const auth = admin.auth();
 
 // /**********************************
 // INTEGRATION FUNCTIONS
@@ -368,21 +373,19 @@ const instantiateFundingScenario = async (
   return true;
 };
 
-const apiCall = async (apiMethod: string, request: any) => {
+const apiCall = async (apiMethod: string, request: any, authToken?: string) => {
   let responseResult: any;
   try {
+    const headers = {'content-type': 'application/json'};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
     console.log(
       `curl -X POST "${API_URL + "/" + apiMethod}" -d '${JSON.stringify({
         data: request,
-      })}' -H 'Content-Type: application/json'`,
+      })}' ${Object.keys(headers).map((key) => `-H "${key}: ${headers[key]}"`).join(" ")}`,
     );
     const { status, data } = await axios.post(`${API_URL + "/" + apiMethod}/`, {
       data: request,
-    }, {
-      headers: {
-        'content-type': 'application/json'
-      }
-    });
+    }, { headers });
     console.log(`INFO: ${apiMethod} response`);
     console.log("INFO: --  response status", status);
     console.log("INFO: --  response data", JSON.stringify(data));
@@ -882,14 +885,17 @@ describe("Sedn Contract", function () {
     let deployed: any;
     const knownPhone = "+4917661597645";
     const unknownPhone = "+4917661597640";
+    let knownAuthToken;
     beforeEach(async function () {
       sednVars = [];
       for (const network of networksToTest) {
         deployed = await getSedn(network);
         sednVars[network] = deployed;
       }
+
+      knownAuthToken = await createUserAndGenerateIdToken(auth, knownPhone, sednVars[networksToTest[0]].unfundedSigner.address);
     });
-    it(`should be able to correctly sedn funds to an unknown user`, async function () {
+    it.only(`should be able to correctly sedn funds to an unknown user`, async function () {
       // partially randomized scenario creation
       console.log("INFO: Creating random funding scenario");
       const caseEOA = [parseUnits("0.5", "mwei"), parseUnits("0.7", "mwei")]; // 0.5, 0.7 = 1.2 amount vs. 1.0 needed; we don't need sednBalance
@@ -918,15 +924,15 @@ describe("Sedn Contract", function () {
       );
 
       // build request for API
+      // @ts-ignore
       const wireRequest: IWireRequest = {
-        senderAddress: sednVars[firstNetwork].unfundedSigner.address,
         recipientId: unknownPhone,
         amount: sednVars[firstNetwork].amount,
         testnet: testnet,
       };
 
       // send request to API
-      const wireResponse: IWireResponse = await apiCall("wire", wireRequest);
+      const wireResponse: IWireResponse = await apiCall("wire", wireRequest, knownAuthToken);
 
       // get approve and signatures
       const transactions: ITransaction[] = wireResponse.transactions;
@@ -945,7 +951,7 @@ describe("Sedn Contract", function () {
         recipientIdOrAddress: unknownPhone,
       };
       // send signed transactions to API
-      const executionId = await apiCall("executeTransactions", executeTransactionsRequest);
+      const executionId = await apiCall("executeTransactions", executeTransactionsRequest, knownAuthToken);
       console.log("INFO: executionIds", executionId);
       let execution = await apiCall("executionStatus", { executionId: executionId });
       console.log("DEBUG: execution:", JSON.stringify(execution));
@@ -969,13 +975,15 @@ describe("Sedn Contract", function () {
         .sub(usdcAfterSednSignerFirstNetwork.add(usdcAfterSednSignerSecondNetwork));
       expect(totalUsdcDifferenceSigner).to.equal(sednVars[firstNetwork].amount); // amount is the same for all networks and represents the complete send amount
 
+      const claimerAuthToken = await createUserAndGenerateIdToken(auth, unknownPhone, sednVars[firstNetwork].recipient.address);
+
       // build claim request and post to claim endpoint
+      // @ts-ignore
       const claimRequest: IClaimRequest = {
         executionId: executionId,
-        recipientIdOrAddress: sednVars[firstNetwork].recipient.address,
         // in real life, this can be also the claimants phone number
       };
-      const claimResponse: IWireResponse = await apiCall("claim", claimRequest);
+      const claimResponse: IWireResponse = await apiCall("claim", claimRequest, claimerAuthToken);
 
       // get signatures
       const claimTransactions: ITransaction[] = claimResponse.transactions;
@@ -995,7 +1003,7 @@ describe("Sedn Contract", function () {
       };
 
       // send signed transactions to API#
-      const claimExecutionId = await apiCall("executeTransactions", executeClaimTransactionsRequest);
+      const claimExecutionId = await apiCall("executeTransactions", executeClaimTransactionsRequest, claimerAuthToken);
       console.log("INFO: executionIds", claimExecutionId);
       let claimExecution = await apiCall("executionStatus", { executionId: claimExecutionId });
       console.log("INFO: claimExecution", claimExecution);
@@ -1003,7 +1011,7 @@ describe("Sedn Contract", function () {
         while (claimExecution.status !== "executed") {
           console.log("INFO: not executed, retrying", JSON.stringify(claimExecution));
           await sleep(10_000);
-          claimExecution = await apiCall("executionStatus", { executionId: claimExecutionId });
+          claimExecution = await apiCall("executionStatus", { executionId: claimExecutionId }, claimerAuthToken);
         }
       }
       await waitTillRecipientBalanceChanged(

@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "sedn-17b18",
+    "staging": "staging-sedn"
+  },
+  "targets": {},
+  "etags": {}
+}
