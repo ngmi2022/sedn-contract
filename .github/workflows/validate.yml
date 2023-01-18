@@ -112,6 +112,24 @@ jobs:
       - name: "Install the dependencies"
         run: "yarn install --immutable"
 
+              - uses: pocket-apps/action-setup-firebase@v2
+        with:
+          firebase-token: ${{ secrets.FIREBASE_CI_TOKEN }}
+
+      - id: 'auth-staging'
+        if: ${{ inputs.environment == 'staging' }}
+        name: 'Authenticate to Google Cloud Staging'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS_STAGING }}'
+
+      - id: 'auth-prod'
+        if: ${{ inputs.environment == 'prod' }}
+        name: 'Authenticate to Google Cloud Prod'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS_PROD}}'
+
       - name: "Validate"
         run: "yarn integration:$ENVIRONMENT"
         env:
