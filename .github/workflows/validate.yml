@@ -137,6 +137,8 @@ jobs:
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
           SINGLE_NETWORK: ${{ inputs.single_network }}
+          FIREBASE_KEY_sedn_17b18: ${{ secrets.FIREBASE_KEY_sedn_17b18 }}
+          FIREBASE_KEY_staging_sedn: ${{ secrets.FIREBASE_KEY_staging_sedn }}
 
       - name: "Add test summary"
         run: |

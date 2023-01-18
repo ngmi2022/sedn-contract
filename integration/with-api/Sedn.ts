@@ -59,8 +59,6 @@ const API_URL = API_URLS[ENVIRONMENT];
 ENVIRONMENT = ENVIRONMENT === "dev" ? "prod" : ENVIRONMENT; // ensure that dev is always reverting to staging
 
 // some params & functions to facilitate metaTX testing / testnet
-const destinationNetworks = ["polygon", "arbitrum"];
-const gasless = false;
 const testnet: boolean = process.env.TESTNET === "testnet" ? true : false; // we need to include this in workflow
 admin.initializeApp({ projectId: process.env.GCLOUD_PROJECT });
 const auth = admin.auth();
