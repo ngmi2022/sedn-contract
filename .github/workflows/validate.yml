@@ -40,6 +40,14 @@ on:
         options:
         - staging
         - prod
+      single_network:
+        description: "single for only testing one network"
+        required: true
+        default: "single"
+        type: choice
+        options:
+        - single
+        - multi
   workflow_call:
     inputs:
       testnet:
@@ -57,6 +65,11 @@ on:
         required: true
         default: 'prod' 
         type: string
+      single_network:
+        description: "single for only testing one network"
+        required: true
+        default: "single"
+        type: string
 
 jobs:
   log-the-inputs:
@@ -66,11 +79,13 @@ jobs:
           echo "testnet: $TESTNET"
           echo "Amount: $AMOUNT"
           echo "Environment: $ENVIRONMENT"
+          echo "single_network: $SINGLE_NETWORK"
         env:
           TESTNET: ${{ inputs.testnet }}
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
           JEST_ENV: ${{ inputs.environment }}
+          SINGLE_NETWORK: ${{ inputs.single_network }}
   validate:
     runs-on: "ubuntu-latest"
     steps:
@@ -97,6 +112,13 @@ jobs:
 
       - name: "Install the dependencies"
         run: "yarn install --immutable"
+      - name: "Validate without Api"
+        run: "yarn integration:basic:$ENVIRONMENT"
+        env:
+          TESTNET: ${{ inputs.testnet }}
+          AMOUNT: ${{ inputs.amount }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          JEST_ENV: ${{ inputs.environment }}
 
       - name: "Validate"
         run: "yarn integration:$ENVIRONMENT"
@@ -105,7 +127,7 @@ jobs:
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
           JEST_ENV: ${{ inputs.environment }}
-
+          SINGLE_NETWORK: ${{ inputs.single_network }}
       - name: "Add test summary"
         run: |
           echo "## Test results" >> $GITHUB_STEP_SUMMARY

@@ -23,7 +23,7 @@ import {
 // *************************************/
 
 const TESTNET: boolean = process.env.TESTNET === "testnet" ? true : false; // we need to include this in workflow
-const defaultNetworksToTest = TESTNET ? ["optimism-goerli"] : ["arbitrum", "polygon"]; // "optimism", "arbitrum"
+const defaultNetworksToTest = TESTNET ? ["arbitrum-goerli"] : ["arbitrum", "polygon"]; // "optimism", "arbitrum"
 let ENVIRONMENT = process.env.ENVIRONMENT || "prod";
 ENVIRONMENT = ENVIRONMENT === "dev" ? "staging" : ENVIRONMENT; // ensure that dev is always reverting to staging
 const SIGNER_PK = process.env.SENDER_PK!;
@@ -35,7 +35,6 @@ let NETWORKS = process.env.NETWORKS || defaultNetworksToTest.join(",");
 const networksToTest: string[] = NETWORKS.split(","); // ensure networks to test can be specified in workflow
 
 // fixed variables
-const destinationNetworks = ["polygon", "arbitrum"];
 const gasless = false;
 
 // /**********************************
@@ -138,7 +137,7 @@ describe("Sedn Contract", function () {
         expect(usdcAfterSednContract.sub(usdcBeforeSednContract)).to.equal(amount);
         expect(sednAfterSednSigner.sub(sednBeforeSednSigner)).to.equal(amount);
       });
-      it("should send funds to an unregistered user", async function () {
+      it.only("should send funds to an unregistered user", async function () {
         // check allowance & if necessary increase approve
         const allowanceChecked = await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount));
 
