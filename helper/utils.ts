@@ -421,24 +421,24 @@ export const generateClaimArgs = async (
   return [solution, secret, till, signature.v, signature.r, signature.s];
 };
 
-export const apiCall = async (apiUrl: string, apiMethod: string, request: any) => {
+export const apiCall = async (apiUrl: string, apiMethod: string, request: any, authToken?: string) => {
   let responseResult: any;
   try {
+    const headers = { "content-type": "application/json" };
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
     console.log(
       `curl -X POST "${apiUrl + "/" + apiMethod}" -d '${JSON.stringify({
         data: request,
-      })}' -H 'Content-Type: application/json'`,
+      })}' ${Object.keys(headers)
+        .map(key => `-H "${key}: ${headers[key]}"`)
+        .join(" ")}`,
     );
     const { status, data } = await axios.post(
       `${apiUrl + "/" + apiMethod}/`,
       {
         data: request,
       },
-      {
-        headers: {
-          "content-type": "application/json",
-        },
-      },
+      { headers },
     );
     console.log(`INFO: ${apiMethod} response`);
     console.log("INFO: --  response status", status);

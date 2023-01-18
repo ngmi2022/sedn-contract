@@ -1,6 +1,7 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
 import { expect } from "chai";
 import { BigNumber, ethers } from "ethers";
+import * as admin from "firebase-admin";
 import {
   ChainId,
   Environment,
@@ -15,6 +16,7 @@ import {
 } from "sedn-interfaces";
 
 import { FakeSigner } from "../../helper/FakeSigner";
+import { createUserAndGenerateIdToken } from "../../helper/authUtils";
 import {
   INetworkScenarios,
   apiCall,
@@ -57,6 +59,8 @@ ENVIRONMENT = ENVIRONMENT === "dev" ? "staging" : ENVIRONMENT; // ensure that de
 const destinationNetworks = ["polygon", "arbitrum"];
 const gasless = false;
 const testnet: boolean = process.env.TESTNET === "testnet" ? true : false; // we need to include this in workflow
+admin.initializeApp({ projectId: process.env.GCLOUD_PROJECT });
+const auth = admin.auth();
 
 // /**********************************
 // WITH-API INTEGRATION FUNCTIONS
@@ -113,11 +117,23 @@ describe("Sedn Contract", function () {
       let deployed: any;
       const knownPhone = "+4917661597645";
       const unknownPhone = "+4917661597640";
+      let knownAuthToken;
+      let claimerAuthToken;
       beforeEach(async function () {
         for (const network of deployedNetworks) {
           deployed = await getSedn(network);
           sednVars[network] = deployed;
         }
+        knownAuthToken = await createUserAndGenerateIdToken(
+          auth,
+          knownPhone,
+          sednVars[networksToTest[0]].unfundedSigner.address,
+        );
+        claimerAuthToken = await createUserAndGenerateIdToken(
+          auth,
+          unknownPhone,
+          sednVars[networksToTest[0]].recipient.address,
+        );
       });
       it(`should be able to correctly sedn funds to an unknown user`, async function () {
         // partially randomized scenario creation

@@ -8,17 +8,14 @@ import { sendTx } from "../../helper/signer";
 import {
   checkAllowance,
   checkFunding,
-  checkTxStatus,
   feeData,
   fetchConfig,
   generateClaimArgs,
   generateSecret,
   getAbi,
-  getRandomRecipientNetwork,
   getRpcUrl,
   sleep,
   waitTillRecipientBalanceChanged,
-  waitTillRecipientBalanceIncreased,
 } from "../../helper/utils";
 
 // /**********************************
