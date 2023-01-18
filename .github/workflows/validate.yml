@@ -137,6 +137,7 @@ jobs:
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
           SINGLE_NETWORK: ${{ inputs.single_network }}
+          
       - name: "Add test summary"
         run: |
           echo "## Test results" >> $GITHUB_STEP_SUMMARY
