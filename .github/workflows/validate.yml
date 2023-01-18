@@ -40,6 +40,14 @@ on:
         options:
         - staging
         - prod
+      single_network:
+        description: "single for only testing one network"
+        required: true
+        default: "single"
+        type: choice
+        options:
+        - single
+        - multi
   workflow_call:
     inputs:
       testnet:
@@ -57,6 +65,11 @@ on:
         required: true
         default: 'prod' 
         type: string
+      single_network:
+        description: "single for only testing one network"
+        required: true
+        default: "single"
+        type: string
 
 jobs:
   log-the-inputs:
@@ -66,11 +79,12 @@ jobs:
           echo "testnet: $TESTNET"
           echo "Amount: $AMOUNT"
           echo "Environment: $ENVIRONMENT"
+          echo "single_network: $SINGLE_NETWORK"
         env:
           TESTNET: ${{ inputs.testnet }}
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
-          JEST_ENV: ${{ inputs.environment }}
+          SINGLE_NETWORK: ${{ inputs.single_network }}
   validate:
     runs-on: "ubuntu-latest"
     steps:
@@ -98,13 +112,33 @@ jobs:
       - name: "Install the dependencies"
         run: "yarn install --immutable"
 
+      - uses: pocket-apps/action-setup-firebase@v2
+        with:
+          firebase-token: ${{ secrets.FIREBASE_CI_TOKEN }}
+
+      - id: 'auth-staging'
+        if: ${{ inputs.environment == 'staging' }}
+        name: 'Authenticate to Google Cloud Staging'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS_STAGING }}'
+
+      - id: 'auth-prod'
+        if: ${{ inputs.environment == 'prod' }}
+        name: 'Authenticate to Google Cloud Prod'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS_PROD}}'
+
       - name: "Validate"
-        run: "yarn integration:$ENVIRONMENT"
+        run: "yarn github:integration:$ENVIRONMENT"
         env:
           TESTNET: ${{ inputs.testnet }}
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
-          JEST_ENV: ${{ inputs.environment }}
+          SINGLE_NETWORK: ${{ inputs.single_network }}
+          FIREBASE_KEY_sedn_17b18: ${{ secrets.FIREBASE_KEY_sedn_17b18 }}
+          FIREBASE_KEY_staging_sedn: ${{ secrets.FIREBASE_KEY_staging_sedn }}
 
       - name: "Add test summary"
         run: |
