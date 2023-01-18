@@ -56,7 +56,7 @@ const API_URLS: any = {
   dev: "http://127.0.0.1:5001/staging-sedn/us-central1",
 };
 const API_URL = API_URLS[ENVIRONMENT];
-ENVIRONMENT = ENVIRONMENT === "dev" ? "staging" : ENVIRONMENT; // ensure that dev is always reverting to staging
+ENVIRONMENT = ENVIRONMENT === "dev" ? "prod" : ENVIRONMENT; // ensure that dev is always reverting to staging
 
 // some params & functions to facilitate metaTX testing / testnet
 const destinationNetworks = ["polygon", "arbitrum"];

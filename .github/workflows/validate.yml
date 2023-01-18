@@ -84,7 +84,6 @@ jobs:
           TESTNET: ${{ inputs.testnet }}
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
-          JEST_ENV: ${{ inputs.environment }}
           SINGLE_NETWORK: ${{ inputs.single_network }}
   validate:
     runs-on: "ubuntu-latest"
@@ -118,7 +117,6 @@ jobs:
           TESTNET: ${{ inputs.testnet }}
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
-          JEST_ENV: ${{ inputs.environment }}
 
       - name: "Validate"
         run: "yarn integration:$ENVIRONMENT"
@@ -126,7 +124,6 @@ jobs:
           TESTNET: ${{ inputs.testnet }}
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
-          JEST_ENV: ${{ inputs.environment }}
           SINGLE_NETWORK: ${{ inputs.single_network }}
       - name: "Add test summary"
         run: |
