@@ -114,7 +114,7 @@ describe("Sedn Contract", function () {
       forwarder,
     };
   }
-  describe(`Sedn multichain testing`, function () {
+  describe(`Sedn testing with api`, function () {
     let sednVars: { [network: string]: any } = {};
     let deployed: any;
     const knownPhone = "+4917661597646";
