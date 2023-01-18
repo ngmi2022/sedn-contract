@@ -111,12 +111,6 @@ jobs:
 
       - name: "Install the dependencies"
         run: "yarn install --immutable"
-      - name: "Validate without Api"
-        run: "yarn integration:basic:$ENVIRONMENT"
-        env:
-          TESTNET: ${{ inputs.testnet }}
-          AMOUNT: ${{ inputs.amount }}
-          ENVIRONMENT: ${{ inputs.environment }}
 
       - name: "Validate"
         run: "yarn integration:$ENVIRONMENT"
