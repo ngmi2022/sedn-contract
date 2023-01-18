@@ -111,7 +111,8 @@ jobs:
 
       - name: "Install the dependencies"
         run: "yarn install --immutable"
-              - uses: pocket-apps/action-setup-firebase@v2
+
+      - uses: pocket-apps/action-setup-firebase@v2
         with:
           firebase-token: ${{ secrets.FIREBASE_CI_TOKEN }}
 
