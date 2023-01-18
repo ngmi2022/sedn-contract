@@ -131,13 +131,13 @@ jobs:
           credentials_json: '${{ secrets.GOOGLE_CREDENTIALS_PROD}}'
 
       - name: "Validate"
-        run: "yarn integration:$ENVIRONMENT"
+        run: "yarn github:integration:$ENVIRONMENT"
         env:
           TESTNET: ${{ inputs.testnet }}
           AMOUNT: ${{ inputs.amount }}
           ENVIRONMENT: ${{ inputs.environment }}
           SINGLE_NETWORK: ${{ inputs.single_network }}
-          
+
       - name: "Add test summary"
         run: |
           echo "## Test results" >> $GITHUB_STEP_SUMMARY
