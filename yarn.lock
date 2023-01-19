@@ -11609,12 +11609,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sedn-interfaces@npm:^0.26.0":
-  version: 0.26.0
-  resolution: "sedn-interfaces@npm:0.26.0"
+"sedn-interfaces@npm:^0.38.0":
+  version: 0.38.0
+  resolution: "sedn-interfaces@npm:0.38.0"
   dependencies:
     ethers: ^5.7.2
-  checksum: 92e83a18c9fd3e87ad51c7e3676636d0c032127faf4cb9f0d3ebc652b9347e3fe54fe48fa707c05a8ede1c58f93ad2f3ec1fc8d77fcc37abab351f7fa1db935b
+  checksum: 2ee091b3895a735e1e81e8e3c012c58de28c721c4b79877375232a4e62705490b31f215858dfa77a982458a4fc75971033d7aaf4597b2361987fd46026e058f7
   languageName: node
   linkType: hard
 
@@ -11679,7 +11679,7 @@ __metadata:
     prettier-plugin-solidity: ^1.0.0-dev.23
     rollup: ^3.3.0
     rollup-plugin-node-resolve: ^5.2.0
-    sedn-interfaces: ^0.26.0
+    sedn-interfaces: ^0.38.0
     shx: ^0.3.4
     solhint: ^3.3.7
     solhint-plugin-prettier: ^0.0.5

@@ -21,6 +21,16 @@ export const getIdToken = async (user: UserRecord) => {
   return idTokenResponse.data.idToken;
 };
 
+export const delUserByPhoneNumber = async (auth: Auth, phoneNumber: string) => {
+  let user: UserRecord;
+  console.log("INFO: deleting user", phoneNumber);
+  user = await auth.getUserByPhoneNumber(phoneNumber);
+  console.log("INFO: found user", user.uid, user.phoneNumber);
+  await auth.deleteUser(user.uid);
+  console.log("INFO: deleted user", user.uid, user.phoneNumber);
+  return;
+};
+
 export const createUser = async (auth: Auth, phoneNumber: string, address: string) => {
   let user: UserRecord;
   try {
@@ -37,7 +47,6 @@ export const createUser = async (auth: Auth, phoneNumber: string, address: strin
       uid: address,
     });
   }
-
   return user;
 };
 
