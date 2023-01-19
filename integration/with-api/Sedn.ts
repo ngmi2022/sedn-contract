@@ -17,7 +17,7 @@ import {
 } from "sedn-interfaces";
 
 import { FakeSigner } from "../../helper/FakeSigner";
-import { createUserAndGenerateIdToken } from "../../helper/authUtils";
+import { createUserAndGenerateIdToken, delUserByPhoneNumber } from "../../helper/authUtils";
 import {
   INetworkScenarios,
   apiCall,
@@ -115,27 +115,31 @@ describe("Sedn Contract", function () {
   describe(`Sedn testing with api`, function () {
     let sednVars: { [network: string]: any } = {};
     let deployed: any;
-    const knownPhone = "+4917661597646";
-    const unknownPhone = "+4917661597645";
-    const claimerPhone = "+4917661597640";
+    const senderPhone = "+4917661597646"; // unfundedSigner
+    const knownPhone = "+4917661597645"; // signer
+    const claimerPhone = "+4917661597640"; // recipient
+    let senderAuthToken;
     let knownAuthToken;
     let claimerAuthToken;
     beforeEach(async function () {
+      console.log("INFO: beforeEach is called");
       sednVars = [];
       for (const network of deployedNetworks) {
         deployed = await getSedn(network);
         sednVars[network] = deployed;
       }
-      knownAuthToken = await createUserAndGenerateIdToken(
+      senderAuthToken = await createUserAndGenerateIdToken(
         auth,
-        knownPhone,
+        senderPhone,
         sednVars[networksToTest[0]].unfundedSigner.address,
       );
-      claimerAuthToken = await createUserAndGenerateIdToken(
-        auth,
-        claimerPhone,
-        sednVars[networksToTest[0]].recipient.address,
-      );
+      knownAuthToken = await createUserAndGenerateIdToken(auth, knownPhone, sednVars[networksToTest[0]].signer.address);
+      // make sure claimer is deleted
+      try {
+        await delUserByPhoneNumber(auth, claimerPhone);
+      } catch (e) {
+        console.log("INFO: claimer user not found");
+      }
     });
     it(`should be able to correctly sedn funds to an unknown user`, async function () {
       // partially randomized scenario creation
@@ -186,13 +190,13 @@ describe("Sedn Contract", function () {
       // build request for API
       const wireRequest: IWireRequest = {
         senderAddress: sednVars[firstNetwork].unfundedSigner.address,
-        recipientId: unknownPhone,
+        recipientId: claimerPhone,
         amount: sednVars[firstNetwork].amount,
         testnet: testnet,
       };
 
       // send request to API
-      const wireResponse: IWireResponse = await apiCall(API_URL, "wire", wireRequest, knownAuthToken);
+      const wireResponse: IWireResponse = await apiCall(API_URL, "wire", wireRequest, senderAuthToken);
 
       // get approve and signatures
       const transactions: ITransaction[] = wireResponse.transactions;
@@ -208,18 +212,18 @@ describe("Sedn Contract", function () {
         transactions: signedTransactions,
         environment: ENVIRONMENT as Environment,
         type: wireResponse.type,
-        recipientIdOrAddress: unknownPhone,
+        recipientIdOrAddress: claimerPhone,
       };
       // send signed transactions to API
-      const executionId = (await apiCall(API_URL, "executeTransactions", executeTransactionsRequest, knownAuthToken))
+      const executionId = (await apiCall(API_URL, "executeTransactions", executeTransactionsRequest, senderAuthToken))
         .id;
       console.log("INFO: executionIds", executionId);
-      let execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, knownAuthToken);
+      let execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, senderAuthToken);
       console.log("DEBUG: execution:", JSON.stringify(execution));
       while (execution.status !== "executed" && execution.status !== "failed") {
         console.log("INFO: not executed retrying for ID", executionId);
         await sleep(10_000);
-        execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, knownAuthToken);
+        execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, senderAuthToken);
         console.log(JSON.stringify(execution));
       }
       // establish usdc balances of unfundedSigner after execution
@@ -236,10 +240,18 @@ describe("Sedn Contract", function () {
         .sub(usdcAfterSednSignerFirstNetwork.add(usdcAfterSednSignerSecondNetwork));
       expect(totalUsdcDifferenceSigner).to.equal(sednVars[firstNetwork].amount); // amount is the same for all networks and represents the complete send amount
 
+      // instantiate claimerUser & get solution
+      const solution = execution.transactions[0].solution || "";
+      claimerAuthToken = await createUserAndGenerateIdToken(
+        auth,
+        claimerPhone,
+        sednVars[networksToTest[0]].recipient.address,
+      );
+
       // build claim request and post to claim endpoint
       const claimRequest: IClaimRequest = {
         executionId: executionId,
-        recipientIdOrAddress: claimerPhone,
+        solution: solution,
         // in real life, this can be also the claimants phone number
       };
       const claimResponse: IWireResponse = await apiCall(API_URL, "claim", claimRequest, claimerAuthToken);
@@ -353,22 +365,22 @@ describe("Sedn Contract", function () {
 
       // establish previous sedn balances of recipient
       const sednBeforeSednRecipientFirstNetwork = BigNumber.from(
-        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].recipient),
+        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].signer),
       );
       const sednBeforeSednRecipientSecondNetwork = BigNumber.from(
-        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].recipient),
+        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].signer),
       );
 
       // build request for API
       const wireRequest: IWireRequest = {
         senderAddress: sednVars[firstNetwork].unfundedSigner.address,
-        recipientId: claimerPhone,
+        recipientId: knownPhone,
         amount: sednVars[firstNetwork].amount,
         testnet: testnet,
       };
 
       // send request to API
-      const wireResponse: IWireResponse = await apiCall(API_URL, "wire", wireRequest, knownAuthToken);
+      const wireResponse: IWireResponse = await apiCall(API_URL, "wire", wireRequest, senderAuthToken);
 
       // get approve and signatures
       const transactions: ITransaction[] = wireResponse.transactions;
@@ -386,33 +398,33 @@ describe("Sedn Contract", function () {
         transactions: signedTransactions,
         environment: ENVIRONMENT as Environment,
         type: wireResponse.type,
-        recipientIdOrAddress: claimerPhone,
+        recipientIdOrAddress: knownPhone,
       };
       // send signed transactions to API
       const executionId: IExecutionsResponse = (
-        await apiCall(API_URL, "executeTransactions", executeTransactionsRequest, knownAuthToken)
+        await apiCall(API_URL, "executeTransactions", executeTransactionsRequest, senderAuthToken)
       ).id;
       console.log("INFO: executionIds", executionId);
-      let execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, knownAuthToken);
+      let execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, senderAuthToken);
       console.log("DEBUG: execution:", JSON.stringify(execution));
       if (execution.status !== "executed" && execution.status !== "failed") {
         while (execution.status !== "executed" && execution.status !== "failed") {
           console.log("INFO: not executed retrying for ID", executionId);
           await sleep(10_000);
-          execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, knownAuthToken);
+          execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, senderAuthToken);
         }
       }
       await waitTillRecipientBalanceChanged(
         60_000,
         sednVars[firstNetwork].sedn,
-        sednVars[firstNetwork].recipient,
+        sednVars[firstNetwork].signer,
         sednBeforeSednRecipientFirstNetwork,
       );
       if (!SINGLE_NETWORK) {
         await waitTillRecipientBalanceChanged(
           60_000,
           sednVars[secondNetwork].sedn,
-          sednVars[secondNetwork].recipient,
+          sednVars[secondNetwork].signer,
           sednBeforeSednRecipientSecondNetwork,
         );
       }
@@ -431,10 +443,10 @@ describe("Sedn Contract", function () {
 
       // establish previous sedn balances of recipient
       const sednAfterSednRecipientFirstNetwork = BigNumber.from(
-        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].recipient),
+        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].signer),
       );
       const sednAfterSednRecipientSecondNetwork = BigNumber.from(
-        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].recipient),
+        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].signer),
       );
       // check correct execution of recipient side
       const totalSednDifferenceRecipient = sednAfterSednRecipientFirstNetwork
@@ -491,13 +503,13 @@ describe("Sedn Contract", function () {
       // build request for API
       const wireRequest: IWireRequest = {
         senderAddress: sednVars[firstNetwork].unfundedSigner.address,
-        recipientId: unknownPhone,
+        recipientId: claimerPhone,
         amount: sednVars[firstNetwork].amount,
         testnet: testnet,
       };
 
       // send request to API
-      const wireResponse: IWireResponse = await apiCall(API_URL, "wire", wireRequest, knownAuthToken);
+      const wireResponse: IWireResponse = await apiCall(API_URL, "wire", wireRequest, senderAuthToken);
 
       // get approve and signatures
       const transactions: ITransaction[] = wireResponse.transactions;
@@ -513,20 +525,20 @@ describe("Sedn Contract", function () {
         transactions: signedTransactions,
         environment: ENVIRONMENT as Environment,
         type: wireResponse.type,
-        recipientIdOrAddress: unknownPhone,
+        recipientIdOrAddress: claimerPhone,
         memo: "sedn for transferUnknown",
       };
       // send signed transactions to API
-      const executionId = (await apiCall(API_URL, "executeTransactions", executeTransactionsRequest, knownAuthToken))
+      const executionId = (await apiCall(API_URL, "executeTransactions", executeTransactionsRequest, senderAuthToken))
         .id;
       console.log("INFO: executionIds", executionId);
-      let execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, knownAuthToken);
+      let execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, senderAuthToken);
       console.log("DEBUG: execution:", JSON.stringify(execution));
       if (execution.status !== "executed" && execution.status !== "failed") {
         while (execution.status !== "executed" && execution.status !== "failed") {
           console.log("INFO: not executed retrying for ID", executionId);
           await sleep(10_000);
-          execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, knownAuthToken);
+          execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, senderAuthToken);
         }
       }
       // establish usdc balances of unfundedSigner after execution
@@ -543,12 +555,21 @@ describe("Sedn Contract", function () {
         .sub(sednAfterSednSignerFirstNetwork.add(sednAfterSednSignerSecondNetwork));
       expect(totalSednDifferenceSigner).to.equal(sednVars[firstNetwork].amount); // amount is the same for all networks and represents the complete send amount
 
+      // instantiate claimerUser & get solution
+      const solution = execution.transactions[0].solution || "";
+      claimerAuthToken = await createUserAndGenerateIdToken(
+        auth,
+        claimerPhone,
+        sednVars[networksToTest[0]].recipient.address,
+      );
+
       // build claim request and post to claim endpoint
       const claimRequest: IClaimRequest = {
         executionId: executionId,
-        recipientIdOrAddress: claimerPhone,
+        solution: solution,
         // in real life, this can be also the claimants phone number
       };
+
       const claimResponse: IWireResponse = await apiCall(API_URL, "claim", claimRequest, claimerAuthToken);
 
       // get signatures
@@ -660,22 +681,22 @@ describe("Sedn Contract", function () {
 
       // establish previous sedn balances of recipient
       const sednBeforeSednRecipientFirstNetwork = BigNumber.from(
-        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].recipient),
+        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].signer),
       );
       const sednBeforeSednRecipientSecondNetwork = BigNumber.from(
-        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].recipient),
+        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].signer),
       );
 
       // build request for API
       const wireRequest: IWireRequest = {
         senderAddress: sednVars[firstNetwork].unfundedSigner.address,
-        recipientId: claimerPhone,
+        recipientId: knownPhone,
         amount: sednVars[firstNetwork].amount,
         testnet: testnet,
       };
 
       // send request to API
-      const wireResponse: IWireResponse = await apiCall(API_URL, "wire", wireRequest, knownAuthToken);
+      const wireResponse: IWireResponse = await apiCall(API_URL, "wire", wireRequest, senderAuthToken);
 
       // get approve and signatures
       const transactions: ITransaction[] = wireResponse.transactions;
@@ -691,34 +712,34 @@ describe("Sedn Contract", function () {
         transactions: signedTransactions,
         environment: ENVIRONMENT as Environment,
         type: wireResponse.type,
-        recipientIdOrAddress: claimerPhone,
+        recipientIdOrAddress: knownPhone,
         memo: "send to known user",
       };
       // send signed transactions to API
       const executionId: IExecutionsResponse = (
-        await apiCall(API_URL, "executeTransactions", executeTransactionsRequest, knownAuthToken)
+        await apiCall(API_URL, "executeTransactions", executeTransactionsRequest, senderAuthToken)
       ).id;
       console.log("INFO: executionIds", executionId);
-      let execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, knownAuthToken);
+      let execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, senderAuthToken);
       console.log("DEBUG: execution:", JSON.stringify(execution));
       if (execution.status !== "executed" && execution.status !== "failed") {
         while (execution.status !== "executed" && execution.status !== "failed") {
           console.log("INFO: not executed retrying for ID", executionId);
           await sleep(10_000);
-          execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, knownAuthToken);
+          execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, senderAuthToken);
         }
       }
       await waitTillRecipientBalanceChanged(
         60_000,
         sednVars[firstNetwork].sedn,
-        sednVars[firstNetwork].recipient,
+        sednVars[firstNetwork].signer,
         sednBeforeSednRecipientFirstNetwork,
       );
       if (!SINGLE_NETWORK) {
         await waitTillRecipientBalanceChanged(
           60_000,
           sednVars[secondNetwork].sedn,
-          sednVars[secondNetwork].recipient,
+          sednVars[secondNetwork].signer,
           sednBeforeSednRecipientSecondNetwork,
         );
       }
@@ -738,10 +759,10 @@ describe("Sedn Contract", function () {
 
       // establish previous sedn balances of recipient
       const sednAfterSednRecipientFirstNetwork = BigNumber.from(
-        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].recipient),
+        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].signer),
       );
       const sednAfterSednRecipientSecondNetwork = BigNumber.from(
-        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].recipient),
+        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].signer),
       );
       // check correct execution of recipient side
       const totalSednDifferenceRecipient = sednAfterSednRecipientFirstNetwork
@@ -806,13 +827,13 @@ describe("Sedn Contract", function () {
       // build request for API
       const wireRequest: IWireRequest = {
         senderAddress: sednVars[firstNetwork].unfundedSigner.address,
-        recipientId: unknownPhone,
+        recipientId: claimerPhone,
         amount: sednVars[firstNetwork].amount,
         testnet: testnet,
       };
 
       // send request to API
-      const wireResponse: IWireResponse = await apiCall(API_URL, "wire", wireRequest, knownAuthToken);
+      const wireResponse: IWireResponse = await apiCall(API_URL, "wire", wireRequest, senderAuthToken);
 
       // get approve and signatures
       const transactions: ITransaction[] = wireResponse.transactions;
@@ -828,20 +849,20 @@ describe("Sedn Contract", function () {
         transactions: signedTransactions,
         environment: ENVIRONMENT as Environment,
         type: wireResponse.type,
-        recipientIdOrAddress: unknownPhone,
+        recipientIdOrAddress: claimerPhone,
         memo: "send for hybrid to unknown",
       };
       // send signed transactions to API
-      const executionId = (await apiCall(API_URL, "executeTransactions", executeTransactionsRequest, knownAuthToken))
+      const executionId = (await apiCall(API_URL, "executeTransactions", executeTransactionsRequest, senderAuthToken))
         .id;
       console.log("INFO: executionIds", executionId);
-      let execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, knownAuthToken);
+      let execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, senderAuthToken);
       console.log("DEBUG: execution:", JSON.stringify(execution));
       if (execution.status !== "executed" && execution.status !== "failed") {
         while (execution.status !== "executed" && execution.status !== "failed") {
           console.log("INFO: not executed retrying for ID", executionId);
           await sleep(10_000);
-          execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, knownAuthToken);
+          execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, senderAuthToken);
         }
       }
 
@@ -876,10 +897,18 @@ describe("Sedn Contract", function () {
         );
       expect(totalDifferenceSigner).to.equal(sednVars[firstNetwork].amount); // amount is the same for all networks and represents the complete send amount
 
+      // instantiate claimerUser & get solution
+      const solution = execution.transactions[0].solution || "";
+      claimerAuthToken = await createUserAndGenerateIdToken(
+        auth,
+        claimerPhone,
+        sednVars[networksToTest[0]].recipient.address,
+      );
+
       // build claim request and post to claim endpoint
       const claimRequest: IClaimRequest = {
         executionId: executionId,
-        recipientIdOrAddress: claimerPhone,
+        solution: solution,
         // in real life, this can be also the claimants phone number
       };
       const claimResponse: IWireResponse = await apiCall(API_URL, "claim", claimRequest, claimerAuthToken);
@@ -1010,22 +1039,22 @@ describe("Sedn Contract", function () {
 
       // establish previous sedn balances of recipient
       const sednBeforeSednRecipientFirstNetwork = BigNumber.from(
-        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].recipient),
+        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].signer),
       );
       const sednBeforeSednRecipientSecondNetwork = BigNumber.from(
-        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].recipient),
+        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].signer),
       );
 
       // build request for API
       const wireRequest: IWireRequest = {
         senderAddress: sednVars[firstNetwork].unfundedSigner.address,
-        recipientId: claimerPhone,
+        recipientId: knownPhone,
         amount: sednVars[firstNetwork].amount,
         testnet: testnet,
       };
 
       // send request to API
-      const wireResponse: IWireResponse = await apiCall(API_URL, "wire", wireRequest, knownAuthToken);
+      const wireResponse: IWireResponse = await apiCall(API_URL, "wire", wireRequest, senderAuthToken);
 
       // get approve and signatures
       const transactions: ITransaction[] = wireResponse.transactions;
@@ -1041,7 +1070,7 @@ describe("Sedn Contract", function () {
         transactions: signedTransactions,
         environment: ENVIRONMENT as Environment,
         type: wireResponse.type,
-        recipientIdOrAddress: claimerPhone,
+        recipientIdOrAddress: knownPhone,
         memo: "send for hybrid to known user",
       };
       // send signed transactions to API
@@ -1049,13 +1078,13 @@ describe("Sedn Contract", function () {
         await apiCall(API_URL, "executeTransactions", executeTransactionsRequest)
       ).id;
       console.log("INFO: executionIds", executionId);
-      let execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, knownAuthToken);
+      let execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, senderAuthToken);
       console.log("DEBUG: execution:", JSON.stringify(execution));
       if (execution.status !== "executed" && execution.status !== "failed") {
         while (execution.status !== "executed" && execution.status !== "failed") {
           console.log("INFO: not executed retrying for ID", executionId);
           await sleep(10_000);
-          execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, knownAuthToken);
+          execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, senderAuthToken);
         }
       }
       for (const transaction of execution.transactions) {
@@ -1064,7 +1093,7 @@ describe("Sedn Contract", function () {
           await waitTillRecipientBalanceChanged(
             60_000,
             sednVars[firstNetwork].sedn,
-            sednVars[firstNetwork].recipient,
+            sednVars[firstNetwork].signer,
             sednBeforeSednRecipientFirstNetwork,
           );
         }
@@ -1072,7 +1101,7 @@ describe("Sedn Contract", function () {
           await waitTillRecipientBalanceChanged(
             60_000,
             sednVars[secondNetwork].sedn,
-            sednVars[secondNetwork].recipient,
+            sednVars[secondNetwork].signer,
             sednBeforeSednRecipientSecondNetwork,
           );
         }
@@ -1096,10 +1125,10 @@ describe("Sedn Contract", function () {
 
       // establish previous sedn balances of recipient
       const sednAfterSednRecipientFirstNetwork = BigNumber.from(
-        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].recipient),
+        await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].signer),
       );
       const sednAfterSednRecipientSecondNetwork = BigNumber.from(
-        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].recipient),
+        await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].signer),
       );
 
       // check correct execution of signer side - usdc + sedn
@@ -1181,7 +1210,7 @@ describe("Sedn Contract", function () {
       };
 
       // send request to API
-      const withdrawResponse: ITransaction[] = await apiCall(API_URL, "withdraw", wireRequest, knownAuthToken);
+      const withdrawResponse: ITransaction[] = await apiCall(API_URL, "withdraw", wireRequest, senderAuthToken);
 
       // get approve and signatures
       const transactions: ITransaction[] = withdrawResponse;
@@ -1202,21 +1231,21 @@ describe("Sedn Contract", function () {
         transactions: signedTransactions,
         environment: ENVIRONMENT as Environment,
         type: "withdraw" as TransactionType,
-        recipientIdOrAddress: knownPhone,
+        recipientIdOrAddress: senderPhone,
         memo: "withdraw test",
       };
       // send signed transactions to API
       const executionId: IExecutionsResponse = (
-        await apiCall(API_URL, "executeTransactions", executeTransactionsRequest, knownAuthToken)
+        await apiCall(API_URL, "executeTransactions", executeTransactionsRequest, senderAuthToken)
       ).id;
       console.log("INFO: executionIds", executionId);
-      let execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, knownAuthToken);
+      let execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, senderAuthToken);
       console.log("DEBUG: execution:", JSON.stringify(execution));
       if (execution.status !== "executed" && execution.status !== "failed") {
         while (execution.status !== "executed" && execution.status !== "failed") {
           console.log("INFO: not executed retrying for ID", executionId);
           await sleep(10_000);
-          execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, knownAuthToken);
+          execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, senderAuthToken);
         }
       }
       await waitTillRecipientBalanceChanged(

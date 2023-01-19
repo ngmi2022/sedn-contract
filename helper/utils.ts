@@ -618,7 +618,7 @@ export const handleTxSignature = async (
       break;
     case "transferKnown":
       console.log("INFO: transferKnown");
-      args = { _amount: amount, secret: args.to };
+      args = { _amount: amount, to: args.to };
       break;
     case "transferUnknown":
       console.log("INFO: transferUnknown");
@@ -631,18 +631,6 @@ export const handleTxSignature = async (
       break;
     case "hybridUnknown":
       console.log("INFO: hybridUnknown; allowance needs to be adjusted.");
-      console.log(
-        "INFO: usdcOrigin.address ",
-        sednVars[network].usdcOrigin.address,
-        " signer.address ",
-        sednVars[network][signerName].address,
-        "sedn.address: ",
-        sednVars[network].sedn.address,
-        "amount: ",
-        amount.toString(),
-        "amount:",
-        amount.toString(),
-      );
       await checkAllowance(sednVars[network].usdcOrigin, sednVars[network][signerName], sednVars[network].sedn, amount);
       args = { _amount: amount, balanceAmount: args.balanceAmount, secret: args.secret };
       break;
