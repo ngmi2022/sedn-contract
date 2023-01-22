@@ -94,6 +94,7 @@ export async function sendMetaTx(
     txValue,
     forwarderAddress,
   );
+  console.log("DEBUG: sending request via webhook: ", relayerWebhook);
   const response = await fetch(relayerWebhook, {
     method: "POST",
     body: JSON.stringify(request),
@@ -131,6 +132,7 @@ export async function sendTx(
       relayerWebhook,
       forwarderAddress,
     );
+    console.log("DEBUG: response from webhook: ", response);
     txHash = JSON.parse(response.result).txHash;
     console.log(`TX: Send gasless tx: ${explorerData[network].url}/tx/${txHash}`);
     txReceipt = await getTxReceipt(60_000, signer, txHash);
