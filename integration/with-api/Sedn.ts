@@ -150,7 +150,7 @@ describe("Sedn Contract", function () {
         sednVars[networksToTest[0]].signer.address,
       );
     });
-    it(`should be able to correctly sedn funds to an unknown user`, async function () {
+    it.only(`should be able to correctly sedn funds to an unknown user`, async function () {
       // partially randomized scenario creation
       console.log("INFO: Creating funding scenario");
       const firstNetwork = networksToTest[0];

@@ -91,22 +91,26 @@ export const getRpcUrl = (network: string) => {
   const infuraKey: string = process.env.INFURA_API_KEY as string;
   switch (network) {
     case "mainnet":
-      return "https://mainnet.infura.io/v3/" + infuraKey;
+      return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
+    // return "https://mainnet.infura.io/v3/" + infuraKey;
     case "polygon":
-      return "https://polygon-mainnet.infura.io/v3/" + infuraKey;
+      return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
+    // return "https://polygon-mainnet.infura.io/v3/" + infuraKey;
     case "arbitrum":
-      return "https://arbitrum-mainnet.infura.io/v3/" + infuraKey;
+      // return "https://arbitrum-mainnet.infura.io/v3/" + infuraKey;
+      return "https://convincing-quaint-lake.arbitrum-mainnet.quiknode.pro/857d08a452034d62d798dafb506880500502adc7/";
     case "goerli":
       return "https://goerli.infura.io/v3/" + infuraKey;
     case "sepolia":
       return "https://sepolia.infura.io/v3/" + infuraKey;
     case "arbitrum-goerli":
-      // return "https://arb-goerli.g.alchemy.com/v2/5C_40-DhRANBfyqC-U4nh0m3uQWw6uj7";
-      return "https://arbitrum-goerli.infura.io/v3/" + infuraKey;
+      return "https://omniscient-solitary-scion.arbitrum-goerli.quiknode.pro/1c662c045e1a377100a0126ecfca768035478346/";
+    // return "https://arbitrum-goerli.infura.io/v3/" + infuraKey;
     case "optimism":
-      return "https://optimism-mainnet.infura.io/v3/" + infuraKey;
+      // return "https://optimism-mainnet.infura.io/v3/" + infuraKey;
+      return "https://floral-winter-wave.optimism.quiknode.pro/3a10eae6b3a92cec115ab3ecd846d513dc4336d2/";
     case "optimism-goerli":
-      return "https://opt-goerli.g.alchemy.com/v2/EeTaU4XMkH0OLUyZPPbCTsXijHTe7NqW";
+      return "https://winter-few-bush.optimism-goerli.quiknode.pro/1fb6db633eccb68892918719fcf6b6f003b112ee/";
     // return "https://optimism-goerli.infura.io/v3/" + infuraKey;
     default:
       throw new Error("Network not supported: Infura");

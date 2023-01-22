@@ -12,7 +12,7 @@ export const getIdToken = async (user: UserRecord) => {
   let firebaseKey: string = "";
   if (gcloudProject === "sedn-17b18") {
     firebaseKey = process.env.FIREBASE_KEY_sedn_17b18 || "";
-  } else if (gcloudProject === "sedn-staging") {
+  } else if (gcloudProject === "staging-sedn") {
     firebaseKey = process.env.FIREBASE_KEY_staging_sedn || "";
   }
 
