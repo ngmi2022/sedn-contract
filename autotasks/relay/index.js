@@ -15,8 +15,9 @@ const configData = async (environment) => {
 const getRpcUrl = (network) => {
   switch (network) {
     case "mainnet":
-      return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
-    // return "https://mainnet.infura.io/v3/" + infuraKey;
+      return "https://mainnet.infura.io/v3/" + infuraKey;
+    case "matic":
+    case "polygon-mainnet":
     case "polygon":
       return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
     // return "https://polygon-mainnet.infura.io/v3/" + infuraKey;

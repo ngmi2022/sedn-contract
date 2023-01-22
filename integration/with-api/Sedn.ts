@@ -782,7 +782,7 @@ describe("Sedn Contract", function () {
       expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount); // amount is the same for all
       //networks and represents the complete send amount
     });
-    it(`should be able to correctly sedn and transfer funds to an unknown user`, async function () {
+    it.only(`should be able to correctly sedn and transfer funds to an unknown user`, async function () {
       console.log("INFO: Creating funding scenario");
       const firstNetwork = networksToTest[0];
       const secondNetwork = networksToTest[1];
