@@ -58,7 +58,7 @@ describe("Sedn Contract", function () {
       "arbitrum-goerli":
         "https://api.defender.openzeppelin.com/autotasks/2d858f46-cc71-4628-af9f-efade0f6b1df/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/DSL3dXteoJuVmagoSrD4Fv",
     };
-    const relayerWebhook = webhooksStaging[network];
+    const relayerWebhook = config.relayerWebhooks[network];
     const forwarder = config.forwarder[network];
     // Get Sedn
     const sedn = new ethers.Contract(sednContract, await getAbi(network, sednContract), signer);
