@@ -23,7 +23,7 @@ import {
 // *************************************/
 
 const TESTNET: boolean = process.env.TESTNET === "testnet" ? true : false; // we need to include this in workflow
-const defaultNetworksToTest = TESTNET ? ["arbitrum-goerli"] : ["arbitrum", "polygon"]; // "optimism", "arbitrum"
+const defaultNetworksToTest = TESTNET ? ["optimism-goerli", "arbitrum-goerli"] : ["arbitrum", "polygon"]; // "optimism", "arbitrum"
 let ENVIRONMENT = process.env.ENVIRONMENT || "prod";
 ENVIRONMENT = ENVIRONMENT === "dev" ? "prod" : ENVIRONMENT; // ensure that dev is always reverting to staging
 const SIGNER_PK = process.env.SENDER_PK!;
@@ -52,6 +52,12 @@ describe("Sedn Contract", function () {
     const verifier = new ethers.Wallet(VERIFIER_PK, provider);
     const recipient = new ethers.Wallet(RECIPIENT_PK, provider);
     const unfundedSigner = new ethers.Wallet(UNFUNDED_SIGNER_PK, provider);
+    const webhooksStaging = {
+      "optimism-goerli":
+        "https://api.defender.openzeppelin.com/autotasks/f8d5a078-9408-4ab9-a390-8e94a83c53d2/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/7WpJSECEPRHpNiEums4W5A",
+      "arbitrum-goerli":
+        "https://api.defender.openzeppelin.com/autotasks/2d858f46-cc71-4628-af9f-efade0f6b1df/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/DSL3dXteoJuVmagoSrD4Fv",
+    };
     const relayerWebhook = config.relayerWebhooks[network];
     const forwarder = config.forwarder[network];
     // Get Sedn
@@ -121,11 +127,18 @@ describe("Sedn Contract", function () {
         const sednBeforeSednSigner = await sedn.balanceOf(signer.address);
         // TODO: put this shit in helper so its not duplicated
         const fees = await feeData((await signer.provider.getNetwork()).name, signer);
-        const tx = await sedn.connect(signer).sednKnown(amount, signer.address, {
-          maxFeePerGas: fees.maxFee,
-          maxPriorityFeePerGas: fees.maxPriorityFee,
-        }); // send amount to signer itself
-        await tx.wait();
+        const txReceipt = await sendTx(
+          sedn,
+          signer,
+          signer.privateKey,
+          "sednKnown",
+          [amount, signer.address],
+          BigInt("0"),
+          network,
+          true,
+          relayerWebhook,
+          forwarder,
+        );
         // for some reason the usdcBalance does not update quickly enough
         await waitTillRecipientBalanceChanged(60_000, usdcOrigin, signer, usdcBeforeSednSigner);
         const usdcAfterSednSigner = await usdcOrigin.balanceOf(signer.address);
@@ -149,11 +162,24 @@ describe("Sedn Contract", function () {
 
         // always gasfull
         const fees = await feeData((await signer.provider.getNetwork()).name, signer);
-        const txSedn = await sedn.connect(signer).sednUnknown(amount, secret, {
-          maxFeePerGas: fees.maxFee,
-          maxPriorityFeePerGas: fees.maxPriorityFee,
-        });
-        const txReceipt = await txSedn.wait();
+        console.log("DEBUG: relayerWebhook", relayerWebhook);
+        const txReceipt = await sendTx(
+          sedn,
+          signer,
+          signer.privateKey,
+          "sednUnknown",
+          [amount, secret],
+          BigInt("0"),
+          network,
+          true,
+          relayerWebhook,
+          forwarder,
+        );
+        // const txSedn = await sedn.connect(signer).sednUnknown(amount, secret, {
+        //   maxFeePerGas: fees.maxFee,
+        //   maxPriorityFeePerGas: fees.maxPriorityFee,
+        // });
+        // const txReceipt = await txSedn.wait();
         await waitTillRecipientBalanceChanged(60_000, usdcOrigin, signer, usdcBeforeSednSigner);
         // check sending
         const usdcAfterSednSigner = await usdcOrigin.balanceOf(signer.address);
