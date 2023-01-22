@@ -17,7 +17,7 @@ import {
 } from "sedn-interfaces";
 
 import { FakeSigner } from "../../helper/FakeSigner";
-import { createUserAndGenerateIdToken, delUserByPhoneNumber } from "../../helper/authUtils";
+import { createUserAndGenerateIdToken, deleteAccountsForAnyUIDs } from "../../helper/authUtils";
 import {
   INetworkScenarios,
   apiCall,
@@ -27,7 +27,6 @@ import {
   getBalance,
   getChainFromId,
   getChainId,
-  getMax,
   getRpcUrl,
   handleTxSignature,
   instantiateFundingScenario,
@@ -62,6 +61,7 @@ ENVIRONMENT = ENVIRONMENT === "dev" ? "prod" : ENVIRONMENT; // ensure that dev i
 const testnet: boolean = process.env.TESTNET === "testnet" ? true : false; // we need to include this in workflow
 admin.initializeApp({ projectId: process.env.GCLOUD_PROJECT });
 const auth = admin.auth();
+const db = admin.firestore();
 
 // /**********************************
 // MULTICHAIN INTEGRATION TESTS
@@ -121,25 +121,34 @@ describe("Sedn Contract", function () {
     let senderAuthToken;
     let knownAuthToken;
     let claimerAuthToken;
+    let accountsToDelete;
     beforeEach(async function () {
-      console.log("INFO: beforeEach is called");
       sednVars = [];
       for (const network of deployedNetworks) {
         deployed = await getSedn(network);
         sednVars[network] = deployed;
       }
+      accountsToDelete = [
+        senderPhone,
+        knownPhone,
+        claimerPhone,
+        sednVars[networksToTest[0]].unfundedSigner.address,
+        sednVars[networksToTest[0]].signer.address,
+        sednVars[networksToTest[0]].recipient.address,
+      ];
+      await deleteAccountsForAnyUIDs(auth, db, accountsToDelete);
       senderAuthToken = await createUserAndGenerateIdToken(
         auth,
+        db,
         senderPhone,
         sednVars[networksToTest[0]].unfundedSigner.address,
       );
-      knownAuthToken = await createUserAndGenerateIdToken(auth, knownPhone, sednVars[networksToTest[0]].signer.address);
-      // make sure claimer is deleted
-      try {
-        await delUserByPhoneNumber(auth, claimerPhone);
-      } catch (e) {
-        console.log("INFO: claimer user not found");
-      }
+      knownAuthToken = await createUserAndGenerateIdToken(
+        auth,
+        db,
+        knownPhone,
+        sednVars[networksToTest[0]].signer.address,
+      );
     });
     it(`should be able to correctly sedn funds to an unknown user`, async function () {
       // partially randomized scenario creation
@@ -244,6 +253,7 @@ describe("Sedn Contract", function () {
       const solution = execution.transactions[0].solution || "";
       claimerAuthToken = await createUserAndGenerateIdToken(
         auth,
+        db,
         claimerPhone,
         sednVars[networksToTest[0]].recipient.address,
       );
@@ -559,6 +569,7 @@ describe("Sedn Contract", function () {
       const solution = execution.transactions[0].solution || "";
       claimerAuthToken = await createUserAndGenerateIdToken(
         auth,
+        db,
         claimerPhone,
         sednVars[networksToTest[0]].recipient.address,
       );
@@ -901,6 +912,7 @@ describe("Sedn Contract", function () {
       const solution = execution.transactions[0].solution || "";
       claimerAuthToken = await createUserAndGenerateIdToken(
         auth,
+        db,
         claimerPhone,
         sednVars[networksToTest[0]].recipient.address,
       );
