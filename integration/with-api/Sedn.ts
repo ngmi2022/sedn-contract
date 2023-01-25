@@ -13,6 +13,7 @@ import {
   IWireRequest,
   IWireResponse,
   IWithdrawRequest,
+  IWithdrawResponse,
   TransactionType,
 } from "sedn-interfaces";
 
@@ -50,9 +51,9 @@ let NETWORKS = process.env.NETWORKS || deployedNetworks.join(",");
 const SINGLE_NETWORK: boolean = process.env.SINGLE_NETWORK === "single" ? true : false;
 const networksToTest: string[] = NETWORKS.split(","); // ensure networks to test can be specified in workflow
 const API_URLS: any = {
-  prod: "https://us-central1-sedn-17b18.cloudfunctions.net",
-  staging: "https://us-central1-staging-sedn.cloudfunctions.net",
-  dev: "http://127.0.0.1:5001/staging-sedn/us-central1",
+  prod: "https://us-central1-sedn-production.cloudfunctions.net/",
+  staging: "https://us-central1-sedn-staging.cloudfunctions.net",
+  dev: "http://127.0.0.1:5001/sedn-staging/us-central1",
 };
 const API_URL = API_URLS[ENVIRONMENT];
 ENVIRONMENT = ENVIRONMENT === "dev" ? "prod" : ENVIRONMENT; // ensure that dev is always reverting to staging
@@ -782,7 +783,7 @@ describe("Sedn Contract", function () {
       expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount); // amount is the same for all
       //networks and represents the complete send amount
     });
-    it.only(`should be able to correctly sedn and transfer funds to an unknown user`, async function () {
+    it(`should be able to correctly sedn and transfer funds to an unknown user`, async function () {
       console.log("INFO: Creating funding scenario");
       const firstNetwork = networksToTest[0];
       const secondNetwork = networksToTest[1];
@@ -1222,10 +1223,10 @@ describe("Sedn Contract", function () {
       };
 
       // send request to API
-      const withdrawResponse: ITransaction[] = await apiCall(API_URL, "withdraw", wireRequest, senderAuthToken);
+      const withdrawResponse: IWithdrawResponse = await apiCall(API_URL, "withdraw", wireRequest, senderAuthToken);
 
       // get approve and signatures
-      const transactions: ITransaction[] = withdrawResponse;
+      const transactions: ITransaction[] = withdrawResponse.transactions;
       const signedTransactions: ITransaction[] = [];
       for (let transaction of transactions) {
         if (testnet === true && transaction.type === "bridgeWithdraw") {
