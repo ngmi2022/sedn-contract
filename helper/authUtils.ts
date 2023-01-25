@@ -10,10 +10,10 @@ const COLLECTION_NAME = "accounts";
 export const getIdToken = async (user: UserRecord) => {
   const gcloudProject = process.env.GCLOUD_PROJECT;
   let firebaseKey: string = "";
-  if (gcloudProject === "sedn-17b18") {
-    firebaseKey = process.env.FIREBASE_KEY_sedn_17b18 || "";
-  } else if (gcloudProject === "staging-sedn") {
-    firebaseKey = process.env.FIREBASE_KEY_staging_sedn || "";
+  if (gcloudProject === "sedn-production") {
+    firebaseKey = process.env.FIREBASE_KEY_sedn_production || "";
+  } else if (gcloudProject === "sedn-staging") {
+    firebaseKey = process.env.FIREBASE_KEY_sedn_staging || "";
   }
 
   let url: string;
