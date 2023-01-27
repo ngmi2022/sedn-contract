@@ -169,7 +169,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      * @param _amount The amount of USDC to be sent from EOA
      * @param secret Existing secret to identify and claim the payment
      */
-    function sednUnknownExistingSecret(uint256 _amount, bytes32 secret) external {
+    function sednUnknownToExistingSecret(uint256 _amount, bytes32 secret) external {
         address from = _msgSender();
         require(_amount > 0, "Amount must be greater than 0");
         require(usdcToken.transferFrom(from, address(this), _amount), "Token transfer failed");
@@ -332,6 +332,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         _checkClaim(solution, secret, _msgSender(), _payments[secret].amount, _till, _v, _r, _s);
         require(_msgSender() != address(0), "Transfer to the zero address not possible");
         uint256 amount = _payments[secret].amount;
+        _payments[secret].amount = 0;
         _mint(_msgSender(), amount);
         _payments[secret].completed = true; // Mark payment as completed
         emit PaymentClaimed(_msgSender(), secret, _payments[secret].amount);
@@ -365,6 +366,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
     function withdraw(uint256 amount, address to) external {
         address from = _msgSender();
         require(from != address(0), "Transfer from the zero address");
+        usdcToken.approve(address(this), amount);
         require(usdcToken.transferFrom(address(this), to, amount), "transferFrom failed");
         _burn(from, amount);
         emit Withdraw(from, to, amount);
@@ -427,6 +429,25 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", _messageHash));
     }
 
+    /**
+     * @param secret the secret of the payment
+     * @return status returns true if payment was fully claimed
+     */
+    function getPaymentStatus(bytes32 secret) public view returns (bool) {
+        require(_payments[secret].secret == secret, "Secret not found");
+        bool status = _payments[secret].completed;
+        return status;
+    }
+
+    /**
+     * @param secret the secret of the payment
+     * @return amount returns the payment amount
+     */
+    function getPaymentAmount(bytes32 secret) public view returns (uint256) {
+        require(_payments[secret].secret == secret, "Secret not found");
+        uint256 amount = _payments[secret].amount;
+        return amount;
+    }
 
     /**
      * @dev This function is internally used by _checkClaim to verify the signature
