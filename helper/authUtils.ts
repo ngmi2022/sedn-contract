@@ -79,7 +79,7 @@ const createAccountInDatabase = async (db: admin.firestore.Firestore, { phoneUID
     account.phoneUID = phoneUID;
   }
   if (walletUID) {
-    account.walletUIDs = [walletUID];
+    account.primaryWalletUID = walletUID;
   }
 
   await db.collection(COLLECTION_NAME).doc(uid).set(account);
@@ -100,20 +100,35 @@ const getAccountConnectionRecordsForAnyUID = async (
     return data;
   }
 
-  const walletAccountSnapshot = await db.collection(COLLECTION_NAME).where("walletUIDs", "array-contains", uid).get();
+  const walletAccountSnapshot = await db.collection(COLLECTION_NAME).where("primaryWalletUID", "==", uid).get();
 
   if (!walletAccountSnapshot.empty) {
-    const account = walletAccountSnapshot.docs[0].data() as IAccount;
+    const account = walletAccountSnapshot.docs.reduce((prevAcc, doc) => {
+      const data = doc.data() as IAccount;
+      if (!prevAcc?.phoneUID && !prevAcc?.primaryWalletUID) {
+        return data;
+      }
+
+      return prevAcc;
+    }, {} as IAccount);
+
     return account;
   }
 
   const phoneAccountSnapshot = await db.collection(COLLECTION_NAME).where("phoneUID", "==", uid).get();
 
   if (!phoneAccountSnapshot.empty) {
-    const account = phoneAccountSnapshot.docs[0].data() as IAccount;
+    const account = phoneAccountSnapshot.docs.reduce((prevAcc, doc) => {
+      const data = doc.data() as IAccount;
+      if (!prevAcc?.phoneUID && !prevAcc?.primaryWalletUID) {
+        return data;
+      }
+
+      return prevAcc;
+    }, {} as IAccount);
+
     return account;
   }
-
   return null;
 };
 
