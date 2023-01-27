@@ -19,8 +19,6 @@ const getRequirements = async () => {
   const circleSigner = await ethers.getImpersonatedSigner(usdcOwnerAddress); // Signer for circle's wallet
   const relayerAddress = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"; // vitalik's address
   const relayer = await ethers.getImpersonatedSigner(relayerAddress); // vitalik will be impersonated and act as our relayer signer
-  const name = "sednUSDC";
-  const symbol = "sdnUSDC";
 
   // instantiate etherscan api
   const api = require("etherscan-api").init(process.env.ETHERSCAN_API_KEY);
