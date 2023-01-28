@@ -120,7 +120,7 @@
     "etherscan-api": "^10.2.0",
     "firebase-admin": "^11.4.1",
     "polygonscan-api": "^1.0.4",
-    "sedn-interfaces": "^0.42.0"
+    "sedn-interfaces": "^0.42.1"
   },
   "main": ".solcover.js",
   "directories": {
