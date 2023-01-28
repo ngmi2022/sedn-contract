@@ -8,29 +8,28 @@ import { explorerData, feeData, getTxCostInUSD, getTxReceipt } from "./utils";
 const EIP712Domain = [
   { name: "name", type: "string" },
   { name: "version", type: "string" },
-  { name: "chainId", type: "uint256" },
   { name: "verifyingContract", type: "address" },
 ];
 
 const ForwardRequest = [
   { name: "from", type: "address" },
   { name: "to", type: "address" },
+  { name: "chainId", type: "uint256" },
   { name: "value", type: "uint256" },
   { name: "gas", type: "uint256" },
   { name: "nonce", type: "uint256" },
   { name: "data", type: "bytes" },
 ];
 
-function getMetaTxTypeData(chainId: number, verifyingContract: string) {
+function getMetaTxTypeData(verifyingContract: string) {
   return {
     types: {
       EIP712Domain,
       ForwardRequest,
     },
     domain: {
-      name: "MinimalForwarder",
+      name: "SednForwarder",
       version: "0.0.1",
-      chainId: chainId,
       verifyingContract,
     },
     primaryType: "ForwardRequest",
@@ -43,8 +42,7 @@ async function buildRequest(forwarder: ethers.Contract, input: { [key: string]: 
 }
 
 async function buildTypedData(forwarder: ethers.Contract, request: { [key: string]: any }) {
-  const chainId: number = await forwarder.provider.getNetwork().then(n => n.chainId);
-  const typeData = getMetaTxTypeData(chainId, forwarder.address);
+  const typeData = getMetaTxTypeData(forwarder.address);
   return { ...typeData, message: request };
 }
 
@@ -63,6 +61,7 @@ export async function getSignedTxRequest(
   funcName: string,
   funcArgs: any[],
   txValue: BigInt,
+  txChainId: number,
   forwarderAddress: string,
 ) {
   const forwarder = new ethers.Contract(forwarderAddress, ForwarderAbi, signer);
@@ -70,8 +69,9 @@ export async function getSignedTxRequest(
   const data = sednContract.interface.encodeFunctionData(funcName, funcArgs);
   const to = sednContract.address;
   const value = txValue.toString();
+  const chainId = txChainId.toString();
 
-  const request = await signMetaTxRequest(signerKey, forwarder, { to, from, data, value });
+  const request = await signMetaTxRequest(signerKey, forwarder, { to, from, chainId, data, value });
   return request;
 }
 
@@ -82,6 +82,7 @@ export async function sendMetaTx(
   funcName: string,
   funcArgs: any[],
   txValue: BigInt,
+  chainId: number,
   relayerWebhook: string,
   forwarderAddress: string,
 ) {
@@ -92,6 +93,7 @@ export async function sendMetaTx(
     funcName,
     funcArgs,
     txValue,
+    chainId,
     forwarderAddress,
   );
   console.log("DEBUG: sending request via webhook: ", relayerWebhook);
@@ -112,6 +114,7 @@ export async function sendTx(
   funcName: string,
   funcArgs: any[],
   txValue: BigInt,
+  chainId: number,
   network: string,
   gasless: boolean,
   relayerWebhook?: string,
@@ -129,6 +132,7 @@ export async function sendTx(
       funcName,
       funcArgs,
       txValue,
+      chainId,
       relayerWebhook,
       forwarderAddress,
     );

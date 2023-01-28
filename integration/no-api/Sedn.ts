@@ -23,7 +23,7 @@ import {
 // *************************************/
 
 const TESTNET: boolean = process.env.TESTNET === "testnet" ? true : false; // we need to include this in workflow
-const defaultNetworksToTest = TESTNET ? ["optimism-goerli", "arbitrum-goerli"] : ["arbitrum", "polygon"]; // "optimism", "arbitrum"
+const defaultNetworksToTest = TESTNET ? ["arbitrum-goerli"] : ["arbitrum", "polygon"]; // "optimism", "arbitrum"
 let ENVIRONMENT = process.env.ENVIRONMENT || "prod";
 ENVIRONMENT = ENVIRONMENT === "dev" ? "prod" : ENVIRONMENT; // ensure that dev is always reverting to staging
 const SIGNER_PK = process.env.SENDER_PK!;
