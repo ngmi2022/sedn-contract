@@ -3,7 +3,7 @@ import { ContractFactory } from "ethers";
 import { task } from "hardhat/config";
 import type { TaskArguments } from "hardhat/types";
 
-import { SednUSDC, SednUSDC__factory } from "../../src/types";
+import { TestUSDC, TestUSDC__factory } from "../../src/types";
 
 function timeout(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -11,11 +11,11 @@ function timeout(ms: number) {
 
 task("deploy:usdc").setAction(async function (taskArguments: TaskArguments, { ethers, run, network }) {
   const signers: SignerWithAddress[] = await ethers.getSigners();
-  const sednUsdcFactory: SednUSDC__factory = await ethers.getContractFactory("SednUSDC");
-  const usdc: SednUSDC = await sednUsdcFactory.connect(signers[0]).deploy(10000000);
+  const sednUsdcFactory: TestUSDC__factory = await ethers.getContractFactory("TestUSDC");
+  const usdc: TestUSDC = await sednUsdcFactory.connect(signers[0]).deploy(10000000);
   console.log(console.log(usdc.deployTransaction.hash));
   await usdc.deployed();
-  console.log("sednUSDC deployed to: ", usdc.address);
+  console.log("TestUSDC deployed to: ", usdc.address);
   if (network.name !== "hardhat") {
     // Verify contract on Etherscan
     console.log(network.name);
