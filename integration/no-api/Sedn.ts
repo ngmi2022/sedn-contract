@@ -52,12 +52,6 @@ describe("Sedn Contract", function () {
     const verifier = new ethers.Wallet(VERIFIER_PK, provider);
     const recipient = new ethers.Wallet(RECIPIENT_PK, provider);
     const unfundedSigner = new ethers.Wallet(UNFUNDED_SIGNER_PK, provider);
-    const webhooksStaging = {
-      "optimism-goerli":
-        "https://api.defender.openzeppelin.com/autotasks/f8d5a078-9408-4ab9-a390-8e94a83c53d2/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/7WpJSECEPRHpNiEums4W5A",
-      "arbitrum-goerli":
-        "https://api.defender.openzeppelin.com/autotasks/2d858f46-cc71-4628-af9f-efade0f6b1df/runs/webhook/b070ed2b-ef2a-41d4-b249-7945f96640a3/DSL3dXteoJuVmagoSrD4Fv",
-    };
     const relayerWebhook = config.relayerWebhooks[network];
     const forwarder = config.forwarder[network];
     // Get Sedn

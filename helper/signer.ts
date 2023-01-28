@@ -3,7 +3,7 @@ import { fetch } from "cross-fetch";
 import { Contract, Signer, Wallet, ethers } from "ethers";
 
 import { ForwarderAbi } from "../abis/abis";
-import { explorerData, feeData, getTxCostInUSD, getTxReceipt } from "./utils";
+import { explorerData, feeData, getChainId, getTxCostInUSD, getTxReceipt } from "./utils";
 
 const EIP712Domain = [
   { name: "name", type: "string" },
@@ -61,7 +61,7 @@ export async function getSignedTxRequest(
   funcName: string,
   funcArgs: any[],
   txValue: BigInt,
-  txChainId: number,
+  chainId: string,
   forwarderAddress: string,
 ) {
   const forwarder = new ethers.Contract(forwarderAddress, ForwarderAbi, signer);
@@ -69,7 +69,6 @@ export async function getSignedTxRequest(
   const data = sednContract.interface.encodeFunctionData(funcName, funcArgs);
   const to = sednContract.address;
   const value = txValue.toString();
-  const chainId = txChainId.toString();
 
   const request = await signMetaTxRequest(signerKey, forwarder, { to, from, chainId, data, value });
   return request;
@@ -82,7 +81,7 @@ export async function sendMetaTx(
   funcName: string,
   funcArgs: any[],
   txValue: BigInt,
-  chainId: number,
+  chainId: string,
   relayerWebhook: string,
   forwarderAddress: string,
 ) {
@@ -114,7 +113,6 @@ export async function sendTx(
   funcName: string,
   funcArgs: any[],
   txValue: BigInt,
-  chainId: number,
   network: string,
   gasless: boolean,
   relayerWebhook?: string,
@@ -122,6 +120,7 @@ export async function sendTx(
 ) {
   let txReceipt: any = null;
   let txHash: string = "";
+  let chainId: string = getChainId(network);
   if (gasless) {
     if (!relayerWebhook) throw new Error(`Missing relayer webhook url`);
     if (!forwarderAddress) throw new Error(`Missing forwarder address`);
