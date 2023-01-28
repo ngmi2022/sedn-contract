@@ -674,6 +674,7 @@ export const handleTxSignature = async (
     method,
     Object.values(args),
     value,
+    transaction.chainId.toString(),
     forwarderAddress,
   );
   return JSON.stringify(signedRequest);

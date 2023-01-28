@@ -1,15 +1,16 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { deployContract } from "@nomiclabs/hardhat-ethers/types";
 import { addresses } from "@socket.tech/ll-core";
 import { expect } from "chai";
-import { Sign } from "crypto";
-import { BigNumber, Bytes, Contract } from "ethers";
+import { BigNumber, Contract, Wallet } from "ethers";
 import { ethers, network } from "hardhat";
 import { it } from "mocha";
 
 import { FakeSigner } from "../../helper/FakeSigner";
-import { Sedn } from "../../src/types/contracts/Sedn.sol/Sedn";
+import { getSignedTxRequest } from "../../helper/signer";
+import { Sedn } from "../../src/types/contracts/Sedn/Sedn.sol/Sedn";
 import { restoreSnapshot, takeSnapshot } from "../utils/network";
-import { deploySedn } from "./sedn.contract";
+import { deploySedn, deploySednForwarder } from "./sedn.contract";
 
 if (!process.env.ETHERSCAN_API_KEY) {
   throw new Error("ETHERSCAN_API_KEY not set");
@@ -33,19 +34,13 @@ const getRequirements = async () => {
   const usdcAbi = usdcAbiObject[result];
   const usdc = new ethers.Contract(usdcAddress, usdcAbi, circleSigner);
 
-  // instantiate minimalForwarder contract
-  const forwarderAddress: string = "0x67c67a22d80466638a5d26Cd921Efb18F2C09b57";
-  const minimalForwarderAbiObject = await api.contract.getabi(forwarderAddress);
-  const minimalForwarderAbi = minimalForwarderAbiObject[result];
-  const minimalForwarder = new ethers.Contract(forwarderAddress, minimalForwarderAbi, relayer);
-
   // generate registry address for contract deployment
   const registry: string = "registry";
   const chainId: number = network.config.chainId!;
   const registryAddress: string =
     chainId !== 31337 ? addresses[chainId][registry] : "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0";
 
-  return { usdc, registryAddress, circleSigner, forwarderAddress, minimalForwarder, relayer };
+  return { usdc, registryAddress, circleSigner, relayer };
 };
 
 const sednUnknown = async (usdc: Contract, sedn: Contract, signer: SignerWithAddress, amount: string) => {
@@ -270,6 +265,7 @@ describe("Sedn", function () {
   let trusted: FakeSigner;
   let contract: Sedn;
   let usdc: Contract;
+  let forwarder: Contract;
   let registry: string;
 
   before(async function () {
@@ -283,10 +279,13 @@ describe("Sedn", function () {
     circleSigner = requirements.circleSigner;
     // other reqs
     registry = requirements.registryAddress;
+    forwarder = await deploySednForwarder([], owner);
+    await forwarder.deployed();
     contract = await deploySedn(
-      [requirements.usdc.address, requirements.registryAddress, accounts[1].address, requirements.forwarderAddress],
+      [requirements.usdc.address, requirements.registryAddress, accounts[1].address, forwarder.address],
       owner,
     );
+
     trusted = new FakeSigner(accounts[1], contract.address);
 
     // Set up usdc in account wallets
@@ -309,10 +308,9 @@ describe("Sedn", function () {
   describe("constructor", () => {
     it("should deploy", async () => {
       const requirements = await getRequirements();
-      const sedn = await deploySedn(
-        [usdc.address, registry, accounts[1].address, requirements.forwarderAddress],
-        owner,
-      );
+      const forwarder = await deploySednForwarder([], owner);
+      await forwarder.deployed();
+      const sedn = await deploySedn([usdc.address, registry, accounts[1].address, forwarder.address], owner);
       await sedn.deployed();
       expect(await sedn.owner()).to.equal(owner.address);
       expect(await sedn.usdcToken()).to.equal(usdc.address);
@@ -502,6 +500,46 @@ describe("Sedn", function () {
       const sednAfterClaimSender = await contract.balanceOf(sender.address);
       expect(usdcBeforeClaimContract.sub(usdcAfterClaimContract)).to.equal(amount);
       expect(sednBeforeClaimSender.sub(sednAfterClaimSender)).to.equal(amount);
+    });
+  });
+  describe("forwarder", () => {
+    it("should relay a transaction successfully", async () => {
+      await contract.deployed();
+      await forwarder.deployed();
+      // get balance before execution
+      const sednBalanceBeforeClaimer = await contract.balanceOf(claimer.address);
+      const usdcBalanceBeforeSender = await usdc.balanceOf(sender.address);
+
+      // instantiate sender as wallet
+      const senderWallet = Wallet.fromMnemonic(process.env.MNEMONIC!, "m/44'/60'/0'/0/3");
+
+      // Sign and "Relay" --> owner acts as relayer
+      const { chainId } = await sender.provider!.getNetwork();
+      await usdc.connect(sender).approve(contract.address, amount);
+      const signedTx = await getSignedTxRequest(
+        contract,
+        sender,
+        senderWallet.privateKey,
+        "sednKnown",
+        [amount, claimer.address],
+        BigInt("0"),
+        chainId.toString(),
+        forwarder.address,
+      );
+      console.log("Sender vs. Owner:", sender.address, owner.address);
+      const valid = await forwarder.connect(owner).verify(signedTx.request, signedTx.signature);
+      if (!valid) throw new Error("Invalid signature");
+      const tx = await forwarder
+        .connect(owner)
+        .execute(signedTx.request, signedTx.signature, { value: signedTx.request.value });
+
+      // balances after execution
+      const sednBalanceAfterClaimer = await contract.balanceOf(claimer.address);
+      const usdcBalanceAfterSender = await usdc.balanceOf(sender.address);
+
+      // check correct balances
+      expect(sednBalanceAfterClaimer.sub(sednBalanceBeforeClaimer)).to.equal(amount);
+      expect(usdcBalanceBeforeSender.sub(usdcBalanceAfterSender)).to.equal(amount);
     });
   });
 });

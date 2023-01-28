@@ -1,6 +1,5 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
 import { expect } from "chai";
-import fetch from "cross-fetch";
 import { BigNumber, Contract, Wallet, ethers } from "ethers";
 
 import { FakeSigner } from "../../helper/FakeSigner";
@@ -111,7 +110,7 @@ describe("Sedn Contract", function () {
         relayerWebhook = deployed.relayerWebhook;
         forwarder = deployed.forwarder;
       });
-      it("should correctly send funds to a registered user", async function () {
+      it.only("should correctly send funds to a registered user", async function () {
         // check allowance & if necessary increase approve
         const allowanceChecked = await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount));
 

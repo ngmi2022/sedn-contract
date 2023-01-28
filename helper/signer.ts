@@ -95,6 +95,7 @@ export async function sendMetaTx(
     chainId,
     forwarderAddress,
   );
+  console.log("DEBUG: request: ", request);
   console.log("DEBUG: sending request via webhook: ", relayerWebhook);
   const response = await fetch(relayerWebhook, {
     method: "POST",
