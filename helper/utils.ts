@@ -26,6 +26,7 @@ export interface IScenario {
 export const fetchConfig = async () => {
   const ENVIRONMENT = process.env.ENVIRONMENT;
   if (ENVIRONMENT === "staging") {
+    console.log("confit environment:", ENVIRONMENT);
     return await (
       await fetch("https://storage.googleapis.com/sedn-public-config/v2.staging.config.json?avoidTheCaches=1")
     ).json();

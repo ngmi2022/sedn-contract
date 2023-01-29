@@ -1,4 +1,4 @@
-import { SignTypedDataVersion, signTypedData } from "@metamask/eth-sig-util";
+import { SignTypedDataVersion, TypedMessage, signTypedData } from "@metamask/eth-sig-util";
 import { fetch } from "cross-fetch";
 import { Contract, Signer, Wallet, ethers } from "ethers";
 
@@ -18,6 +18,7 @@ const ForwardRequest = [
   { name: "value", type: "uint256" },
   { name: "gas", type: "uint256" },
   { name: "nonce", type: "uint256" },
+  { name: "valid", type: "uint256" },
   { name: "data", type: "bytes" },
 ];
 
@@ -29,24 +30,28 @@ function getMetaTxTypeData(verifyingContract: string) {
     },
     domain: {
       name: "SednForwarder",
-      version: "0.0.1",
+      version: "0.0.2",
       verifyingContract,
     },
     primaryType: "ForwardRequest",
   };
 }
 
-async function buildRequest(forwarder: ethers.Contract, input: { [key: string]: any }) {
+async function buildRequest(forwarder: ethers.Contract, input: { [key: string]: string | number }) {
   const nonce = await forwarder.getNonce(input.from).then(nonce => nonce.toString());
   return { value: 0, gas: 1e6, nonce, ...input };
 }
 
-async function buildTypedData(forwarder: ethers.Contract, request: { [key: string]: any }) {
+async function buildTypedData(forwarder: ethers.Contract, request: { [key: string]: string | number }) {
   const typeData = getMetaTxTypeData(forwarder.address);
   return { ...typeData, message: request };
 }
 
-export async function signMetaTxRequest(privateKey: string, forwarder: Contract, input: { [key: string]: string }) {
+export async function signMetaTxRequest(
+  privateKey: string,
+  forwarder: Contract,
+  input: { [key: string]: string | number },
+) {
   const request = await buildRequest(forwarder, input);
   const toSign = await buildTypedData(forwarder, request);
   console.log("toSign: ", JSON.stringify(toSign));
@@ -62,7 +67,8 @@ export async function getSignedTxRequest(
   funcName: string,
   funcArgs: any[],
   txValue: BigInt,
-  chainid: string,
+  chainId: number,
+  validUntilTime: number,
   forwarderAddress: string,
 ) {
   const forwarder = new ethers.Contract(forwarderAddress, ForwarderAbi, signer);
@@ -70,8 +76,10 @@ export async function getSignedTxRequest(
   const data = sednContract.interface.encodeFunctionData(funcName, funcArgs);
   const to = sednContract.address;
   const value = txValue.toString();
+  const valid = validUntilTime.toString();
+  const chainid = chainId.toString();
 
-  const request = await signMetaTxRequest(signerKey, forwarder, { to, from, chainid, data, value });
+  const request = await signMetaTxRequest(signerKey, forwarder, { to, from, chainid, data, valid, value });
   return request;
 }
 
@@ -82,7 +90,8 @@ export async function sendMetaTx(
   funcName: string,
   funcArgs: any[],
   txValue: BigInt,
-  chainId: string,
+  chainId: number,
+  validUntilTime: number,
   relayerWebhook: string,
   forwarderAddress: string,
 ) {
@@ -94,6 +103,7 @@ export async function sendMetaTx(
     funcArgs,
     txValue,
     chainId,
+    validUntilTime,
     forwarderAddress,
   );
   console.log("DEBUG: request: ", request);
@@ -116,13 +126,14 @@ export async function sendTx(
   funcArgs: any[],
   txValue: BigInt,
   network: string,
+  validUntilTime: number,
   gasless: boolean,
   relayerWebhook?: string,
   forwarderAddress?: string,
 ) {
   let txReceipt: any = null;
   let txHash: string = "";
-  let chainId: string = getChainId(network);
+  let chainId = parseInt(getChainId(network));
   if (gasless) {
     if (!relayerWebhook) throw new Error(`Missing relayer webhook url`);
     if (!forwarderAddress) throw new Error(`Missing forwarder address`);
@@ -134,6 +145,7 @@ export async function sendTx(
       funcArgs,
       txValue,
       chainId,
+      validUntilTime,
       relayerWebhook,
       forwarderAddress,
     );

@@ -1,5 +1,5 @@
 import { DefenderRelayProvider, DefenderRelaySigner } from "defender-relay-client/lib/ethers";
-import { Contract, BigNumber, ethers } from "ethers";
+import { Contract, BigNumber, ethers, Wallet } from "ethers";
 
 import { ForwarderAbi } from "../../abis/abis";
 

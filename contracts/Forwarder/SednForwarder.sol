@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./EIP712Adapted.sol";
@@ -25,27 +25,30 @@ contract SednForwarder is EIP712Adapted {
         uint256 gas;
         uint256 nonce;
         bytes data;
+        uint256 valid;
     }
 
     bytes32 private constant _TYPEHASH =
         keccak256(
-            "ForwardRequest(address from,address to,uint256 chainid,uint256 value,uint256 gas,uint256 nonce,bytes data)"
+            "ForwardRequest(address from,address to,uint256 chainid"
+            ",uint256 value,uint256 gas,uint256 nonce,uint256 valid,bytes data)"
             );
 
     mapping(address => uint256) private _nonces;
 
-    constructor() EIP712Adapted("SednForwarder", "0.0.1") {}
+    constructor() EIP712Adapted("SednForwarder", "0.0.2") {}
 
     function getNonce(address from) public view returns (uint256) {
         return _nonces[from];
     }
 
     function verify(ForwardRequest calldata req, bytes calldata signature) public view returns (bool) {
-        require(req.chainid == block.chainid, "SednForwarder: Wrong chain Id");
+        require(req.valid == 0 || req.valid > block.timestamp, "SednForwarder: request expired");
+        require(req.chainid == block.chainid, "SednForwarder: wrong chain id");
         address signer = _hashTypedDataV4(
             keccak256(
                 abi.encode(
-                _TYPEHASH, req.from, req.to, req.chainid, req.value, req.gas, req.nonce, keccak256(req.data)
+                _TYPEHASH, req.from, req.to, req.chainid, req.value, req.gas, req.nonce, req.valid, keccak256(req.data)
                 )
             )
         ).recover(signature);

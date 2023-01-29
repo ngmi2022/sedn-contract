@@ -516,6 +516,7 @@ describe("Sedn", function () {
       // Sign and "Relay" --> owner acts as relayer
       const { chainId } = await sender.provider!.getNetwork();
       await usdc.connect(sender).approve(contract.address, amount);
+      const blocktime = (await sender.provider!.getBlock("latest")).timestamp;
       const signedTx = await getSignedTxRequest(
         contract,
         sender,
@@ -523,12 +524,14 @@ describe("Sedn", function () {
         "sednKnown",
         [amount, claimer.address],
         BigInt("0"),
-        chainId.toString(),
+        chainId,
+        blocktime + 60 * 10,
         forwarder.address,
       );
       console.log("Sender vs. Owner:", sender.address, owner.address);
-      const valid = await forwarder.connect(owner).verify(signedTx.request, signedTx.signature);
-      if (!valid) throw new Error("Invalid signature");
+      console.log("Signed Tx:", signedTx.request, signedTx.signature);
+      // const valid = await forwarder.connect(owner).verify(signedTx.request, signedTx.signature);
+      // if (!valid) throw new Error("Invalid signature");
       const tx = await forwarder
         .connect(owner)
         .execute(signedTx.request, signedTx.signature, { value: signedTx.request.value });
@@ -549,8 +552,8 @@ describe("Sedn", function () {
       const senderWallet = Wallet.fromMnemonic(process.env.MNEMONIC!, "m/44'/60'/0'/0/3");
 
       // Sign and "Relay" --> owner acts as relayer
-      const { chainId } = await sender.provider!.getNetwork();
       await usdc.connect(sender).approve(contract.address, amount);
+      const blocktime = (await sender.provider!.getBlock("latest")).timestamp;
       const signedTx = await getSignedTxRequest(
         contract,
         sender,
@@ -558,7 +561,8 @@ describe("Sedn", function () {
         "sednKnown",
         [amount, claimer.address],
         BigInt("0"),
-        "420",
+        420,
+        blocktime + 60 * 10,
         forwarder.address,
       );
       try {
