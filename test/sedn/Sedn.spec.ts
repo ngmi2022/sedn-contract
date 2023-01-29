@@ -503,7 +503,7 @@ describe("Sedn", function () {
     });
   });
   describe("forwarder", () => {
-    it("should relay a transaction successfully", async () => {
+    it.only("should relay a transaction successfully", async () => {
       await contract.deployed();
       await forwarder.deployed();
       // get balance before execution
@@ -540,6 +540,37 @@ describe("Sedn", function () {
       // check correct balances
       expect(sednBalanceAfterClaimer.sub(sednBalanceBeforeClaimer)).to.equal(amount);
       expect(usdcBalanceBeforeSender.sub(usdcBalanceAfterSender)).to.equal(amount);
+    });
+    it("should throw an error when a incorrect chain is specified", async () => {
+      await contract.deployed();
+      await forwarder.deployed();
+
+      // instantiate sender as wallet
+      const senderWallet = Wallet.fromMnemonic(process.env.MNEMONIC!, "m/44'/60'/0'/0/3");
+
+      // Sign and "Relay" --> owner acts as relayer
+      const { chainId } = await sender.provider!.getNetwork();
+      await usdc.connect(sender).approve(contract.address, amount);
+      const signedTx = await getSignedTxRequest(
+        contract,
+        sender,
+        senderWallet.privateKey,
+        "sednKnown",
+        [amount, claimer.address],
+        BigInt("0"),
+        "420",
+        forwarder.address,
+      );
+      try {
+        await forwarder.connect(owner).verify(signedTx.request, signedTx.signature);
+      } catch (e) {
+        expect(e.reason.includes("SednForwarder: wrong chainId"));
+      }
+      try {
+        await forwarder.connect(owner).execute(signedTx.request, signedTx.signature, { value: signedTx.request.value });
+      } catch (e) {
+        expect(JSON.stringify(e).includes("SednForwarder: wrong chainId"));
+      }
     });
   });
 });

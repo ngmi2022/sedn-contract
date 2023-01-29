@@ -352,14 +352,19 @@ export const waitTillRecipientBalanceChanged = async (
 export const checkAllowance = async (usdcOrigin: Contract, signer: Wallet, sedn: Contract, amount: BigNumber) => {
   // check allowance & if necessary increase approve
   const allowance = await usdcOrigin.allowance(signer.address, sedn.address);
+  const network = (await signer.provider.getNetwork()).name;
   console.log(
     `INFO: current allowance ${allowance.toString()} for signer ${signer.address} and contract ${
       sedn.address
-    } on network ${(await signer.provider.getNetwork()).name}.`,
+    } on network ${network}.`,
   );
   if (allowance.lt(amount)) {
     const increasedAllowance = amount.sub(allowance);
-    const approve = await usdcOrigin.connect(signer).increaseAllowance(sedn.address, increasedAllowance);
+    const fee = await feeData(network, signer);
+    const approve = await usdcOrigin.connect(signer).increaseAllowance(sedn.address, increasedAllowance, {
+      maxFeePerGas: fee.maxFee,
+      maxPriorityFeePerGas: fee.maxPriorityFee,
+    });
     await approve.wait();
     console.log("INFO: Allowance increased");
   }

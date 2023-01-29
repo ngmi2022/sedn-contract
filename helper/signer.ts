@@ -14,7 +14,7 @@ const EIP712Domain = [
 const ForwardRequest = [
   { name: "from", type: "address" },
   { name: "to", type: "address" },
-  { name: "chainId", type: "uint256" },
+  { name: "chainid", type: "uint256" },
   { name: "value", type: "uint256" },
   { name: "gas", type: "uint256" },
   { name: "nonce", type: "uint256" },
@@ -49,6 +49,7 @@ async function buildTypedData(forwarder: ethers.Contract, request: { [key: strin
 export async function signMetaTxRequest(privateKey: string, forwarder: Contract, input: { [key: string]: string }) {
   const request = await buildRequest(forwarder, input);
   const toSign = await buildTypedData(forwarder, request);
+  console.log("toSign: ", JSON.stringify(toSign));
   const BufferPk: Buffer = Buffer.from(privateKey.replace(/^0x/, ""), "hex");
   const signature = signTypedData({ privateKey: BufferPk, data: toSign, version: SignTypedDataVersion.V4 });
   return { signature, request };
@@ -61,7 +62,7 @@ export async function getSignedTxRequest(
   funcName: string,
   funcArgs: any[],
   txValue: BigInt,
-  chainId: string,
+  chainid: string,
   forwarderAddress: string,
 ) {
   const forwarder = new ethers.Contract(forwarderAddress, ForwarderAbi, signer);
@@ -70,7 +71,7 @@ export async function getSignedTxRequest(
   const to = sednContract.address;
   const value = txValue.toString();
 
-  const request = await signMetaTxRequest(signerKey, forwarder, { to, from, chainId, data, value });
+  const request = await signMetaTxRequest(signerKey, forwarder, { to, from, chainid, data, value });
   return request;
 }
 

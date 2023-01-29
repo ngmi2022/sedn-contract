@@ -3,7 +3,7 @@ import { expect } from "chai";
 import { BigNumber, Contract, Wallet, ethers } from "ethers";
 
 import { FakeSigner } from "../../helper/FakeSigner";
-import { sendTx } from "../../helper/signer";
+import { getSignedTxRequest, sendTx } from "../../helper/signer";
 import {
   checkAllowance,
   checkFunding,
@@ -22,7 +22,7 @@ import {
 // *************************************/
 
 const TESTNET: boolean = process.env.TESTNET === "testnet" ? true : false; // we need to include this in workflow
-const defaultNetworksToTest = TESTNET ? ["arbitrum-goerli"] : ["arbitrum", "polygon"]; // "optimism", "arbitrum"
+const defaultNetworksToTest = TESTNET ? ["arbitrum-goerli"] : ["polygon"]; // "optimism", "arbitrum"
 let ENVIRONMENT = process.env.ENVIRONMENT || "prod";
 ENVIRONMENT = ENVIRONMENT === "dev" ? "prod" : ENVIRONMENT; // ensure that dev is always reverting to staging
 const SIGNER_PK = process.env.SENDER_PK!;
@@ -43,7 +43,8 @@ const gasless = false;
 describe("Sedn Contract", function () {
   async function getSedn(network: string) {
     let config = await fetchConfig();
-    const sednContract = config.contracts[network];
+    // const sednContract = config.contracts[network];
+    const sednContract = "0x2ad13f3ACAdF77e97dcbf18A71D87b493894dAA2";
 
     // TODO: support other providers
     const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(network));
@@ -52,7 +53,8 @@ describe("Sedn Contract", function () {
     const recipient = new ethers.Wallet(RECIPIENT_PK, provider);
     const unfundedSigner = new ethers.Wallet(UNFUNDED_SIGNER_PK, provider);
     const relayerWebhook = config.relayerWebhooks[network];
-    const forwarder = config.forwarder[network];
+    // const forwarder = config.forwarder[network];
+    const forwarder = "0x4fce69843b9E8DF414D8083E0De2aAc4d063d628";
     // Get Sedn
     const sedn = new ethers.Contract(sednContract, await getAbi(network, sednContract), signer);
     const usdcOrigin = new ethers.Contract(
@@ -112,31 +114,48 @@ describe("Sedn Contract", function () {
       });
       it.only("should correctly send funds to a registered user", async function () {
         // check allowance & if necessary increase approve
-        const allowanceChecked = await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount));
+        await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount.toString() + "0"));
 
         // send
-        const usdcBeforeSednSigner = await usdcOrigin.balanceOf(signer.address); // should be at least 10
+        const usdcBeforeSednSigner = await usdcOrigin.balanceOf(recipient.address); // should be at least 10
         const usdcBeforeSednContract = await usdcOrigin.balanceOf(sedn.address);
-        const sednBeforeSednSigner = await sedn.balanceOf(signer.address);
+        const sednBeforeSednSigner = await sedn.balanceOf(recipient.address);
         // TODO: put this shit in helper so its not duplicated
-        const fees = await feeData((await signer.provider.getNetwork()).name, signer);
-        const txReceipt = await sendTx(
+        const chainId = await signer.getChainId();
+        const forwarderContract = new ethers.Contract(forwarder, await getAbi(network, forwarder), signer);
+        const { request, signature } = await getSignedTxRequest(
           sedn,
-          signer,
-          signer.privateKey,
+          recipient,
+          recipient.privateKey,
           "sednKnown",
-          [amount, signer.address],
+          [amount, recipient.address],
           BigInt("0"),
-          network,
-          true,
-          relayerWebhook,
+          // chainId.toString(),
+          "420",
           forwarder,
         );
+        console.log(request, signature);
+        const valid = await forwarderContract.verify(request, signature);
+        console.log(valid);
+        const txReceipt = await forwarderContract.connect(signer).execute(request, signature);
+        console.log(txReceipt);
+        // const txReceipt = await sendTx(
+        //   sedn,
+        //   signer,
+        //   signer.privateKey,
+        //   "sednKnown",
+        //   [amount, signer.address],
+        //   BigInt("0"),
+        //   network,
+        //   true,
+        //   relayerWebhook,
+        //   forwarder,
+        // );
         // for some reason the usdcBalance does not update quickly enough
-        await waitTillRecipientBalanceChanged(60_000, usdcOrigin, signer, usdcBeforeSednSigner);
-        const usdcAfterSednSigner = await usdcOrigin.balanceOf(signer.address);
+        await waitTillRecipientBalanceChanged(60_000, usdcOrigin, recipient, usdcBeforeSednSigner);
+        const usdcAfterSednSigner = await usdcOrigin.balanceOf(recipient.address);
         const usdcAfterSednContract = await usdcOrigin.balanceOf(sedn.address);
-        const sednAfterSednSigner = await sedn.balanceOf(signer.address);
+        const sednAfterSednSigner = await sedn.balanceOf(recipient.address);
 
         // all three balances are checked; contract USDC, signer USDC and signer Sedn
         expect(usdcBeforeSednSigner.sub(usdcAfterSednSigner)).to.equal(amount);

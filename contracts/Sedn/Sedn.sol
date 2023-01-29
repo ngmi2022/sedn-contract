@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/metatx/ERC2771Context.sol";
-import "@openzeppelin/contracts/metatx/MinimalForwarder.sol";
+import "../Forwarder/SednForwarder.sol";
 
 error SednError();
 
@@ -115,7 +115,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         address _usdcTokenAddressForChain,
         address _registryDeploymentAddressForChain,
         address _trustedVerifyAddress,
-        MinimalForwarder _trustedForwarder
+        SednForwarder _trustedForwarder
     ) 
     ERC2771Context(address(_trustedForwarder)) ERC20("Sedn USDC", "sdnUSDC"){
         console.log(
@@ -129,13 +129,13 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
     }
 
     ///@inheritdoc ERC2771Context
-    function _msgSender() internal view override(Context, ERC2771Context)
+    function _msgSender() internal view virtual override (Context, ERC2771Context)
         returns (address sender) {
         sender = ERC2771Context._msgSender();
     }
 
     ///@inheritdoc ERC2771Context
-    function _msgData() internal view override(Context, ERC2771Context)
+    function _msgData() internal view virtual override (Context, ERC2771Context)
         returns (bytes calldata) {
         return ERC2771Context._msgData();
     }
