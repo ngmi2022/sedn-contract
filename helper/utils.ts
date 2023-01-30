@@ -26,10 +26,12 @@ export interface IScenario {
 export const fetchConfig = async () => {
   const ENVIRONMENT = process.env.ENVIRONMENT;
   if (ENVIRONMENT === "staging") {
+    console.log("config environment:", ENVIRONMENT);
     return await (
       await fetch("https://storage.googleapis.com/sedn-public-config/v2.staging.config.json?avoidTheCaches=1")
     ).json();
   }
+  console.log("config environment:", ENVIRONMENT);
   return await (
     await fetch("https://storage.googleapis.com/sedn-public-config/v2.config.json?avoidTheCaches=1")
   ).json();
@@ -44,7 +46,7 @@ export const getTxCostInUSD = async (receipt: any, network: string) => {
       nativeAmount = ethers.utils.formatEther(receipt.gasUsed); // apparently optimism-goerli is always 1 wei
       break;
     case "optimism":
-      nativeAmount = ethers.utils.formatEther(receipt.effectiveGasPrice.mul(receipt.gasUsed));
+      nativeAmount = ethers.utils.formatEther(receipt.gasUsed);
       break;
     default:
       nativeAmount = ethers.utils.formatEther(receipt.effectiveGasPrice.mul(receipt.gasUsed));
@@ -150,7 +152,7 @@ export const explorerData: any = {
   },
   optimism: {
     url: "https://optimistic.etherscan.io/",
-    api: "https://api-optimistic.etherscan.io/",
+    api: "https://api-optimistic.etherscan.io/api",
     apiKey: process.env.OPTIMISM_API_KEY!,
   },
   "optimism-goerli": {
@@ -352,14 +354,19 @@ export const waitTillRecipientBalanceChanged = async (
 export const checkAllowance = async (usdcOrigin: Contract, signer: Wallet, sedn: Contract, amount: BigNumber) => {
   // check allowance & if necessary increase approve
   const allowance = await usdcOrigin.allowance(signer.address, sedn.address);
+  const network = (await signer.provider.getNetwork()).name;
   console.log(
     `INFO: current allowance ${allowance.toString()} for signer ${signer.address} and contract ${
       sedn.address
-    } on network ${(await signer.provider.getNetwork()).name}.`,
+    } on network ${network}.`,
   );
   if (allowance.lt(amount)) {
     const increasedAllowance = amount.sub(allowance);
-    const approve = await usdcOrigin.connect(signer).increaseAllowance(sedn.address, increasedAllowance);
+    const fee = await feeData(network, signer);
+    const approve = await usdcOrigin.connect(signer).increaseAllowance(sedn.address, increasedAllowance, {
+      maxFeePerGas: fee.maxFee,
+      maxPriorityFeePerGas: fee.maxPriorityFee,
+    });
     await approve.wait();
     console.log("INFO: Allowance increased");
   }
@@ -674,6 +681,7 @@ export const handleTxSignature = async (
     method,
     Object.values(args),
     value,
+    transaction.chainId.toString(),
     forwarderAddress,
   );
   return JSON.stringify(signedRequest);
