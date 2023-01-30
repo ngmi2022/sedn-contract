@@ -3,7 +3,7 @@ import { expect } from "chai";
 import { BigNumber, Contract, Wallet, ethers } from "ethers";
 
 import { FakeSigner } from "../../helper/FakeSigner";
-import { getSignedTxRequest, sendTx } from "../../helper/signer";
+import { sendTx } from "../../helper/signer";
 import {
   checkAllowance,
   checkFunding,
@@ -22,7 +22,7 @@ import {
 // *************************************/
 
 const TESTNET: boolean = process.env.TESTNET === "testnet" ? true : false; // we need to include this in workflow
-const defaultNetworksToTest = TESTNET ? ["arbitrum-goerli"] : ["polygon"]; // "optimism", "arbitrum"
+const defaultNetworksToTest = TESTNET ? ["arbitrum-goerli"] : ["optimism"]; // "optimism", "arbitrum"
 let ENVIRONMENT = process.env.ENVIRONMENT || "prod";
 ENVIRONMENT = ENVIRONMENT === "dev" ? "prod" : ENVIRONMENT; // ensure that dev is always reverting to staging
 const SIGNER_PK = process.env.SENDER_PK!;
@@ -34,7 +34,7 @@ let NETWORKS = process.env.NETWORKS || defaultNetworksToTest.join(",");
 const networksToTest: string[] = NETWORKS.split(","); // ensure networks to test can be specified in workflow
 
 // fixed variables
-const gasless = false;
+const gasless = true;
 
 // /**********************************
 // NO-API INTEGRATION TESTS

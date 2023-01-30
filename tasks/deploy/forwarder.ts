@@ -3,7 +3,6 @@ import { task } from "hardhat/config";
 import type { TaskArguments } from "hardhat/types";
 
 import type { SednForwarder, SednForwarder__factory } from "../../src/types";
-// import type { MinimalForwarderAdapted, MinimalForwarderAdapted__factory } from "../../src/types";
 
 function timeout(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -12,9 +11,7 @@ function timeout(ms: number) {
 task("deploy:forwarder").setAction(async function (taskArguments: TaskArguments, { ethers, run, network }) {
   const signers: SignerWithAddress[] = await ethers.getSigners();
   const forwarderFactory: SednForwarder__factory = await ethers.getContractFactory("SednForwarder");
-  // const forwarderFactory: MinimalForwarderAdapted__factory = await ethers.getContractFactory("MinimalForwarderAdapted");
   const forwarder: SednForwarder = await forwarderFactory.connect(signers[0]).deploy();
-  // const forwarder: MinimalForwarderAdapted = await forwarderFactory.connect(signers[0]).deploy();
   console.log(forwarder.deployTransaction.hash);
   await forwarder.deployed();
   console.log("Forwarder deployed to: ", forwarder.address);

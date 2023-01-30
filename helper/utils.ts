@@ -45,7 +45,7 @@ export const getTxCostInUSD = async (receipt: any, network: string) => {
       nativeAmount = ethers.utils.formatEther(receipt.gasUsed); // apparently optimism-goerli is always 1 wei
       break;
     case "optimism":
-      nativeAmount = ethers.utils.formatEther(receipt.effectiveGasPrice.mul(receipt.gasUsed));
+      nativeAmount = ethers.utils.formatEther(receipt.gasUsed);
       break;
     default:
       nativeAmount = ethers.utils.formatEther(receipt.effectiveGasPrice.mul(receipt.gasUsed));
@@ -151,7 +151,7 @@ export const explorerData: any = {
   },
   optimism: {
     url: "https://optimistic.etherscan.io/",
-    api: "https://api-optimistic.etherscan.io/",
+    api: "https://api-optimistic.etherscan.io/api",
     apiKey: process.env.OPTIMISM_API_KEY!,
   },
   "optimism-goerli": {

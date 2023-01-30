@@ -60,26 +60,30 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
       jsonRpcUrl = "https://bsc-dataseed1.binance.org";
       break;
     case "polygon-mainnet":
-      jsonRpcUrl = "https://polygon-rpc.com/";
+      jsonRpcUrl = "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
       break;
     case "polygon-mumbai":
-      jsonRpcUrl = "https://rpc-mumbai.maticvigil.com/";
+      jsonRpcUrl = "https://powerful-light-brook.matic-testnet.quiknode.pro/6ce1404fa2fdf675ffdeaf2e9036a35a83f2d96a/";
       break;
     case "gnosis":
       jsonRpcUrl = "https://rpc.gnosischain.com";
       break;
     case "arbitrum-mainnet":
       jsonRpcUrl =
-        "https://cosmopolitan-cold-water.arbitrum-mainnet.discover.quiknode.pro/ed37e37499d524083f3ae91b9f095ac41d3821b5/";
+        "https://convincing-quaint-lake.arbitrum-mainnet.quiknode.pro/857d08a452034d62d798dafb506880500502adc7/";
       break;
     case "goerli":
       jsonRpcUrl = "https://goerli.infura.io/v3/";
       break;
     case "arbitrum-goerli":
-      jsonRpcUrl = "https://arbitrum-goerli.infura.io/v3/" + infuraApiKey;
+      jsonRpcUrl =
+        "https://omniscient-solitary-scion.arbitrum-goerli.quiknode.pro/1c662c045e1a377100a0126ecfca768035478346/";
       break;
     case "optimism":
-      jsonRpcUrl = "https://optimism-mainnet.infura.io/v3/" + infuraApiKey;
+      jsonRpcUrl = "https://floral-winter-wave.optimism.quiknode.pro/3a10eae6b3a92cec115ab3ecd846d513dc4336d2/";
+      break;
+    case "optimism-goerli":
+      jsonRpcUrl = "https://winter-few-bush.optimism-goerli.quiknode.pro/1fb6db633eccb68892918719fcf6b6f003b112ee/";
       break;
     default:
       jsonRpcUrl = "https://" + chain + ".infura.io/v3/" + infuraApiKey;
