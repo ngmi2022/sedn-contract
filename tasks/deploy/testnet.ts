@@ -15,14 +15,12 @@ task("deploy:testnet").setAction(async function (taskArguments: TaskArguments, {
   const configData = await fetchConfig();
   const registryAddress: string = "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0"; // mainnet registry address, could really be anything
   const sednFactory: SednTestnet__factory = await ethers.getContractFactory("SednTestnet");
-  const name = "SednV2";
-  const symbol = "sdnUSDC";
   const trustedForwarder = configData.forwarder[network.name];
   const verifier = configData.verifier;
   const usdcTokenAddress = configData.usdc[network.name].contract;
   const sedn: SednTestnet = await sednFactory
     .connect(signers[0])
-    .deploy(usdcTokenAddress, registryAddress, verifier, name, symbol, trustedForwarder);
+    .deploy(usdcTokenAddress, registryAddress, verifier, trustedForwarder);
   await sedn.deployed();
   console.log("Sedn deployed to: ", sedn.address);
 
@@ -32,7 +30,7 @@ task("deploy:testnet").setAction(async function (taskArguments: TaskArguments, {
     await run("verify:verify", {
       address: sedn.address,
       network: network.name,
-      constructorArguments: [usdcTokenAddress, registryAddress, verifier, name, symbol, trustedForwarder],
+      constructorArguments: [usdcTokenAddress, registryAddress, verifier, trustedForwarder],
     });
   }
 });

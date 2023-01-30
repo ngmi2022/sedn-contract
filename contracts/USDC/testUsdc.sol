@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
  * Note they can later distribute these tokens as they wish using `transfer` and other
  * `ERC20` functions.
  */
-contract SednUSDC is ERC20 {
+contract testUSDC is ERC20 {
     /**
      * @dev Constructor that gives msg.sender all of existing tokens.
      */

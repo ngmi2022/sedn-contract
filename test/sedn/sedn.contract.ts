@@ -3,7 +3,8 @@ import { Signer } from "ethers";
 import { Contract } from "ethers";
 import { ethers } from "hardhat";
 
-import { Sedn } from "../../src/types/contracts/Sedn.sol/Sedn";
+import { SednForwarder } from "../../src/types";
+import { Sedn } from "../../src/types/contracts/Sedn/Sedn.sol/Sedn";
 
 export const deployContract = async <ContractType extends Contract>(
   contractName: string,
@@ -15,4 +16,8 @@ export const deployContract = async <ContractType extends Contract>(
 
 export const deploySedn = async (args: string[], signer: SignerWithAddress): Promise<Sedn> => {
   return deployContract("Sedn", args, signer);
+};
+
+export const deploySednForwarder = async (args: string[], signer: SignerWithAddress): Promise<SednForwarder> => {
+  return deployContract("SednForwarder", args, signer);
 };

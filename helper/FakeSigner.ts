@@ -3,14 +3,14 @@ import { Sign } from "crypto";
 import { BigNumber, Wallet } from "ethers";
 import { ethers } from "ethers";
 
-import ABI from "../artifacts/contracts/Sedn.sol/Sedn.json";
-import { Sedn } from "../src/types/contracts/Sedn.sol/Sedn";
+import ABI from "../artifacts/contracts/Sedn/Sedn.sol/Sedn.json";
+import { Sedn } from "../src/types/contracts/Sedn/Sedn.sol/Sedn";
 
 export class FakeSigner {
-  signer: Wallet;
+  signer: Wallet | SignerWithAddress;
   sedn: Sedn;
 
-  constructor(signer: Wallet, sednContractAddress: string) {
+  constructor(signer: Wallet | SignerWithAddress, sednContractAddress: string) {
     this.signer = signer;
     this.sedn = new ethers.Contract(sednContractAddress, ABI.abi, signer) as Sedn;
   }
