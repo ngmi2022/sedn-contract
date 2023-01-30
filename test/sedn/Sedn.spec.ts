@@ -503,7 +503,7 @@ describe("Sedn", function () {
     });
   });
   describe("forwarder", () => {
-    it.only("should relay a transaction successfully", async () => {
+    it("should relay a transaction successfully", async () => {
       await contract.deployed();
       await forwarder.deployed();
       // get balance before execution
