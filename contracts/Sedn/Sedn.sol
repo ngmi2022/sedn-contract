@@ -91,6 +91,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
     event Clawback(address indexed recipient, bytes32 secret, uint256 amount);
 
     mapping(bytes32 => uint256) private _payments;
+    mapping(bytes32 => uint256) private _senderPayments;
 
     /**
      * @param _usdcTokenAddressForChain Address for the USDC implementation for chain
@@ -137,6 +138,11 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         } catch {
             return 6;
         }
+    }
+
+    function _addPayments(bytes32 secret, uint256 amount, ) private {
+        _payments[secret] += amount;
+        _senderPayments[secret] += amount;
     }
 
     /**
