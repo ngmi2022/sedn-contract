@@ -5,6 +5,7 @@ import { config } from "dotenv";
 import { BigNumber, Contract, Wallet, ethers } from "ethers";
 import { ITransaction } from "sedn-interfaces";
 
+import { ISednMultichainVariables } from "../integration/with-api/Sedn";
 import { FakeSigner } from "./FakeSigner";
 import { getSignedTxRequest } from "./signer";
 
@@ -25,7 +26,7 @@ export interface IScenario {
 
 export const fetchConfig = async () => {
   const ENVIRONMENT = process.env.ENVIRONMENT;
-  if (ENVIRONMENT === "staging") {
+  if (ENVIRONMENT === "staging" || ENVIRONMENT === "dev") {
     console.log("config environment:", ENVIRONMENT);
     return await (
       await fetch("https://storage.googleapis.com/sedn-public-config/v2.staging.config.json?avoidTheCaches=1")
@@ -483,7 +484,7 @@ export function createFundingScenario(
 
 export const instantiateFundingScenario = async (
   fundingScenarios: INetworkScenarios,
-  sednVars: { [network: string]: any },
+  sednVars: ISednMultichainVariables,
 ) => {
   let usdcBalanceUnfundedBefore: BigNumber;
   let usdcBalanceUnfundedTarget: BigNumber;
@@ -601,7 +602,7 @@ export const instantiateFundingScenario = async (
 
 export const handleTxSignature = async (
   transaction: ITransaction,
-  sednVars: { [network: string]: any },
+  sednVars: ISednMultichainVariables,
   signerName: string,
 ) => {
   const network = getChainFromId(transaction.chainId);
@@ -610,7 +611,7 @@ export const handleTxSignature = async (
   const signer = sednVars[network][signerName];
   let args: any = transaction.args;
   const value = BigInt(transaction.value);
-  const forwarderAddress = sednVars[network].forwarder;
+  const forwarderAddress = sednVars[network].forwarderAddress;
   let amount = BigNumber.from(0);
   if ("_amount" in transaction.args) {
     amount = BigNumber.from(transaction.args._amount);
@@ -674,6 +675,7 @@ export const handleTxSignature = async (
     "and forwarder: ",
     forwarderAddress,
   );
+  const validUntilTime = Math.floor(Date.now() / 1000) + 60 * 60;
   const signedRequest = await getSignedTxRequest(
     sednContract,
     signer,
@@ -681,7 +683,8 @@ export const handleTxSignature = async (
     method,
     Object.values(args),
     value,
-    transaction.chainId.toString(),
+    transaction.chainId,
+    validUntilTime,
     forwarderAddress,
   );
   return JSON.stringify(signedRequest);

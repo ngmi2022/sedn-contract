@@ -8,13 +8,9 @@ import { v4 as uuid } from "uuid";
 const COLLECTION_NAME = "accounts";
 
 export const getIdToken = async (user: UserRecord) => {
-  const gcloudProject = process.env.GCLOUD_PROJECT;
-  let firebaseKey: string = "";
-  if (gcloudProject === "sedn-production") {
-    firebaseKey = process.env.FIREBASE_KEY_sedn_production || "";
-  } else if (gcloudProject === "sedn-staging") {
-    firebaseKey = process.env.FIREBASE_KEY_sedn_staging || "";
-  }
+  const env = process.env;
+  const gcloud_project = env.GCLOUD_PROJECT || "";
+  const firebaseKey = env[`FIREBASE_KEY_${gcloud_project.replaceAll("-", "_")}`];
 
   let url: string;
   if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
@@ -30,42 +26,84 @@ export const getIdToken = async (user: UserRecord) => {
   return idTokenResponse.data.idToken;
 };
 
-export const createUser = async (auth: Auth, db: admin.firestore.Firestore, phoneNumber: string, address: string) => {
-  let user: UserRecord;
-  try {
-    user = await auth.getUserByPhoneNumber(phoneNumber);
-  } catch (error) {
-    if (!error.code || error.code != "auth/user-not-found") {
-      throw error;
+export const createUser = async (auth: Auth, db: admin.firestore.Firestore, phoneNumber?: string, address?: string) => {
+  // Use case
+  // user with only an address
+  // user with only a phone number
+  // user with an address and a phone number
+  let phoneUser: UserRecord;
+  let addressUser: UserRecord;
+  let masterAccountRef: any;
+  let masterAccount: IAccount;
+  if (phoneNumber) {
+    try {
+      phoneUser = await auth.getUserByPhoneNumber(phoneNumber);
+      // console.log("DEBUG: User exists", JSON.stringify(phoneUser));
+    } catch (error) {
+      if (!error.code || error.code != "auth/user-not-found") {
+        throw error;
+      }
+    }
+    if (!phoneUser) {
+      // console.log("DEBUG: creating new auth for phone number", phoneNumber);
+      phoneUser = await auth.createUser({
+        phoneNumber: phoneNumber,
+      });
+    }
+
+    const hasMasterAccount = await getAccountConnectionRecordsForAnyUID(db, phoneUser.uid);
+    // console.log(`DEBUG: User with uid: ${phoneUser.uid} has master account: ${JSON.stringify(hasMasterAccount)}`);
+    if (!hasMasterAccount) {
+      // console.log("DEBUG: creating new master account because none exists");
+      const res = await createAccountInDatabase(db, {
+        phoneUID: phoneUser.uid,
+      });
+      masterAccountRef = res.ref;
+      masterAccount = res.account;
+    } else {
+      // console.log("DEBUG: using existing master account", JSON.stringify(hasMasterAccount));
+      masterAccountRef = db.collection(COLLECTION_NAME).doc(hasMasterAccount.master);
+      masterAccount = hasMasterAccount;
     }
   }
-  // @ts-ignore
-  if (!user) {
-    user = await auth.createUser({
-      phoneNumber: phoneNumber,
-      uid: address,
+
+  if (address) {
+    try {
+      addressUser = await auth.getUser(address);
+      // console.log("DEBUG: User exists", JSON.stringify(addressUser));
+    } catch (error) {
+      if (!error.code || error.code != "auth/user-not-found") {
+        throw error;
+      }
+    }
+    if (!addressUser) {
+      // console.log("DEBUG: creating new auth for address", address);
+      addressUser = await auth.createUser({
+        uid: address,
+      });
+    }
+  }
+
+  if (phoneUser && addressUser) {
+    // console.log("DEBUG: updating master account with phone and address", phoneUser.uid, addressUser.uid);
+    await masterAccountRef.update({
+      phoneUID: phoneUser.uid,
+      primaryWalletUID: addressUser.uid,
     });
   }
 
-  const hasMasterAccount = await getAccountConnectionRecordsForAnyUID(db, user.uid);
-  if (!hasMasterAccount) {
-    await createAccountInDatabase(db, {
-      phoneUID: user.uid,
-      walletUID: user.uid,
-    });
-  }
-
-  return user;
+  return { phoneUser, addressUser };
 };
 
+// TODO: this is only used by tests - remove
 export const createUserAndGenerateIdToken = async (
   auth: Auth,
   db: admin.firestore.Firestore,
   phoneNumber: string,
   address: string,
 ) => {
-  const user = await createUser(auth, db, phoneNumber, address);
-  const idToken = await getIdToken(user);
+  const users = await createUser(auth, db, phoneNumber, address);
+  const idToken = await getIdToken(users.addressUser || users.phoneUser);
   return idToken;
 };
 
@@ -124,6 +162,27 @@ const getAccountConnectionRecordsForAnyUID = async (
     return account;
   }
   return null;
+};
+
+const createAccountInDatabase = async (db: admin.firestore.Firestore, { phoneUID, walletUID }: ICreateAccount) => {
+  const uid = uuid();
+  let account = {
+    master: uid,
+  } as IAccount;
+
+  if (phoneUID) {
+    account.phoneUID = phoneUID;
+  }
+  if (walletUID) {
+    account.primaryWalletUID = walletUID;
+  }
+
+  await db.collection(COLLECTION_NAME).doc(uid).set(account);
+  const ref = db.collection(COLLECTION_NAME).doc(uid);
+  return {
+    ref,
+    account,
+  };
 };
 
 const deleteAccountConnectionRecordsForAnyUID = async (db: admin.firestore.Firestore, uid: string): Promise<void> => {
