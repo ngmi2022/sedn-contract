@@ -14,7 +14,7 @@ task("deploy:testnet").setAction(async function (taskArguments: TaskArguments, {
   const signers: SignerWithAddress[] = await ethers.getSigners();
   const configData = await fetchConfig();
   const registryAddress: string = "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0"; // mainnet registry address, could really be anything
-  const sednFactory: SednTestnet__factory = await ethers.getContractFactory("SednTestnet");
+  const sednFactory = (await ethers.getContractFactory("SednTestnet")) as SednTestnet__factory;
   const trustedForwarder = configData.forwarder[network.name];
   const verifier = configData.verifier;
   const usdcTokenAddress = configData.usdc[network.name].contract;
