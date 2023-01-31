@@ -74,6 +74,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
     address public addressDelegate;
     address public trustedVerifyAddress;
     uint256 public nonce = 0;
+    uint256 private immutable timeToUnlock = 3888000;
 
     event TransferKnown(address indexed from, address indexed to, uint256 amount);
     event TransferUnknown(address indexed from, bytes32 secret, uint256 amount);
@@ -89,20 +90,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
     event BridgeWithdraw(address indexed owner, address indexed to, uint256 amount, uint256 chainId);
     event Clawback(address indexed recipient, bytes32 secret, uint256 amount);
 
-    /**
-     * @notice Struct to store payment information
-     * @param from The address of the sender (may want to deprecate)
-     * @param amount The amount of USDC to be sent
-     * @param completed Whether the payment has been claimed
-     * @param secret The secret to identify and claim the payment
-     */
-    struct Payment {
-        uint256 amount;
-        bytes32 secret;
-    }
-
-    mapping(bytes32 => Payment) private _payments; 
-    mapping(bytes32 => uint256) private _paymentsTotal;
+    mapping(bytes32 => uint256) private _payments;
 
     /**
      * @param _usdcTokenAddressForChain Address for the USDC implementation for chain
@@ -152,31 +140,13 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
     }
 
     /**
-     * @notice Overriding _mint to mint the same amount of USDC
-     */
-    function _addPayment(uint256 _amount, bytes32 secret, address from) internal {
-        _paymentsTotal[secret] += _amount;
-        bytes32 paymentHash = _combineToBytes32(from, secret);
-        if (_payments[paymentHash].amount > 0) {
-            _payments[paymentHash].amount += _amount;
-        } else {
-            _payments[paymentHash] = Payment(_amount, secret);
-        }
-    }
-
-    function _combineToBytes32(address _address, bytes32 _bytes) public pure returns (bytes32) {
-        bytes32 _addressBytes = keccak256(abi.encodePacked(_address));
-        return keccak256(abi.encodePacked(_addressBytes, _bytes));
-    }
-
-    /**
      * @param _amount The amount of USDC to be sent from EOA
      * @param secret New, unique secret to identify and claim the payment
      */
     function sednUnknown(uint256 _amount, bytes32 secret) external {
         require(_amount > 0, "Amount must be greater than 0");
         require(usdcToken.transferFrom(_msgSender(), address(this), _amount), "Token transfer failed");
-        _addPayment(_amount, secret, _msgSender());
+        _payments[secret] += _amount;
         emit SednUnknown(_msgSender(), secret, _amount);
     }
 
@@ -199,7 +169,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         require(_amount > 0, "Amount must be greater than 0");
         require(_msgSender() != address(0), "Transfer from the zero address");
         _burn(_msgSender(), _amount);
-        _addPayment(_amount, secret, _msgSender());
+        _payments[secret] += _amount;
         emit TransferUnknown(_msgSender(), secret, _amount);
     }
 
@@ -225,7 +195,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         uint256 totalAmount = _amount + balanceAmount;
         require(usdcToken.transferFrom(_msgSender(), address(this), _amount), "Transfer failed");
         _burn(_msgSender(), balanceAmount);
-        _addPayment(totalAmount, secret, _msgSender());
+        _payments[secret] += totalAmount;
         emit HybridUnknown(_msgSender(), secret, totalAmount);
     }    
 
@@ -265,7 +235,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         bytes32 _s
     ) internal view {
         require(keccak256(abi.encodePacked(solution)) == secret, "Incorrect answer");
-        require(_paymentsTotal[secret] >= 0, "No secret carrying balance");
+        require(_payments[secret] >= 0, "No secret carrying balance");
         require(block.timestamp < till, "Time expired");
         require(verify(amount, receiver, till, secret, nonce, _v, _r, _s), "Verification failed");
     }
@@ -286,40 +256,17 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         bytes32 _r,
         bytes32 _s
     ) external {
-        _checkClaim(solution, secret, _msgSender(), _paymentsTotal[secret], _till, _v, _r, _s);
+        uint256 secretAmount = _payments[secret];
+        _checkClaim(solution, secret, _msgSender(), secretAmount, _till, _v, _r, _s);
         require(_msgSender() != address(0), "Transfer to the zero address not possible");
-        _mint(_msgSender(), _paymentsTotal[secret]);
-        _paymentsTotal[secret] = 0;
-        emit PaymentClaimed(_msgSender(), secret, _paymentsTotal[secret]);
-    }
-
-    /**
-     * @param secret The secret to identify and reclaim the payment
-     * @dev This function requires admin/owner rights
-     */
-    function clawback(bytes32 secret) external {
-        // check if secret actually has money
-        uint256 totalAmount = _paymentsTotal[secret];
-        require(totalAmount > 0, "Secret not carrying balance");
-        // check if secret is in array
-        bytes32 key = this._combineToBytes32(_msgSender(), secret);
-        Payment memory clawbackPayment = _payments[key]; // get payment
-        require(clawbackPayment.secret == secret, "Secret not in array");
-        // check if secret amount is smaller than totalAmount
-        require(clawbackPayment.amount <= totalAmount, "Secret amount cannot be larger total amount");
-
-        // delete payment and total
-        _paymentsTotal[secret] -= clawbackPayment.amount;
-        _payments[key] = Payment(0, secret);
-
-        // transfer funds sender who claws back
-        _mint(_msgSender(), clawbackPayment.amount);
-        emit Clawback(_msgSender(), secret, clawbackPayment.amount);
+        _mint(_msgSender(), secretAmount);
+        _payments[secret] = 0;
+        emit PaymentClaimed(_msgSender(), secret, secretAmount);
     }
 
     /**
      * @param amount The amount of USDC to be withdrawn
-     * @param to The address to withdraw the USDC to
+     * @param to The address to withdraw the USDC toss
      */
     function withdraw(uint256 amount, address to) external {
         require(_msgSender() != address(0), "Transfer from the zero address");
@@ -390,7 +337,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      * @return amount returns the payment amount
      */
     function getPaymentAmount(bytes32 secret) public view returns (uint256) {
-        uint256 amount = _paymentsTotal[secret];
+        uint256 amount = _payments[secret];
         return amount;
     }
 

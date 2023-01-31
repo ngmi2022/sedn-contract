@@ -363,7 +363,7 @@ describe("Sedn", function () {
       await hybridKnown(usdc, contract, sender, claimer, halfAmount, halfAmount);
     });
   });
-  describe("clawback", () => {
+  describe.skip("clawback", () => {
     it("should clawback funds from a secret", async function () {
       await contract.deployed();
       const halfAmount = BigNumber.from(amount).div(2).toString();

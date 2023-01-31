@@ -43,7 +43,7 @@ const gasless = true;
 describe("Sedn Contract", function () {
   async function getSedn(network: string) {
     let config = await fetchConfig();
-    const sednContract = "0xF71f2c30b0FB16cD3f207b7Dfb8438a5A926408F";
+    const sednContract = "0x59Fe5B34a412CF5A6E3Ac014f70368a8b86e04aB";
     // const sednContract = config.contracts[network];
     console.log("Contract address:", sednContract);
     // const sednContract = "0xC1757a915fF0272914A689724345042d4539848E";
@@ -150,7 +150,7 @@ describe("Sedn Contract", function () {
         expect(usdcAfterSednContract.sub(usdcBeforeSednContract)).to.equal(amount);
         expect(sednAfterSednSigner.sub(sednBeforeSednSigner)).to.equal(amount);
       });
-      it("should send funds to an unregistered user", async function () {
+      it.only("should send funds to an unregistered user", async function () {
         // check allowance & if necessary increase approve
         await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount));
 
@@ -176,6 +176,7 @@ describe("Sedn Contract", function () {
           relayerWebhook,
           forwarder,
         );
+
         await waitTillRecipientBalanceChanged(60_000, usdcOrigin, signer, usdcBeforeSednSigner);
         // check sending
         const usdcAfterSednSigner = await usdcOrigin.balanceOf(signer.address);
