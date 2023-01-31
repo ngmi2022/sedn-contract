@@ -1,5 +1,4 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
-import { executionAsyncId } from "async_hooks";
 import { expect } from "chai";
 import { BigNumber, Contract, ethers } from "ethers";
 import { parseUnits } from "ethers/lib/utils";
@@ -255,15 +254,14 @@ const execute = async (
     recipientIdOrAddress,
   };
   // send signed transactions to API
-  const executionId = (await apiCall(API_URL, "executeTransactions", executeTransactionsRequest, authToken)).id;
-  console.log("INFO: executionIds", executionId);
+  const executionResponse = await apiCall(API_URL, "executeTransactions", executeTransactionsRequest, authToken);
+  const executionId = executionResponse.execution.id;
+  console.log("INFO: executionId", executionId);
   let execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, authToken);
-  console.log("DEBUG: execution:", JSON.stringify(execution));
   while (execution.status !== "executed" && execution.status !== "failed") {
     console.log("INFO: not executed retrying for ID", executionId);
     await sleep(10_000);
     execution = await apiCall(API_URL, "executionStatus", { executionId: executionId }, authToken);
-    console.log(JSON.stringify(execution));
   }
   return execution;
 };
@@ -421,6 +419,7 @@ describe(`Sedn testing with api`, function () {
     expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount); // amount is the same for all
     //networks and represents the complete send amount
   });
+  it(`should be able to correctly sedn additional payments to an unknown user`, async function () {});
   it(`should be able to correctly sedn funds to an known user`, async function () {
     console.log("INFO: Creating funding scenario");
     const firstNetwork = networksToTest[0];
@@ -636,6 +635,7 @@ describe(`Sedn testing with api`, function () {
     expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount); // amount is the same for all
     //networks and represents the complete send amount
   });
+  it(`should be able to correctly transfer additional payments to an unknown user`, async function () {});
   it(`should be able to correctly transfer funds to an known user`, async function () {
     console.log("INFO: Creating funding scenario");
     const firstNetwork = networksToTest[0];
@@ -886,6 +886,7 @@ describe(`Sedn testing with api`, function () {
     expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount); // amount is the same for all
     //networks and represents the complete send amount
   });
+  it(`should be able to correctly sedn and transfer additional payments to an unknown user`, async function () {});
   it(`should be able to correctly sedn and transfer funds to an known user`, async function () {
     console.log("INFO: Creating funding scenario");
     const firstNetwork = networksToTest[0];
@@ -1015,7 +1016,7 @@ describe(`Sedn testing with api`, function () {
     expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount); // amount is the same for all
     //networks and represents the complete send amount
   });
-  it.only(`should be able to correctly withdraw funds`, async function () {
+  it(`should be able to correctly withdraw funds`, async function () {
     console.log("INFO: Creating funding scenario");
     const firstNetwork = networksToTest[0];
     const secondNetwork = networksToTest[1];
@@ -1122,4 +1123,5 @@ describe(`Sedn testing with api`, function () {
     expect(totalSednDifferenceSigner.toString()).to.equal(sednVars[firstNetwork].amount.toString()); // amount is the same for all
     //networks and represents the complete send amount
   });
+  it(`should be able to correctly sedn and transfer additional payments to an unknown user`, async function () {});
 });
