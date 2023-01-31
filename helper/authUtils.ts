@@ -107,6 +107,35 @@ export const createUserAndGenerateIdToken = async (
   return idToken;
 };
 
+const createAccountInDatabase = async (db: admin.firestore.Firestore, { phoneUID, walletUID }: ICreateAccount) => {
+  const uid = uuid();
+  let account = {
+    master: uid,
+  } as IAccount;
+
+  if (phoneUID) {
+    account.phoneUID = phoneUID;
+  }
+  if (walletUID) {
+    account.primaryWalletUID = walletUID;
+  }
+
+  await db.collection(COLLECTION_NAME).doc(uid).set(account);
+  const ref = db.collection(COLLECTION_NAME).doc(uid);
+  return {
+    ref,
+    account,
+  };
+};
+
+function findObjectWithMostKeys(arr: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>[]) {
+  return arr.reduce((prev, curr) => {
+    const prevData = prev.data() as IAccount;
+    const currData = curr.data() as IAccount;
+    return Object.keys(prevData).length > Object.keys(currData).length ? prev : curr;
+  });
+}
+
 const getAccountConnectionRecordsForAnyUID = async (
   db: admin.firestore.Firestore,
   uid: string,
@@ -120,17 +149,18 @@ const getAccountConnectionRecordsForAnyUID = async (
   const walletAccountSnapshot = await db.collection(COLLECTION_NAME).where("primaryWalletUID", "==", uid).get();
 
   if (!walletAccountSnapshot.empty) {
-    const account = walletAccountSnapshot.docs[0].data() as IAccount;
+    const account = findObjectWithMostKeys(walletAccountSnapshot.docs).data() as IAccount;
+
     return account;
   }
 
   const phoneAccountSnapshot = await db.collection(COLLECTION_NAME).where("phoneUID", "==", uid).get();
 
   if (!phoneAccountSnapshot.empty) {
-    const account = phoneAccountSnapshot.docs[0].data() as IAccount;
+    const account = findObjectWithMostKeys(phoneAccountSnapshot.docs).data() as IAccount;
+
     return account;
   }
-
   return null;
 };
 
