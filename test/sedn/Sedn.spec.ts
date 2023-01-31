@@ -373,6 +373,7 @@ describe("Sedn", function () {
 
       // Check payment status
       const paymentAmountBefore = await contract.connect(sender).getPaymentAmount(secret);
+      // console.log("Before", paymentAmountBefore.toString());
       expect(paymentAmountBefore).to.equal(halfAmount);
 
       // Send money again
@@ -380,6 +381,7 @@ describe("Sedn", function () {
 
       // Check payment status again
       const paymentAmountMid = await contract.connect(sender).getPaymentAmount(secret);
+      // console.log("Mid", paymentAmountMid.toString());
       expect(paymentAmountMid).to.equal(amount);
 
       // 1st Clawback
@@ -387,14 +389,16 @@ describe("Sedn", function () {
 
       // Check payment status again
       const paymentAmountOne = await contract.connect(sender).getPaymentAmount(secret);
-      expect(paymentAmountOne).to.equal(halfAmount);
+      // console.log("One", paymentAmountOne.toString());
+      expect(paymentAmountOne).to.equal("0");
 
-      // Clawback again
-      await clawback(contract, sender, secret);
+      // // Clawback again
+      // await clawback(contract, sender, secret);
 
-      // Check payment status again
-      const paymentAmountTwo = await contract.connect(sender).getPaymentAmount(secret);
-      expect(paymentAmountTwo).to.equal("0"); // because its empty
+      // // Check payment status again
+      // const paymentAmountTwo = await contract.connect(sender).getPaymentAmount(secret);
+      // console.log("Two", paymentAmountTwo.toString());
+      // expect(paymentAmountTwo).to.equal("0"); // because its empty
     });
   });
   describe("withdrawals", () => {

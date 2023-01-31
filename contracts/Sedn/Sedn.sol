@@ -97,12 +97,11 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      * @param secret The secret to identify and claim the payment
      */
     struct Payment {
-        address from;
         uint256 amount;
         bytes32 secret;
     }
 
-    Payment[] private _paymentsArray; 
+    mapping(bytes32 => Payment) private _payments; 
     mapping(bytes32 => uint256) private _paymentsTotal;
 
     /**
@@ -153,14 +152,31 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
     }
 
     /**
+     * @notice Overriding _mint to mint the same amount of USDC
+     */
+    function _addPayment(uint256 _amount, bytes32 secret, address from) internal {
+        _paymentsTotal[secret] += _amount;
+        bytes32 paymentHash = _combineToBytes32(from, secret);
+        if (_payments[paymentHash].amount > 0) {
+            _payments[paymentHash].amount += _amount;
+        } else {
+            _payments[paymentHash] = Payment(_amount, secret);
+        }
+    }
+
+    function _combineToBytes32(address _address, bytes32 _bytes) public pure returns (bytes32) {
+        bytes32 _addressBytes = keccak256(abi.encodePacked(_address));
+        return keccak256(abi.encodePacked(_addressBytes, _bytes));
+    }
+
+    /**
      * @param _amount The amount of USDC to be sent from EOA
      * @param secret New, unique secret to identify and claim the payment
      */
     function sednUnknown(uint256 _amount, bytes32 secret) external {
         require(_amount > 0, "Amount must be greater than 0");
         require(usdcToken.transferFrom(_msgSender(), address(this), _amount), "Token transfer failed");
-        _paymentsTotal[secret] += _amount;
-        _paymentsArray.push(Payment(_msgSender(), _amount, secret));
+        _addPayment(_amount, secret, _msgSender());
         emit SednUnknown(_msgSender(), secret, _amount);
     }
 
@@ -183,8 +199,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         require(_amount > 0, "Amount must be greater than 0");
         require(_msgSender() != address(0), "Transfer from the zero address");
         _burn(_msgSender(), _amount);
-        _paymentsTotal[secret] += _amount;
-        _paymentsArray.push(Payment(_msgSender(), _amount, secret));
+        _addPayment(_amount, secret, _msgSender());
         emit TransferUnknown(_msgSender(), secret, _amount);
     }
 
@@ -210,8 +225,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         uint256 totalAmount = _amount + balanceAmount;
         require(usdcToken.transferFrom(_msgSender(), address(this), _amount), "Transfer failed");
         _burn(_msgSender(), balanceAmount);
-        _paymentsTotal[secret] += totalAmount;
-        _paymentsArray.push(Payment(_msgSender(), totalAmount, secret));
+        _addPayment(totalAmount, secret, _msgSender());
         emit HybridUnknown(_msgSender(), secret, totalAmount);
     }    
 
@@ -288,32 +302,19 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         uint256 totalAmount = _paymentsTotal[secret];
         require(totalAmount > 0, "Secret not carrying balance");
         // check if secret is in array
-        uint256 index = _getPaymentsIndex(secret, _msgSender());
-
-        // double check if _msgSender() actually has secret
-        require(_paymentsArray[index].from == _msgSender(), "Only payment can clawback");
+        bytes32 key = this._combineToBytes32(_msgSender(), secret);
+        Payment memory clawbackPayment = _payments[key]; // get payment
+        require(clawbackPayment.secret == secret, "Secret not in array");
         // check if secret amount is smaller than totalAmount
-        uint256 clawbackAmount = _paymentsArray[index].amount;
-        require(clawbackAmount <= totalAmount, "Secret amount cannot be larger total amount");
+        require(clawbackPayment.amount <= totalAmount, "Secret amount cannot be larger total amount");
 
         // delete payment and total
-        _paymentsTotal[secret] -= clawbackAmount;
-        delete _paymentsArray[index];
+        _paymentsTotal[secret] -= clawbackPayment.amount;
+        _payments[key] = Payment(0, secret);
 
         // transfer funds sender who claws back
-        _mint(_msgSender(), clawbackAmount);
-        emit Clawback(_msgSender(), secret, clawbackAmount);
-    }
-
-    /**
-     */
-    function _getPaymentsIndex(bytes32 secret, address from) internal view returns (uint256) {
-        for (uint256 i = 0; i < _paymentsArray.length; i++) {
-            if (_paymentsArray[i].secret == secret && _paymentsArray[i].from == from) {
-                return i;
-            }
-        }
-        revert("no secret found for this address");
+        _mint(_msgSender(), clawbackPayment.amount);
+        emit Clawback(_msgSender(), secret, clawbackPayment.amount);
     }
 
     /**

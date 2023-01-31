@@ -1,6 +1,6 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
 import { expect } from "chai";
-import { BigNumber, Contract, Wallet, ethers } from "ethers";
+import { BigNumber, Contract, Signer, Wallet, ethers } from "ethers";
 
 import { FakeSigner } from "../../helper/FakeSigner";
 import { sendTx } from "../../helper/signer";
@@ -43,7 +43,8 @@ const gasless = true;
 describe("Sedn Contract", function () {
   async function getSedn(network: string) {
     let config = await fetchConfig();
-    const sednContract = config.contracts[network];
+    const sednContract = "0xF71f2c30b0FB16cD3f207b7Dfb8438a5A926408F";
+    // const sednContract = config.contracts[network];
     console.log("Contract address:", sednContract);
     // const sednContract = "0xC1757a915fF0272914A689724345042d4539848E";
 
