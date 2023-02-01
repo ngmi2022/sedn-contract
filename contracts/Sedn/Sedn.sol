@@ -141,7 +141,9 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
     }
 
     /**
-     * @notice Overriding _mint to mint the same amount of USDC
+     * @param _amount Amount of USDC to be sent to unknown
+     * @param from Address of the sender
+     * @param secret Secret to identify the payment
      */
     function _addPayment(uint256 _amount, address from, bytes32 secret) internal {
         _payments[secret] += _amount;
@@ -149,6 +151,12 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         _senderPayments[paymentHash] += _amount;
     }
 
+    /**
+     * @param _address Address of the sender
+     * @param _secret Secret to identify the payment
+     * @param timestamp Timestamp of block where the payment is executed
+     * @dev Creates a unique key for the payment to enable clawbacks
+     */
     function _combineToBytes32(address _address, bytes32 _secret, uint256 timestamp) public pure returns (bytes32) {
         bytes32 _addressBytes = keccak256(abi.encodePacked(_address));
         bytes32 _timestampBytes = keccak256(abi.encodePacked(timestamp));

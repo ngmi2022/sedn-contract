@@ -1,4 +1,4 @@
-import { SignTypedDataVersion, TypedMessage, signTypedData } from "@metamask/eth-sig-util";
+import { SignTypedDataVersion, TypedMessage, recoverTypedSignature, signTypedData } from "@metamask/eth-sig-util";
 import { fetch } from "cross-fetch";
 import { Contract, Signer, Wallet, ethers } from "ethers";
 
@@ -42,9 +42,12 @@ async function buildRequest(forwarder: ethers.Contract, input: { [key: string]: 
   return { value: 0, gas: 1e6, nonce, ...input };
 }
 
-async function buildTypedData(forwarder: ethers.Contract, request: { [key: string]: string | number }) {
-  const typeData = getMetaTxTypeData(forwarder.address);
-  return { ...typeData, message: request };
+function buildTypedData(forwarderAddress: string, request: { [key: string]: string | number }) {
+  const typeData = getMetaTxTypeData(forwarderAddress);
+  return { ...typeData, message: request } as TypedMessage<{
+    EIP712Domain: { name: string; type: string }[];
+    ForwardRequest: { name: string; type: string }[];
+  }>;
 }
 
 export async function signMetaTxRequest(
@@ -53,11 +56,26 @@ export async function signMetaTxRequest(
   input: { [key: string]: string | number },
 ) {
   const request = await buildRequest(forwarder, input);
-  const toSign = await buildTypedData(forwarder, request);
+  const toSign = buildTypedData(forwarder.address, request);
   console.log("toSign: ", JSON.stringify(toSign));
   const BufferPk: Buffer = Buffer.from(privateKey.replace(/^0x/, ""), "hex");
   const signature = signTypedData({ privateKey: BufferPk, data: toSign, version: SignTypedDataVersion.V4 });
+  console.log(
+    "valid signature?:",
+    checkSignature(signature, request, forwarder.address, new Wallet(privateKey).address),
+  );
   return { signature, request };
+}
+
+export function checkSignature(signature: string, request: any, forwarderAddress: string, publicKey: string) {
+  const typedData = buildTypedData(forwarderAddress, request);
+  const publicKeyFromSignature = recoverTypedSignature({
+    data: typedData,
+    signature,
+    version: SignTypedDataVersion.V4,
+  });
+  console.log("publicKey from Signature", publicKeyFromSignature);
+  return publicKeyFromSignature === publicKey.toLowerCase();
 }
 
 export async function getSignedTxRequest(

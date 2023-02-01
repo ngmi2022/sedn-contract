@@ -114,7 +114,7 @@ describe("Sedn Contract", function () {
         relayerWebhook = deployed.relayerWebhook;
         forwarder = deployed.forwarder;
       });
-      it("should correctly send funds to a registered user", async function () {
+      it.only("should correctly send funds to a registered user", async function () {
         // check allowance & if necessary increase approve
         await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount.toString() + "0"));
 
@@ -151,7 +151,7 @@ describe("Sedn Contract", function () {
         expect(usdcAfterSednContract.sub(usdcBeforeSednContract)).to.equal(amount);
         expect(sednAfterSednSigner.sub(sednBeforeSednSigner)).to.equal(amount);
       });
-      it.only("should send funds to an unregistered user", async function () {
+      it("should send funds to an unregistered user", async function () {
         // check allowance & if necessary increase approve
         await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount));
 
@@ -168,22 +168,6 @@ describe("Sedn Contract", function () {
           sedn,
           signer,
           signer.privateKey,
-          "sednUnknown",
-          [amount, secret],
-          BigInt("0"),
-          network,
-          validUntilTime,
-          gasless,
-          relayerWebhook,
-          forwarder,
-        );
-
-        await checkAllowance(usdcOrigin, recipient, sedn, BigNumber.from(amount));
-
-        await sendTx(
-          sedn,
-          recipient,
-          recipient.privateKey,
           "sednUnknown",
           [amount, secret],
           BigInt("0"),
