@@ -1,6 +1,7 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
 import { expect } from "chai";
 import { BigNumber, Contract, Signer, Wallet, ethers } from "ethers";
+import { check } from "prettier";
 
 import { FakeSigner } from "../../helper/FakeSigner";
 import { sendTx } from "../../helper/signer";
@@ -43,7 +44,7 @@ const gasless = true;
 describe("Sedn Contract", function () {
   async function getSedn(network: string) {
     let config = await fetchConfig();
-    const sednContract = "0x59Fe5B34a412CF5A6E3Ac014f70368a8b86e04aB";
+    const sednContract = "0x91B4ebC9E330E6EAAbc8481e483D42Da813065f6";
     // const sednContract = config.contracts[network];
     console.log("Contract address:", sednContract);
     // const sednContract = "0xC1757a915fF0272914A689724345042d4539848E";
@@ -167,6 +168,22 @@ describe("Sedn Contract", function () {
           sedn,
           signer,
           signer.privateKey,
+          "sednUnknown",
+          [amount, secret],
+          BigInt("0"),
+          network,
+          validUntilTime,
+          gasless,
+          relayerWebhook,
+          forwarder,
+        );
+
+        await checkAllowance(usdcOrigin, recipient, sedn, BigNumber.from(amount));
+
+        await sendTx(
+          sedn,
+          recipient,
+          recipient.privateKey,
           "sednUnknown",
           [amount, secret],
           BigInt("0"),

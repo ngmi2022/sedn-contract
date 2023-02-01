@@ -1,3 +1,4 @@
+import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { deployContract } from "@nomiclabs/hardhat-ethers/types";
 import { addresses } from "@socket.tech/ll-core";
@@ -57,12 +58,14 @@ const sednUnknown = async (
     solution = "Hello World!";
   }
   const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
-  await sedn.connect(signer).sednUnknown(amount, secret);
+  const tx = await sedn.connect(signer).sednUnknown(amount, secret);
+  const block = await ethers.provider.getBlock(tx.blockNumber);
+  const timestamp = block.timestamp;
   const afterSedn = await usdc.balanceOf(signer.address);
   const afterSednContract = await usdc.balanceOf(sedn.address);
   expect(beforeSedn.sub(afterSedn)).to.equal(amount);
   expect(afterSednContract.sub(beforeSednContract)).to.equal(amount);
-  return { solution, secret };
+  return { solution, secret, timestamp };
 };
 
 const sednKnown = async (
@@ -179,8 +182,8 @@ const claim = async (
   return;
 };
 
-const clawback = async (sedn: Contract, signer: SignerWithAddress, secret: string) => {
-  await sedn.connect(signer).clawback(secret);
+const clawback = async (sedn: Contract, signer: SignerWithAddress, secret: string, timestamp: number) => {
+  await sedn.connect(signer).clawback(secret, timestamp);
   return;
 };
 
@@ -363,42 +366,38 @@ describe("Sedn", function () {
       await hybridKnown(usdc, contract, sender, claimer, halfAmount, halfAmount);
     });
   });
-  describe.skip("clawback", () => {
+  describe("clawback", () => {
     it("should clawback funds from a secret", async function () {
       await contract.deployed();
       const halfAmount = BigNumber.from(amount).div(2).toString();
-
       // Send money
-      const { secret, solution } = await sednUnknown(usdc, contract, sender, halfAmount);
-
+      const { secret, solution, timestamp } = await sednUnknown(usdc, contract, sender, halfAmount);
       // Check payment status
       const paymentAmountBefore = await contract.connect(sender).getPaymentAmount(secret);
       // console.log("Before", paymentAmountBefore.toString());
       expect(paymentAmountBefore).to.equal(halfAmount);
 
       // Send money again
-      await sednUnknown(usdc, contract, sender, halfAmount, solution); // no need to get solution and secret again
-
+      const { timestamp: timestampTwo } = await sednUnknown(usdc, contract, sender, halfAmount, solution); // no need to get solution and secret again
       // Check payment status again
       const paymentAmountMid = await contract.connect(sender).getPaymentAmount(secret);
       // console.log("Mid", paymentAmountMid.toString());
       expect(paymentAmountMid).to.equal(amount);
-
       // 1st Clawback
-      await clawback(contract, sender, secret);
-
+      await time.increase(25);
+      await clawback(contract, sender, secret, timestamp);
       // Check payment status again
       const paymentAmountOne = await contract.connect(sender).getPaymentAmount(secret);
       // console.log("One", paymentAmountOne.toString());
-      expect(paymentAmountOne).to.equal("0");
+      expect(paymentAmountOne).to.equal(halfAmount);
 
-      // // Clawback again
-      // await clawback(contract, sender, secret);
+      // Clawback again
+      await clawback(contract, sender, secret, timestampTwo);
 
-      // // Check payment status again
-      // const paymentAmountTwo = await contract.connect(sender).getPaymentAmount(secret);
+      // Check payment status again
+      const paymentAmountTwo = await contract.connect(sender).getPaymentAmount(secret);
       // console.log("Two", paymentAmountTwo.toString());
-      // expect(paymentAmountTwo).to.equal("0"); // because its empty
+      expect(paymentAmountTwo).to.equal("0"); // because its empty
     });
   });
   describe("withdrawals", () => {
