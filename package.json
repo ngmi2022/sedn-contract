@@ -109,6 +109,7 @@
   },
   "dependencies": {
     "@chainlink/contracts": "^0.4.1",
+    "@ethereumjs/util": "^8.0.3",
     "@metamask/eth-sig-util": "^5.0.2",
     "@rollup/plugin-commonjs": "^23.0.2",
     "@rollup/plugin-json": "^5.0.1",
