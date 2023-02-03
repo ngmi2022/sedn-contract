@@ -678,7 +678,6 @@ export const handleTxSignature = async (
   const signedRequest = await getSignedTxRequest(
     sednContract,
     signer,
-    signer.privateKey,
     method,
     Object.values(args),
     value,
