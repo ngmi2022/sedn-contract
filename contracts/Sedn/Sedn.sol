@@ -74,6 +74,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
     address public addressDelegate;
     address public trustedVerifyAddress;
     uint256 public nonce = 0;
+    uint256 public timeToUnlock = 20;
 
     event TransferKnown(address indexed from, address indexed to, uint256 amount);
     event TransferUnknown(address indexed from, bytes32 secret, uint256 amount);
@@ -89,21 +90,8 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
     event BridgeWithdraw(address indexed owner, address indexed to, uint256 amount, uint256 chainId);
     event Clawback(address indexed recipient, bytes32 secret, uint256 amount);
 
-    /**
-     * @notice Struct to store payment information
-     * @param from The address of the sender (may want to deprecate)
-     * @param amount The amount of USDC to be sent
-     * @param completed Whether the payment has been claimed
-     * @param secret The secret to identify and claim the payment
-     */
-    struct Payment {
-        address from;
-        uint256 amount;
-        bool completed;
-        bytes32 secret;
-    }
-
-    mapping(bytes32 => Payment) private _payments;
+    mapping(bytes32 => uint256) private _payments;
+    mapping(bytes32 => uint256) private _senderPayments;
 
     /**
      * @param _usdcTokenAddressForChain Address for the USDC implementation for chain
@@ -153,30 +141,37 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
     }
 
     /**
-     * @param _amount The amount of USDC to be sent from EOA
-     * @param secret New, unique secret to identify and claim the payment
+     * @param _amount Amount of USDC to be sent to unknown
+     * @param from Address of the sender
+     * @param secret Secret to identify the payment
      */
-    function sednUnknown(uint256 _amount, bytes32 secret) external {
-        address from = _msgSender();
-        require(_amount > 0, "Amount must be greater than 0");
-        require(usdcToken.transferFrom(from, address(this), _amount), "Token transfer failed");
-        require(_payments[secret].secret != secret, "Please use sednUnknownExistingSecret to increase");
-        _payments[secret] = Payment(from, _amount, false, secret);
-        emit SednUnknown(from, secret, _amount);
+    function _addPayment(uint256 _amount, address from, bytes32 secret) internal {
+        _payments[secret] += _amount;
+        bytes32 paymentHash = _combineToBytes32(from, secret, block.timestamp);
+        _senderPayments[paymentHash] += _amount;
+    }
+
+    /**
+     * @param _address Address of the sender
+     * @param _secret Secret to identify the payment
+     * @param timestamp Timestamp of block where the payment is executed
+     * @dev Creates a unique key for the payment to enable clawbacks
+     */
+    function _combineToBytes32(address _address, bytes32 _secret, uint256 timestamp) public pure returns (bytes32) {
+        bytes32 _addressBytes = keccak256(abi.encodePacked(_address));
+        bytes32 _timestampBytes = keccak256(abi.encodePacked(timestamp));
+        return keccak256(abi.encodePacked(_addressBytes, _secret, _timestampBytes));
     }
 
     /**
      * @param _amount The amount of USDC to be sent from EOA
-     * @param secret Existing secret to identify and claim the payment
+     * @param secret New, unique secret to identify and claim the payment
      */
-    function sednUnknownToExistingSecret(uint256 _amount, bytes32 secret) external {
-        address from = _msgSender();
+    function sednUnknown(uint256 _amount, bytes32 secret) external {
         require(_amount > 0, "Amount must be greater than 0");
-        require(usdcToken.transferFrom(from, address(this), _amount), "Token transfer failed");
-        uint256 currentAmount = _payments[secret].amount;
-        uint256 newAmount = currentAmount + _amount;
-        _payments[secret] = Payment(from, newAmount, false, secret);
-        emit SednUnknownToExistingSecret(from, secret, _amount);
+        require(usdcToken.transferFrom(_msgSender(), address(this), _amount), "Token transfer failed");
+        _addPayment(_amount, _msgSender(), secret);
+        emit SednUnknown(_msgSender(), secret, _amount);
     }
 
     /**
@@ -184,11 +179,10 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      * @param to The address to send the USDC to
      */
     function sednKnown(uint256 _amount, address to) external {
-        address from = _msgSender();
         require(_amount > 0, "Amount must be greater than 0");
-        require(usdcToken.transferFrom(from, address(this), _amount), "Transfer failed"); 
+        require(usdcToken.transferFrom(_msgSender(), address(this), _amount), "Transfer failed"); 
         _mint(to, _amount);
-        emit SednKnown(from, to, _amount);
+        emit SednKnown(_msgSender(), to, _amount);
     }
 
     /**
@@ -196,41 +190,22 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      * @param secret Existing secret to identify and claim the payment
      */
     function transferUnknown(uint256 _amount, bytes32 secret) external {
-        address from = _msgSender();
         require(_amount > 0, "Amount must be greater than 0");
-        require(_payments[secret].secret != secret, "Please use transferUnknownExistingSecret for increase");
-        require(from != address(0), "Transfer from the zero address");
-        _burn(from, _amount);
-        _payments[secret] = Payment(from, _amount, false, secret);
-        emit TransferUnknown(from, secret, _amount);
+        require(_msgSender() != address(0), "Transfer from the zero address");
+        _burn(_msgSender(), _amount);
+        _addPayment(_amount, _msgSender(), secret);
+        emit TransferUnknown(_msgSender(), secret, _amount);
     }
-
-    /**
-     * @param _amount The amount of USDC to be sent from sednBalance
-     * @param secret Existing secret to identify and claim the payment
-     */
-    function transferUnknownToExistingSecret(uint256 _amount, bytes32 secret) external {
-        address from = _msgSender();
-        require(_amount > 0, "Amount must be greater than 0");
-        require(from != address(0), "Transfer from the zero address");
-        _burn(from, _amount);
-        uint256 currentAmount = _payments[secret].amount;
-        uint256 newAmount = currentAmount + _amount;
-        _payments[secret] = Payment(from, newAmount, false, secret);
-        emit TransferUnknownToExistingSecret(from, secret, _amount);
-    }
-
 
     /**
      * @param _amount The amount of USDC to be sent from sednBalance
      * @param to The address to send the USDC to
      */
     function transferKnown(uint256 _amount, address to) external {
-        address from = _msgSender();
-        require(from != address(0), "Transfer from the zero address");
+        require(_msgSender() != address(0), "Transfer from the zero address");
         require(to != address(0), "Transfer to the zero address");
-        _transfer(from, to, _amount);
-        emit TransferKnown(from, to, _amount);
+        _transfer(_msgSender(), to, _amount);
+        emit TransferKnown(_msgSender(), to, _amount);
     }
 
     /**
@@ -239,34 +214,14 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      * @param secret Existing secret to identify and claim the payment
      */
     function hybridUnknown(uint256 _amount, uint256 balanceAmount, bytes32 secret) external {
-        address from = _msgSender();
-        require(_amount > 0, "Amount must be greater than 0");
-        require(balanceAmount > 0, "Amount must be greater than 0");
-        require(_payments[secret].secret != secret, "Please use hybridUnknownExistingSecret for increase");
-        uint256 totalAmount = _amount + balanceAmount;
-        require(usdcToken.transferFrom(from, address(this), _amount), "Transfer failed");
-        _burn(from, balanceAmount);
-        _payments[secret] = Payment(from, totalAmount, false, secret);
-        emit HybridUnknown(_msgSender(), secret, totalAmount);
-    }    
-
-    /**
-     * @param _amount The amount of USDC to be sent from EOA
-     * @param balanceAmount The amount of USDC to be sent from sednBalance
-     * @param secret New, unique secret to identify and claim the payment
-     */
-    function hybridUnknownToExistingSecret(uint256 _amount, uint256 balanceAmount, bytes32 secret) external {
-        address from = _msgSender();
         require(_amount > 0, "Amount must be greater than 0");
         require(balanceAmount > 0, "Amount must be greater than 0");
         uint256 totalAmount = _amount + balanceAmount;
         require(usdcToken.transferFrom(_msgSender(), address(this), _amount), "Transfer failed");
-        _burn(from, balanceAmount);
-        uint256 currentAmount = _payments[secret].amount;
-        uint256 newAmount = currentAmount + totalAmount;
-        _payments[secret] = Payment(_msgSender(), newAmount, false, secret);
-        emit HybridUnknownToExistingSecret(_msgSender(), secret, totalAmount);
-    }
+        _burn(_msgSender(), balanceAmount);
+        _addPayment(totalAmount, _msgSender(), secret);
+        emit HybridUnknown(_msgSender(), secret, totalAmount);
+    }    
 
     /**
      * @param _amount The amount of USDC to be sent from EOA
@@ -274,15 +229,28 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      * @param to The address to send the USDC to
      */
     function hybridKnown(uint256 _amount, uint256 balanceAmount, address to) external {
-        address from = _msgSender();
         require(_amount > 0, "Amount must be greater than 0");
         require(balanceAmount > 0, "Amount must be greater than 0");
         require(usdcToken.transferFrom(_msgSender(), address(this), _amount), "Transfer failed");
         _mint(to, _amount); // credit newly received funds (in contract)
-        _transfer(from, to, _amount); // transfer existing funds (in contract)
+        _transfer(_msgSender(), to, _amount); // transfer existing funds (in contract)
         uint256 totalAmount = _amount + balanceAmount;
         emit HybridKnown(_msgSender(), to, totalAmount);
     } 
+    
+    /**
+     * @param secret The secret to identify and clawback the payment
+     */
+    function clawback(bytes32 secret, uint256 timestamp) external {
+        require(block.timestamp > (timestamp + timeToUnlock), "Clawback not allowed yet");
+        bytes32 paymentHash = _combineToBytes32(_msgSender(), secret, timestamp);
+        uint256 amount = _senderPayments[paymentHash];
+        require(amount >  0, "No payment found");
+        _mint(_msgSender(), amount);
+        _payments[secret] -= amount;
+        _senderPayments[paymentHash] = 0;
+        emit Clawback(_msgSender(), secret, amount);
+    }
 
     /**
      * @param solution the solutio to the hashed secret
@@ -304,11 +272,8 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         bytes32 _r,
         bytes32 _s
     ) internal view {
-        require(keccak256(abi.encodePacked(solution)) == _payments[secret].secret, "Incorrect answer");
-        require(_payments[secret].secret == secret, "Secret not found");
-        require(_payments[secret].from != address(0), "Payment not found");
-        require(_payments[secret].completed == false, "Payment already completed");
-        require(_payments[secret].amount == amount, "Amount does not match");
+        require(keccak256(abi.encodePacked(solution)) == secret, "Incorrect answer");
+        require(_payments[secret] >= 0, "No secret carrying balance");
         require(block.timestamp < till, "Time expired");
         require(verify(amount, receiver, till, secret, nonce, _v, _r, _s), "Verification failed");
     }
@@ -329,47 +294,24 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         bytes32 _r,
         bytes32 _s
     ) external {
-        _checkClaim(solution, secret, _msgSender(), _payments[secret].amount, _till, _v, _r, _s);
+        uint256 secretAmount = _payments[secret];
+        _checkClaim(solution, secret, _msgSender(), secretAmount, _till, _v, _r, _s);
         require(_msgSender() != address(0), "Transfer to the zero address not possible");
-        uint256 amount = _payments[secret].amount;
-        _payments[secret].amount = 0;
-        _mint(_msgSender(), amount);
-        _payments[secret].completed = true; // Mark payment as completed
-        emit PaymentClaimed(_msgSender(), secret, _payments[secret].amount);
-    }
-
-    /**
-     * @param secret The secret to identify and claim the payment
-     * @param amount The amount of USDC to be claimed
-     * @dev This function requires admin/owner rights
-     */
-    function clawback(uint256 amount, bytes32 secret, address to) external onlyOwner {
-        require(_msgSender() == owner(), "Only owner can execute clawback");
-        require(_payments[secret].secret == secret, "Secret not found");
-        require(_payments[secret].from != address(0), "Payment not found");
-        require(_payments[secret].completed == false, "Payment already completed");
-        require(_payments[secret].amount >= amount, "Amount is too large");
-        uint256 currentAmount = _payments[secret].amount;
-        uint256 newAmount = currentAmount - amount;
-        _payments[secret].amount = newAmount;
-        if(newAmount == 0) {
-            _payments[secret].completed = true; // Mark payment as completed
-        }
-        _mint(to, amount);
-        emit Clawback(to, secret, amount);
+        _mint(_msgSender(), secretAmount);
+        _payments[secret] = 0;
+        emit PaymentClaimed(_msgSender(), secret, secretAmount);
     }
 
     /**
      * @param amount The amount of USDC to be withdrawn
-     * @param to The address to withdraw the USDC to
+     * @param to The address to withdraw the USDC toss
      */
     function withdraw(uint256 amount, address to) external {
-        address from = _msgSender();
-        require(from != address(0), "Transfer from the zero address");
+        require(_msgSender() != address(0), "Transfer from the zero address");
         usdcToken.approve(address(this), amount);
         require(usdcToken.transferFrom(address(this), to, amount), "transferFrom failed");
-        _burn(from, amount);
-        emit Withdraw(from, to, amount);
+        _burn(_msgSender(), amount);
+        emit Withdraw(_msgSender(), to, amount);
     }
 
     /**
@@ -382,16 +324,15 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         UserRequest calldata _userRequest,
         address bridgeImpl
     ) external virtual payable {
-        address from = _msgSender();
         address to = _userRequest.receiverAddress;
-        require(from != address(0), "bridgeWithdrawal from the zero address");
+        require(_msgSender() != address(0), "bridgeWithdrawal from the zero address");
         require(to != address(0), "bridgeWithdrawal to the zero address");
         console.log("Bridge and claiming funds", amount, _msgSender());
         usdcToken.approve(address(registry), amount);
         usdcToken.approve(bridgeImpl, amount);
         registry.outboundTransferTo{value: msg.value}(_userRequest);
-        _burn(from, amount);
-        emit BridgeWithdraw(from, to, amount, _userRequest.toChainId);
+        _burn(_msgSender(), amount);
+        emit BridgeWithdraw(_msgSender(), to, amount, _userRequest.toChainId);
     }
 
 
@@ -431,21 +372,10 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
 
     /**
      * @param secret the secret of the payment
-     * @return status returns true if payment was fully claimed
-     */
-    function getPaymentStatus(bytes32 secret) public view returns (bool) {
-        require(_payments[secret].secret == secret, "Secret not found");
-        bool status = _payments[secret].completed;
-        return status;
-    }
-
-    /**
-     * @param secret the secret of the payment
      * @return amount returns the payment amount
      */
     function getPaymentAmount(bytes32 secret) public view returns (uint256) {
-        require(_payments[secret].secret == secret, "Secret not found");
-        uint256 amount = _payments[secret].amount;
+        uint256 amount = _payments[secret];
         return amount;
     }
 
