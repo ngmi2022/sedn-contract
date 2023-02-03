@@ -61,8 +61,6 @@ export async function signMetaTxRequest(
 ) {
   const request = await buildRequest(forwarder, input);
   const toSign = buildTypedData(forwarder.address);
-  console.log("toSign: ", toSign);
-  console.log("request: ", request);
   const signature = await signer._signTypedData(toSign.domain, toSign.types, request);
   console.log("publicKey derived: ", getPublicKeyFromSignature(signature, request, forwarder.address));
   return { signature, request };
@@ -77,7 +75,6 @@ export function getPublicKeyFromSignature(signature: string, request: any, forwa
 export async function getSignedTxRequest(
   sednContract: Contract,
   signer: Wallet,
-  signerKey: string,
   funcName: string,
   funcArgs: any[],
   txValue: BigInt,
@@ -100,7 +97,6 @@ export async function getSignedTxRequest(
 export async function sendMetaTx(
   sednContract: Contract,
   signer: Wallet,
-  signerKey: string,
   funcName: string,
   funcArgs: any[],
   txValue: BigInt,
@@ -112,7 +108,6 @@ export async function sendMetaTx(
   const request = await getSignedTxRequest(
     sednContract,
     signer,
-    signerKey,
     funcName,
     funcArgs,
     txValue,
@@ -120,8 +115,6 @@ export async function sendMetaTx(
     validUntilTime,
     forwarderAddress,
   );
-  console.log("DEBUG: request: ", request);
-  console.log("DEBUG: sending request via webhook: ", relayerWebhook);
   const response = await fetch(relayerWebhook, {
     method: "POST",
     body: JSON.stringify(request),
@@ -135,7 +128,6 @@ export async function sendMetaTx(
 export async function sendTx(
   contract: Contract,
   signer: Wallet,
-  signerKey: string,
   funcName: string,
   funcArgs: any[],
   txValue: BigInt,
@@ -154,7 +146,6 @@ export async function sendTx(
     const response = await sendMetaTx(
       contract,
       signer,
-      signerKey,
       funcName,
       funcArgs,
       txValue,
@@ -163,7 +154,6 @@ export async function sendTx(
       relayerWebhook,
       forwarderAddress,
     );
-    console.log("DEBUG: response from webhook: ", response);
     txHash = JSON.parse(response.result).txHash;
     console.log(`TX: Send gasless tx: ${explorerData[network].url}/tx/${txHash}`);
     txReceipt = await getTxReceipt(60_000, signer, txHash);

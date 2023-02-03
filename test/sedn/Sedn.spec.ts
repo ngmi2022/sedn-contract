@@ -471,8 +471,8 @@ describe("Sedn", function () {
       const blocktime = (await sender.provider!.getBlock("latest")).timestamp;
       const signedTx = await getSignedTxRequest(
         contract,
+        // @ts-ignore
         sender,
-        senderWallet.privateKey,
         "sednKnown",
         [amount, claimer.address],
         BigInt("0"),
@@ -506,8 +506,8 @@ describe("Sedn", function () {
       const blocktime = (await sender.provider!.getBlock("latest")).timestamp;
       const signedTx = await getSignedTxRequest(
         contract,
+        // @ts-ignore
         sender,
-        senderWallet.privateKey,
         "sednKnown",
         [amount, claimer.address],
         BigInt("0"),
@@ -518,6 +518,7 @@ describe("Sedn", function () {
       try {
         await forwarder.connect(owner).verify(signedTx.request, signedTx.signature);
       } catch (e) {
+        // @ts-ignore
         expect(e.reason.includes("SednForwarder: wrong chainId"));
       }
       try {
