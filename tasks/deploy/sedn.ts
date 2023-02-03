@@ -16,7 +16,7 @@ task("deploy:Sedn").setAction(async function (taskArguments: TaskArguments, { et
   const ch_id: number = network.config.chainId!;
   const registryAddress: string =
     ch_id !== 31337 ? addresses[ch_id][registry] : "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0";
-  const sednFactory: Sedn__factory = await ethers.getContractFactory("Sedn");
+  const sednFactory = (await ethers.getContractFactory("Sedn")) as Sedn__factory;
   const configData = await fetchConfig();
   const trustedForwarder = configData.forwarder[network.name];
   const verifier = configData.verifier;

@@ -1,68 +1,82 @@
-import { SignTypedDataVersion, TypedMessage, signTypedData } from "@metamask/eth-sig-util";
+import { TypedDataDomain, TypedDataField } from "@ethersproject/abstract-signer";
+import { arrayify, hexConcat } from "@ethersproject/bytes";
+import { _TypedDataEncoder } from "@ethersproject/hash";
+import { hashMessage } from "@ethersproject/hash";
+import { keccak256 } from "@ethersproject/keccak256";
 import { fetch } from "cross-fetch";
 import { Contract, Signer, Wallet, ethers } from "ethers";
 
 import { ForwarderAbi } from "../abis/abis";
 import { explorerData, feeData, getChainId, getTxCostInUSD, getTxReceipt } from "./utils";
 
-const EIP712Domain = [
-  { name: "name", type: "string" },
-  { name: "version", type: "string" },
-  { name: "verifyingContract", type: "address" },
-];
-
-const ForwardRequest = [
-  { name: "from", type: "address" },
-  { name: "to", type: "address" },
-  { name: "chainid", type: "uint256" },
-  { name: "value", type: "uint256" },
-  { name: "gas", type: "uint256" },
-  { name: "nonce", type: "uint256" },
-  { name: "valid", type: "uint256" },
-  { name: "data", type: "bytes" },
-];
-
 function getMetaTxTypeData(verifyingContract: string) {
+  const ForwardRequest = [
+    { name: "from", type: "address" },
+    { name: "to", type: "address" },
+    { name: "chainid", type: "uint256" },
+    { name: "value", type: "uint256" },
+    { name: "gas", type: "uint256" },
+    { name: "nonce", type: "uint256" },
+    { name: "valid", type: "uint256" },
+    { name: "data", type: "bytes" },
+  ] as TypedDataField[];
+  const typedDomain: TypedDataDomain = {
+    name: "SednForwarder",
+    version: "0.0.2",
+    verifyingContract,
+  };
+  const types = {
+    ForwardRequest,
+  } as Record<string, TypedDataField[]>;
   return {
-    types: {
-      EIP712Domain,
-      ForwardRequest,
-    },
-    domain: {
-      name: "SednForwarder",
-      version: "0.0.2",
-      verifyingContract,
-    },
+    types,
+    domain: typedDomain,
     primaryType: "ForwardRequest",
   };
 }
 
 async function buildRequest(forwarder: ethers.Contract, input: { [key: string]: string | number }) {
   const nonce = await forwarder.getNonce(input.from).then(nonce => nonce.toString());
-  return { value: 0, gas: 1e6, nonce, ...input };
+  return {
+    from: input.from,
+    to: input.to,
+    chainid: input.chainid,
+    value: input.value,
+    gas: 1e6,
+    nonce,
+    valid: input.valid,
+    data: input.data,
+  };
 }
 
-async function buildTypedData(forwarder: ethers.Contract, request: { [key: string]: string | number }) {
-  const typeData = getMetaTxTypeData(forwarder.address);
-  return { ...typeData, message: request };
+function buildTypedData(forwarderAddress: string) {
+  const typeData = getMetaTxTypeData(forwarderAddress);
+  return { ...typeData };
 }
 
 export async function signMetaTxRequest(
-  privateKey: string,
+  signer: Wallet,
   forwarder: Contract,
   input: { [key: string]: string | number },
 ) {
   const request = await buildRequest(forwarder, input);
-  const toSign = await buildTypedData(forwarder, request);
-  console.log("toSign: ", JSON.stringify(toSign));
-  const BufferPk: Buffer = Buffer.from(privateKey.replace(/^0x/, ""), "hex");
-  const signature = signTypedData({ privateKey: BufferPk, data: toSign, version: SignTypedDataVersion.V4 });
+  const toSign = buildTypedData(forwarder.address);
+  console.log("toSign: ", toSign);
+  console.log("request: ", request);
+  const signature = await signer._signTypedData(toSign.domain, toSign.types, request);
+  console.log("publicKey derived: ", getPublicKeyFromSignature(signature, request, forwarder.address));
   return { signature, request };
+}
+
+export function getPublicKeyFromSignature(signature: string, request: any, forwarderAddress: string) {
+  let typedData = buildTypedData(forwarderAddress);
+  const recoveredPubKey = ethers.utils.verifyTypedData(typedData.domain, typedData.types, request, signature);
+  return recoveredPubKey.toLowerCase();
 }
 
 export async function getSignedTxRequest(
   sednContract: Contract,
-  signer: Signer,
+  signer: Wallet,
   signerKey: string,
   funcName: string,
   funcArgs: any[],
@@ -79,13 +93,13 @@ export async function getSignedTxRequest(
   const valid = validUntilTime.toString();
   const chainid = chainId.toString();
 
-  const request = await signMetaTxRequest(signerKey, forwarder, { to, from, chainid, data, valid, value });
+  const request = await signMetaTxRequest(signer, forwarder, { from, to, chainid, value, valid, data });
   return request;
 }
 
 export async function sendMetaTx(
   sednContract: Contract,
-  signer: Signer,
+  signer: Wallet,
   signerKey: string,
   funcName: string,
   funcArgs: any[],

@@ -107,27 +107,6 @@ export const createUserAndGenerateIdToken = async (
   return idToken;
 };
 
-const createAccountInDatabase = async (db: admin.firestore.Firestore, { phoneUID, walletUID }: ICreateAccount) => {
-  const uid = uuid();
-  let account = {
-    master: uid,
-  } as IAccount;
-
-  if (phoneUID) {
-    account.phoneUID = phoneUID;
-  }
-  if (walletUID) {
-    account.primaryWalletUID = walletUID;
-  }
-
-  await db.collection(COLLECTION_NAME).doc(uid).set(account);
-  const ref = db.collection(COLLECTION_NAME).doc(uid);
-  return {
-    ref,
-    account,
-  };
-};
-
 function findObjectWithMostKeys(arr: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>[]) {
   return arr.reduce((prev, curr) => {
     const prevData = prev.data() as IAccount;

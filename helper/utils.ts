@@ -3,13 +3,12 @@ import axios from "axios";
 import { fetch } from "cross-fetch";
 import { config } from "dotenv";
 import { BigNumber, Contract, Wallet, ethers } from "ethers";
+import * as path from "path";
 import { ITransaction } from "sedn-interfaces";
 
 import { ISednMultichainVariables } from "../integration/with-api/Sedn";
 import { FakeSigner } from "./FakeSigner";
 import { getSignedTxRequest } from "./signer";
-
-import path = require("path");
 
 // get dem fucking env's up in this bitch
 config({ path: path.resolve(__dirname, "../.env") });
