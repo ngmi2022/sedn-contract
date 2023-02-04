@@ -1,8 +1,6 @@
 import { run } from "hardhat";
+import { upgrades } from "hardhat";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
-import { hrtime } from "process";
-
-import type { SednForwarder, SednForwarder__factory } from "../../src/types";
 
 export async function deployForwarder(network: string): Promise<string> {
   const hre: HardhatRuntimeEnvironment = require("hardhat");
@@ -19,8 +17,14 @@ export async function deploySedn(
 ) {
   const hre: HardhatRuntimeEnvironment = require("hardhat");
   hre.changeNetwork(network);
-  const sednAddress = await run("deploy:Sedn", { hre, forwarderAddress, verifierAddress, usdcAddress });
-  return sednAddress;
+  const { implementationAddress, proxyAddress } = await run("deploy:Sedn", {
+    hre,
+    upgrades,
+    forwarderAddress,
+    verifierAddress,
+    usdcAddress,
+  });
+  return { implementationAddress, proxyAddress };
 }
 
 export async function deployTestnetSedn(
@@ -31,8 +35,13 @@ export async function deployTestnetSedn(
 ) {
   const hre: HardhatRuntimeEnvironment = require("hardhat");
   hre.changeNetwork(network);
-  const sednAddress = await run("deploy:testnet", { hre, forwarderAddress, verifierAddress, usdcAddress });
-  return sednAddress;
+  const { implementationAddress, proxyAddress } = await run("deploy:testnet", {
+    hre,
+    forwarderAddress,
+    verifierAddress,
+    usdcAddress,
+  });
+  return { implementationAddress, proxyAddress };
 }
 
 export async function deployTestUSDC(network: string, amountToDeploy: number) {
@@ -42,7 +51,7 @@ export async function deployTestUSDC(network: string, amountToDeploy: number) {
   return usdcAddress;
 }
 
-export async function deployLogicContractWithForwarder(
+export async function deploySednWithForwarder(
   network: string,
   usdcAddress: string,
   verifierAddress: string,
@@ -50,33 +59,38 @@ export async function deployLogicContractWithForwarder(
 ) {
   // deploy forwarder
   const forwarderAddress = await deployForwarder(network);
-  let logicAddress: string;
+  let addresses: any = {
+    implementationAddress: "",
+    proxyAddress: "",
+  };
   if (testnet) {
-    logicAddress = await deployTestnetSedn(network, forwarderAddress, verifierAddress, usdcAddress);
+    addresses = await deployTestnetSedn(network, forwarderAddress, verifierAddress, usdcAddress);
   } else {
-    logicAddress = await deploySedn(network, forwarderAddress, verifierAddress, usdcAddress);
+    addresses = await deploySedn(network, forwarderAddress, verifierAddress, usdcAddress);
   }
-  console.log("Process finished");
-  console.log("Sedn deployed to: ", logicAddress);
+  console.log("Sedn deployed to: ", addresses.proxyAddress);
+  console.log("Implementation contract deployed to: ", addresses.implementationAddress);
   console.log("Forwarder deployed to: ", forwarderAddress);
-  return { logicAddress, forwarderAddress };
+  console.log("Process finished");
+  return {
+    implementationAddress: addresses.implementationAddress,
+    proxyAddress: addresses.proxyAddress,
+    forwarderAddress,
+  };
 }
 
-export async function deployLogicContractWithAll(network: string, verifierAddress: string, testnet: boolean) {
+export async function deploySednWithAll(network: string, verifierAddress: string, testnet: boolean) {
   // deploy usdc (typically only for testnet)
   const usdcAddress = await deployTestUSDC(network, 100000000);
+  console.log("USDC deployed to: ", usdcAddress);
   // deploy forwarder
-  const { logicAddress, forwarderAddress } = await deployLogicContractWithForwarder(
+  const { implementationAddress, proxyAddress, forwarderAddress } = await deploySednWithForwarder(
     network,
     usdcAddress,
     verifierAddress,
     testnet,
   );
-  console.log("Process finished");
-  console.log("Sedn deployed to: ", logicAddress);
-  console.log("Forwarder deployed to: ", forwarderAddress);
-  console.log("USDC deployed to: ", usdcAddress);
-  return { logicAddress, forwarderAddress, usdcAddress };
+  return { implementationAddress, proxyAddress, forwarderAddress, usdcAddress };
 }
 
 export interface INetworksDeployWithUSDC {
@@ -102,19 +116,20 @@ export async function multiNetworkLogicDeploy(networksToDeploy: INetworksDeployW
   let config: any = {};
   for (const network of networks) {
     const { testnet, usdcAddress } = networksToDeploy[network];
-    const { logicAddress, forwarderAddress } = await deployLogicContractWithForwarder(
+    const { implementationAddress, proxyAddress, forwarderAddress } = await deploySednWithForwarder(
       network,
       usdcAddress,
       verifierAddress,
       testnet,
     );
     config[network] = {
-      logicContractAddress: logicAddress,
-      forwarderAddress: forwarderAddress,
+      implementationContractAddress: implementationAddress,
+      proxyContractAddress: proxyAddress,
+      forwarderContractAddress: forwarderAddress,
     };
   }
   console.log(config);
-  return deployments;
+  return config;
 }
 
 function checkMissingNetworks(networks: string[], networksHRE: string[]) {
@@ -136,4 +151,9 @@ const networksToDeploy: INetworksDeployWithUSDC = {
   },
 };
 
-const deployments = multiNetworkLogicDeploy(networksToDeploy, "0xe0c2eE53925fBe98319ac1f5653677e551E10AD7");
+const promise = deploySedn(
+  "arbitrum-goerli",
+  "0x47b80475A1A4832a0dcbBc206E24Ddf6533aE2Bb",
+  "0xe0c2eE53925fBe98319ac1f5653677e551E10AD7",
+  "0xA30D67979d4Ce07b5467533B633AD23285434C4A",
+);

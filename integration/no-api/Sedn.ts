@@ -59,7 +59,8 @@ export interface ISednVariables {
 async function getSedn(network: string): Promise<ISednVariables> {
   let config = await fetchConfig();
   // const sednAddress = config.contracts[network];
-  const sednAddress = "0x91B4ebC9E330E6EAAbc8481e483D42Da813065f6";
+  const sednAddress = "0xA7F048DF61231DE5e969F3D7a8F6D0a66B22bBBC";
+  const sednAbi = "0xa0ba3b50fde38a0f77aa2ed5616c3ea13cca409d";
   const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(network));
   const signer = new ethers.Wallet(SIGNER_PK, provider);
   const verifier = new ethers.Wallet(VERIFIER_PK, provider);
@@ -67,7 +68,7 @@ async function getSedn(network: string): Promise<ISednVariables> {
   const unfundedSigner = new ethers.Wallet(UNFUNDED_SIGNER_PK, provider);
   const relayerWebhook = config.relayerWebhooks[network];
   const forwarderAddress = config.forwarder[network];
-  const sedn = new ethers.Contract(sednAddress, await getAbi(network, sednAddress), signer);
+  const sedn = new ethers.Contract(sednAddress, await getAbi(network, sednAbi), signer);
   const usdcOrigin = new ethers.Contract(
     config.usdc[network].contract,
     await getAbi(network, config.usdc[network].abi),
