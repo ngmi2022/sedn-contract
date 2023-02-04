@@ -95,6 +95,12 @@ export const getRpcUrl = (network: string) => {
     case "mainnet":
       return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
     // return "https://mainnet.infura.io/v3/" + infuraKey;
+    case "polygon-mainnet":
+      return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
+    // return "https://polygon-mainnet.infura.io/v3/" + infuraKey;
+    case "matic":
+      return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
+    // return "https://polygon-mainnet.infura.io/v3/" + infuraKey;
     case "polygon":
       return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
     // return "https://polygon-mainnet.infura.io/v3/" + infuraKey;
@@ -693,3 +699,7 @@ export const getBalance = async (contract: Contract, signer: Wallet) => {
   const balanceStr = balance.toString();
   return balanceStr;
 };
+
+export function timeout(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}

@@ -1,14 +1,15 @@
+import { addresses } from "@socket.tech/ll-core/addresses/index";
+import { upgrades } from "hardhat";
 import { task } from "hardhat/config";
 import type { TaskArguments } from "hardhat/types";
 
-import { SednTestnet, SednTestnet__factory } from "../../src/types";
+import type { Sedn, Sedn__factory } from "../../src/types";
 
 function timeout(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// actual hardhat deploy
-task("deploy:testnet").setAction(async function (taskArguments: TaskArguments) {
+task("deploy:proxySedn").setAction(async function (taskArguments: TaskArguments) {
   // args
   const hre = taskArguments.hre;
   const verifierAddress = taskArguments.verifierAddress;
@@ -19,12 +20,14 @@ task("deploy:testnet").setAction(async function (taskArguments: TaskArguments) {
   const ethers = hre.ethers;
   const network = hre.network;
   const signer = await ethers.getSigner();
-
-  const registryAddress: string = "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0"; // mainnet registry address, could really be anything
-  const sednFactory = (await ethers.getContractFactory("SednTestnet")) as SednTestnet__factory;
-  const sedn: SednTestnet = await sednFactory
-    .connect(signer)
-    .deploy(usdcAddress, registryAddress, verifierAddress, trustedForwarderAddress);
+  // constructor & deploy setup
+  const registryAddress: string =
+    hre.network.config.chainId !== 31337
+      ? addresses[hre.network.config.chainId]["registry"]
+      : "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0";
+  const sednFactory: Sedn__factory = await ethers.getContractFactory("Sedn");
+  const sednArgs = [usdcAddress, registryAddress, verifierAddress, trustedForwarderAddress];
+  const sedn = await upgrades.deployProxy(sednFactory, sednArgs, { initializer: "initialize", kind: "uups" });
   await sedn.deployed();
   console.log("Sedn deployed to: ", sedn.address);
 
@@ -34,7 +37,7 @@ task("deploy:testnet").setAction(async function (taskArguments: TaskArguments) {
     await hre.run("verify:verify", {
       address: sedn.address,
       network: network.name,
-      constructorArguments: [usdcAddress, registryAddress, verifierAddress, trustedForwarderAddress],
+      constructorArguments: sednArgs,
     });
   }
   return sedn.address;
