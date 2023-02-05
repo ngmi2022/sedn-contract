@@ -20,16 +20,16 @@ task("deploy:Sedn").setAction(async function (taskArguments: TaskArguments) {
   const network = hre.network;
   const signer = await ethers.getSigner();
   // constructor & deploy setup
-  // const registryAddress: string =
-  //   hre.network.config.chainId !== 31337
-  //     ? addresses[hre.network.config.chainId]["registry"]
-  //     : "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0";
-  const registryAddress = "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0";
+  const registryAddress: string =
+    hre.network.config.chainId !== 31337
+      ? addresses[hre.network.config.chainId]["registry"]
+      : "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0";
   const sednFactory: ContractFactory = await ethers.getContractFactory("Sedn");
   const sednArgs = [usdcAddress, registryAddress, verifierAddress, trustedForwarderAddress];
   const proxy = await upgrades.deployProxy(sednFactory, sednArgs, {
     kind: "uups",
     constructorArgs: [trustedForwarderAddress],
+    initializer: "initSedn",
   });
   await proxy.deployed();
   const implementationAddress = await getImplementationAddress(signer.provider, proxy.address);

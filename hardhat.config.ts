@@ -1,5 +1,4 @@
 import "@nomicfoundation/hardhat-toolbox";
-import "@nomiclabs/hardhat-etherscan";
 import "@openzeppelin/hardhat-upgrades";
 import { config as dotenvConfig } from "dotenv";
 import "hardhat-change-network";
@@ -8,8 +7,7 @@ import type { HardhatUserConfig } from "hardhat/config";
 import type { NetworkUserConfig } from "hardhat/types";
 import { resolve } from "path";
 
-import "./tasks/accounts";
-import "./tasks/deploy";
+// import "./tasks";
 
 dotenvConfig({ path: resolve(__dirname, "./.env") });
 

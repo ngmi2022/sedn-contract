@@ -1,6 +1,22 @@
-import { run } from "hardhat";
-import { upgrades } from "hardhat";
+import { run, upgrades } from "hardhat";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
+
+export interface INetworksDeploy {
+  [network: string]: {
+    testnet: boolean;
+    usdcAddress?: string;
+    forwarderAddress?: string;
+  };
+}
+
+export interface INetworksUpgrade {
+  [network: string]: {
+    testnet: boolean;
+    proxyAddress: string;
+    implementationAddress: string;
+    forwarderAddress: string;
+  };
+}
 
 export async function deployForwarder(network: string): Promise<string> {
   const hre: HardhatRuntimeEnvironment = require("hardhat");
@@ -27,6 +43,18 @@ export async function deploySedn(
   return { implementationAddress, proxyAddress };
 }
 
+export async function upgradeSedn(network: string, proxyAddress: string, forwarderAddress: string) {
+  const hre: HardhatRuntimeEnvironment = require("hardhat");
+  hre.changeNetwork(network);
+  const { implementationAddress } = await run("upgrade:Sedn", {
+    hre,
+    upgrades,
+    proxyAddress,
+    forwarderAddress,
+  });
+  return { implementationAddress, proxyAddress };
+}
+
 export async function deployTestnetSedn(
   network: string,
   forwarderAddress: string,
@@ -37,9 +65,22 @@ export async function deployTestnetSedn(
   hre.changeNetwork(network);
   const { implementationAddress, proxyAddress } = await run("deploy:testnet", {
     hre,
+    upgrades,
     forwarderAddress,
     verifierAddress,
     usdcAddress,
+  });
+  return { implementationAddress, proxyAddress };
+}
+
+export async function upgradeTestnetSedn(network: string, proxyAddress: string, forwarderAddress: string) {
+  const hre: HardhatRuntimeEnvironment = require("hardhat");
+  hre.changeNetwork(network);
+  const { implementationAddress } = await run("upgrade:testnet", {
+    hre,
+    upgrades,
+    proxyAddress,
+    forwarderAddress,
   });
   return { implementationAddress, proxyAddress };
 }
@@ -93,39 +134,27 @@ export async function deploySednWithAll(network: string, verifierAddress: string
   return { implementationAddress, proxyAddress, forwarderAddress, usdcAddress };
 }
 
-export interface INetworksDeployWithUSDC {
-  [network: string]: {
-    testnet: boolean;
-    usdcAddress: string;
-  };
-}
-
-export interface INetworksDeploy {
-  [network: string]: {
-    testnet: boolean;
-  };
-}
-
-export async function multiNetworkLogicDeploy(networksToDeploy: INetworksDeployWithUSDC, verifierAddress: string) {
+export async function multiNetworkSednDeploy(networksToDeploy: INetworksDeploy, verifierAddress: string) {
   const hre: HardhatRuntimeEnvironment = require("hardhat");
   const networks = Object.keys(networksToDeploy);
   const networksHRE = Object.keys(hre.config.networks);
   checkMissingNetworks(networks, networksHRE);
   console.log("HRE networks available:", networksHRE.join(", "));
 
-  let config: any = {};
+  let config: INetworksUpgrade = {};
   for (const network of networks) {
     const { testnet, usdcAddress } = networksToDeploy[network];
     const { implementationAddress, proxyAddress, forwarderAddress } = await deploySednWithForwarder(
       network,
-      usdcAddress,
+      usdcAddress!,
       verifierAddress,
       testnet,
     );
     config[network] = {
-      implementationContractAddress: implementationAddress,
-      proxyContractAddress: proxyAddress,
-      forwarderContractAddress: forwarderAddress,
+      testnet,
+      implementationAddress,
+      proxyAddress,
+      forwarderAddress,
     };
   }
   console.log(config);
@@ -140,20 +169,36 @@ function checkMissingNetworks(networks: string[], networksHRE: string[]) {
   }
 }
 
-const networksToDeploy: INetworksDeployWithUSDC = {
+const NETWORKS: INetworksDeploy = {
   "arbitrum-goerli": {
     testnet: true,
     usdcAddress: "0xa30d67979d4ce07b5467533b633ad23285434c4a",
+    forwarderAddress: "0x47b80475A1A4832a0dcbBc206E24Ddf6533aE2Bb",
   },
-  "optimism-goerli": {
-    testnet: true,
-    usdcAddress: "0x8DC32778b81f7C2A537647CCf7fac2F8BC713f9C",
-  },
+  // "optimism-goerli": {
+  //   testnet: true,
+  //   usdcAddress: "0x8DC32778b81f7C2A537647CCf7fac2F8BC713f9C",
+  // },
 };
 
-const promise = deploySedn(
-  "arbitrum-goerli",
-  "0x47b80475A1A4832a0dcbBc206E24Ddf6533aE2Bb",
-  "0xe0c2eE53925fBe98319ac1f5653677e551E10AD7",
-  "0xA30D67979d4Ce07b5467533B633AD23285434C4A",
-);
+const VERIFIED_ADDRESS = "0xe0c2eE53925fBe98319ac1f5653677e551E10AD7";
+const NETWORK = "arbitrum-goerli";
+
+async function manualDeploy(network: string, networksToDeploy: INetworksDeploy, verifierAddress: string) {
+  const { usdcAddress, forwarderAddress } = networksToDeploy[network];
+  const config = await deployTestnetSedn(network, forwarderAddress!, verifierAddress, usdcAddress!);
+  console.log(JSON.stringify(config));
+  return;
+}
+
+// manualDeploy(NETWORK, NETWORKS, VERIFIED_ADDRESS);
+
+const PROXY_ADDRESS = "0x2eECe520fB6d83582DD78056565951A4A7cB6743";
+
+async function manualUpgrade(network: string, proxyAddress: string, forwarderAddress: string) {
+  const { implementationAddress } = await upgradeTestnetSedn(network, proxyAddress, forwarderAddress);
+  console.log("New implementation address: ", implementationAddress);
+  return;
+}
+
+manualUpgrade(NETWORK, PROXY_ADDRESS, "0x47b80475A1A4832a0dcbBc206E24Ddf6533aE2Bb");

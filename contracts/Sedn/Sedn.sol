@@ -96,7 +96,9 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
     event Clawback(address indexed recipient, bytes32 secret, uint256 amount);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor(address _trustedForwarder) ERC2771ContextUpgradeable(address(_trustedForwarder)) {}
+    constructor(address _trustedForwarder) ERC2771ContextUpgradeable(address(_trustedForwarder)) {
+        _disableInitializers();
+    }
 
     /**
      * @dev Initialize the contract since it is a an implementation contract and constructor is not called
@@ -105,12 +107,12 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
      * @param _trustedVerifyAddress Address acting as verifier to unlock valid claims, not specific for chains
      * @param _trustedForwarder Address for the trusted forwarder contract for chain
     */
-    function initialize(
+    function initSedn_unchained(
         address _usdcTokenAddressForChain,
         address _registryDeploymentAddressForChain,
         address _trustedVerifyAddress,
         SednForwarder _trustedForwarder
-        ) public initializer {
+        ) internal onlyInitializing {
             usdcToken = IERC20(_usdcTokenAddressForChain);
             registry = IRegistry(_registryDeploymentAddressForChain);
             trustedVerifyAddress = _trustedVerifyAddress;
@@ -120,6 +122,19 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
             __UUPSUpgradeable_init_unchained();
             __Ownable_init_unchained();
         }
+    
+    function initSedn(
+        address _usdcTokenAddressForChain,
+        address _registryDeploymentAddressForChain,
+        address _trustedVerifyAddress,
+        SednForwarder _trustedForwarder
+    ) public initializer {
+        initSedn_unchained(
+            _usdcTokenAddressForChain,
+            _registryDeploymentAddressForChain,
+            _trustedVerifyAddress,
+            _trustedForwarder);
+    }
 
     ///@inheritdoc UUPSUpgradeable
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}

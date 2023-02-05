@@ -1,4 +1,3 @@
-import { ethers } from "ethers";
 import { task } from "hardhat/config";
 import type { TaskArguments } from "hardhat/types";
 
