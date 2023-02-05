@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.4;
 
+// TODO: shouldnt have console.log in production
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+//TODO: why do we need SafeMath?
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -11,6 +13,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/metatx/ERC2771Context.sol";
 import "../Forwarder/SednForwarder.sol";
+
+//TODO: is this used?
+error SednError();
 
 interface IUserRequest {
     /**
@@ -72,6 +77,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest {
     address public addressDelegate;
     address public trustedVerifyAddress;
     uint256 public nonce = 0;
+    //TODO: Why extra 20 seconds?
     uint256 public timeToUnlock = 20;
 
     event TransferKnown(address indexed from, address indexed to, uint256 amount);
@@ -102,7 +108,12 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest {
         address _registryDeploymentAddressForChain,
         address _trustedVerifyAddress,
         SednForwarder _trustedForwarder
-    ) ERC2771Context(address(_trustedForwarder)) ERC20("Sedn USDC", "sdnUSDC") {
+    )
+        // TODO: `sdnUSDC` missing `e` in `Sedn`
+        ERC2771Context(address(_trustedForwarder))
+        ERC20("Sedn USDC", "sdnUSDC")
+    {
+        // TODO: shouldnt have console.log in production
         console.log(
             "Deploying the Sedn Contract; USDC Token Address: %s; Socket Registry: %s",
             _usdcTokenAddressForChain,
@@ -161,6 +172,8 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest {
         bytes32 _secret,
         uint256 timestamp
     ) public pure returns (bytes32) {
+        //TODO: no require for timestamp?
+        //TODO: no require for _secret?
         bytes32 _addressBytes = keccak256(abi.encodePacked(_address));
         bytes32 _timestampBytes = keccak256(abi.encodePacked(timestamp));
         return keccak256(abi.encodePacked(_addressBytes, _secret, _timestampBytes));
@@ -205,6 +218,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest {
      * @param to The address to send the USDC to
      */
     function transferKnown(uint256 _amount, address to) external {
+        //TODO: How can msgSender be address(0) ?
         require(_msgSender() != address(0), "Transfer from the zero address");
         require(to != address(0), "Transfer to the zero address");
         _transfer(_msgSender(), to, _amount);
@@ -254,9 +268,12 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest {
      */
     function clawback(bytes32 secret, uint256 timestamp) external {
         require(block.timestamp > (timestamp + timeToUnlock), "Clawback not allowed yet");
+        //TODO: How are we saving the timestamp? since you need that to clawback
         bytes32 paymentHash = _combineToBytes32(_msgSender(), secret, timestamp);
         uint256 amount = _senderPayments[paymentHash];
         require(amount > 0, "No payment found");
+        //TODO: So user gets SEDN USDC back?
+        //TODO: you have to set the payments first to 0 otherwise you maybe can do a reentrancy attack
         _mint(_msgSender(), amount);
         _payments[secret] -= amount;
         _senderPayments[paymentHash] = 0;
@@ -310,6 +327,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest {
         require(_msgSender() != address(0), "Transfer to the zero address not possible");
         _mint(_msgSender(), secretAmount);
         _payments[secret] = 0;
+        // TODO: we not need to set the clawback to zero too? This is a big funerability issue. You claim your cash but you can still clawback
         emit PaymentClaimed(_msgSender(), secret, secretAmount);
     }
 
@@ -338,10 +356,12 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest {
         address to = _userRequest.receiverAddress;
         require(_msgSender() != address(0), "bridgeWithdrawal from the zero address");
         require(to != address(0), "bridgeWithdrawal to the zero address");
+        //TODO: console.log production
         console.log("Bridge and claiming funds", amount, _msgSender());
         usdcToken.approve(address(registry), amount);
         usdcToken.approve(bridgeImpl, amount);
         registry.outboundTransferTo{ value: msg.value }(_userRequest);
+        //TODO: not sure about this comment but dont we have to check amount before burning?
         _burn(_msgSender(), amount);
         emit BridgeWithdraw(_msgSender(), to, amount, _userRequest.toChainId);
     }
