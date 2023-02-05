@@ -12,8 +12,6 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/metatx/ERC2771Context.sol";
 import "../Forwarder/SednForwarder.sol";
 
-error SednError();
-
 interface IUserRequest {
     /**
     // @param id route id of middleware to be used
@@ -67,7 +65,7 @@ interface IRegistry is IUserRequest {
 /// @title Contract to enhance USDC functionality by letting users send money to a "claimable" payment balance
 /// @author Marco Hauptmann, Derek Rein & Ferdinand Ehrhardt
 /// @notice This contract is not production-ready and should not be used in production
-contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
+contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest {
     IERC20 public immutable usdcToken;
     IRegistry public immutable registry;
     uint256 public paymentCounter;
@@ -86,7 +84,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
     event HybridUnknown(address indexed from, bytes32 secret, uint256 amount);
     event HybridUnknownToExistingSecret(address indexed from, bytes32 secret, uint256 amountIncreased);
     event PaymentClaimed(address indexed recipient, bytes32 secret, uint256 amount);
-    event Withdraw (address indexed owner, address indexed to, uint256 amount);
+    event Withdraw(address indexed owner, address indexed to, uint256 amount);
     event BridgeWithdraw(address indexed owner, address indexed to, uint256 amount, uint256 chainId);
     event Clawback(address indexed recipient, bytes32 secret, uint256 amount);
 
@@ -98,14 +96,13 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      * @param _registryDeploymentAddressForChain Address for the registry (Socket) implementation for chain
      * @param _trustedVerifyAddress Address acting as verifier to unlock valid claims, not specific for chains
      * @param _trustedForwarder Address for the trusted forwarder contract for chain
-    */
+     */
     constructor(
         address _usdcTokenAddressForChain,
         address _registryDeploymentAddressForChain,
         address _trustedVerifyAddress,
         SednForwarder _trustedForwarder
-    ) 
-    ERC2771Context(address(_trustedForwarder)) ERC20("Sedn USDC", "sdnUSDC"){
+    ) ERC2771Context(address(_trustedForwarder)) ERC20("Sedn USDC", "sdnUSDC") {
         console.log(
             "Deploying the Sedn Contract; USDC Token Address: %s; Socket Registry: %s",
             _usdcTokenAddressForChain,
@@ -117,14 +114,12 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
     }
 
     ///@inheritdoc ERC2771Context
-    function _msgSender() internal view virtual override (Context, ERC2771Context)
-        returns (address sender) {
+    function _msgSender() internal view virtual override(Context, ERC2771Context) returns (address sender) {
         sender = ERC2771Context._msgSender();
     }
 
     ///@inheritdoc ERC2771Context
-    function _msgData() internal view virtual override (Context, ERC2771Context)
-        returns (bytes calldata) {
+    function _msgData() internal view virtual override(Context, ERC2771Context) returns (bytes calldata) {
         return ERC2771Context._msgData();
     }
 
@@ -145,7 +140,11 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      * @param from Address of the sender
      * @param secret Secret to identify the payment
      */
-    function _addPayment(uint256 _amount, address from, bytes32 secret) internal {
+    function _addPayment(
+        uint256 _amount,
+        address from,
+        bytes32 secret
+    ) internal {
         _payments[secret] += _amount;
         bytes32 paymentHash = _combineToBytes32(from, secret, block.timestamp);
         _senderPayments[paymentHash] += _amount;
@@ -157,7 +156,11 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      * @param timestamp Timestamp of block where the payment is executed
      * @dev Creates a unique key for the payment to enable clawbacks
      */
-    function _combineToBytes32(address _address, bytes32 _secret, uint256 timestamp) public pure returns (bytes32) {
+    function _combineToBytes32(
+        address _address,
+        bytes32 _secret,
+        uint256 timestamp
+    ) public pure returns (bytes32) {
         bytes32 _addressBytes = keccak256(abi.encodePacked(_address));
         bytes32 _timestampBytes = keccak256(abi.encodePacked(timestamp));
         return keccak256(abi.encodePacked(_addressBytes, _secret, _timestampBytes));
@@ -180,7 +183,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      */
     function sednKnown(uint256 _amount, address to) external {
         require(_amount > 0, "Amount must be greater than 0");
-        require(usdcToken.transferFrom(_msgSender(), address(this), _amount), "Transfer failed"); 
+        require(usdcToken.transferFrom(_msgSender(), address(this), _amount), "Transfer failed");
         _mint(to, _amount);
         emit SednKnown(_msgSender(), to, _amount);
     }
@@ -213,7 +216,11 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      * @param balanceAmount The amount of USDC to be sent from sednBalance
      * @param secret Existing secret to identify and claim the payment
      */
-    function hybridUnknown(uint256 _amount, uint256 balanceAmount, bytes32 secret) external {
+    function hybridUnknown(
+        uint256 _amount,
+        uint256 balanceAmount,
+        bytes32 secret
+    ) external {
         require(_amount > 0, "Amount must be greater than 0");
         require(balanceAmount > 0, "Amount must be greater than 0");
         uint256 totalAmount = _amount + balanceAmount;
@@ -221,14 +228,18 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         _burn(_msgSender(), balanceAmount);
         _addPayment(totalAmount, _msgSender(), secret);
         emit HybridUnknown(_msgSender(), secret, totalAmount);
-    }    
+    }
 
     /**
      * @param _amount The amount of USDC to be sent from EOA
      * @param balanceAmount The amount of USDC to be sent from sednBalance
      * @param to The address to send the USDC to
      */
-    function hybridKnown(uint256 _amount, uint256 balanceAmount, address to) external {
+    function hybridKnown(
+        uint256 _amount,
+        uint256 balanceAmount,
+        address to
+    ) external {
         require(_amount > 0, "Amount must be greater than 0");
         require(balanceAmount > 0, "Amount must be greater than 0");
         require(usdcToken.transferFrom(_msgSender(), address(this), _amount), "Transfer failed");
@@ -236,8 +247,8 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         _transfer(_msgSender(), to, _amount); // transfer existing funds (in contract)
         uint256 totalAmount = _amount + balanceAmount;
         emit HybridKnown(_msgSender(), to, totalAmount);
-    } 
-    
+    }
+
     /**
      * @param secret The secret to identify and clawback the payment
      */
@@ -245,7 +256,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         require(block.timestamp > (timestamp + timeToUnlock), "Clawback not allowed yet");
         bytes32 paymentHash = _combineToBytes32(_msgSender(), secret, timestamp);
         uint256 amount = _senderPayments[paymentHash];
-        require(amount >  0, "No payment found");
+        require(amount > 0, "No payment found");
         _mint(_msgSender(), amount);
         _payments[secret] -= amount;
         _senderPayments[paymentHash] = 0;
@@ -323,18 +334,17 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         uint256 amount,
         UserRequest calldata _userRequest,
         address bridgeImpl
-    ) external virtual payable {
+    ) external payable virtual {
         address to = _userRequest.receiverAddress;
         require(_msgSender() != address(0), "bridgeWithdrawal from the zero address");
         require(to != address(0), "bridgeWithdrawal to the zero address");
         console.log("Bridge and claiming funds", amount, _msgSender());
         usdcToken.approve(address(registry), amount);
         usdcToken.approve(bridgeImpl, amount);
-        registry.outboundTransferTo{value: msg.value}(_userRequest);
+        registry.outboundTransferTo{ value: msg.value }(_userRequest);
         _burn(_msgSender(), amount);
         emit BridgeWithdraw(_msgSender(), to, amount, _userRequest.toChainId);
     }
-
 
     /**
      * @notice This is an admin function
@@ -354,7 +364,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      * @param _receiver The address to send the USDC to
      * @param _till The time till the transaction is valid
      * @param _secret The secret to identify and claim the payment
-     * @param _nonce The nonce to prevent replay attacks 
+     * @param _nonce The nonce to prevent replay attacks
      */
     function getMessageHash(
         uint256 _amount,
@@ -385,7 +395,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      * @param _receiver The address to send the USDC to
      * @param _till The time till the transaction is valid
      * @param _secret The secret to identify and claim the payment
-     * @param _nonce The nonce to prevent replay attacks 
+     * @param _nonce The nonce to prevent replay attacks
      * @param _v The v value of the signature
      * @param _r The r value of the signature
      * @param _s The s value of the signature
