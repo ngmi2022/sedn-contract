@@ -1,36 +1,45 @@
-import type { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { getImplementationAddress } from "@openzeppelin/upgrades-core";
+import { ContractFactory } from "ethers";
 import { task } from "hardhat/config";
 import type { TaskArguments } from "hardhat/types";
-
-import { fetchConfig } from "../../helper/utils";
-import { SednTestnet, SednTestnet__factory } from "../../src/types";
 
 function timeout(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // actual hardhat deploy
-task("deploy:testnet").setAction(async function (taskArguments: TaskArguments, { ethers, run, network }) {
-  const signers: SignerWithAddress[] = await ethers.getSigners();
-  const configData = await fetchConfig();
+task("deploy:testnet").setAction(async function (taskArguments: TaskArguments) {
+  // args
+  const hre = taskArguments.hre;
+  const verifierAddress = taskArguments.verifierAddress;
+  const trustedForwarderAddress = taskArguments.forwarderAddress;
+  const usdcAddress = taskArguments.usdcAddress;
+  const upgrades = taskArguments.upgrades;
+
+  // ethers setup
+  const ethers = hre.ethers;
+  const network = hre.network;
+  const signer = await ethers.getSigner();
+
   const registryAddress: string = "0xc30141B657f4216252dc59Af2e7CdB9D8792e1B0"; // mainnet registry address, could really be anything
-  const sednFactory = (await ethers.getContractFactory("SednTestnet")) as SednTestnet__factory;
-  const trustedForwarder = configData.forwarder[network.name];
-  const verifier = configData.verifier;
-  const usdcTokenAddress = configData.usdc[network.name].contract;
-  const sedn: SednTestnet = await sednFactory
-    .connect(signers[0])
-    .deploy(usdcTokenAddress, registryAddress, verifier, trustedForwarder);
-  await sedn.deployed();
-  console.log("Sedn deployed to: ", sedn.address);
+  const sednFactory: ContractFactory = await ethers.getContractFactory("SednTestnet");
+  const sednArgs = [usdcAddress, registryAddress, verifierAddress, trustedForwarderAddress];
+  const proxy = await upgrades.deployProxy(sednFactory, sednArgs, {
+    kind: "uups",
+    constructorArgs: [trustedForwarderAddress],
+  });
+  await proxy.deployed();
+  const implementationAddress = await getImplementationAddress(signer.provider, proxy.address);
+  console.log("Sedn deployed to: ", proxy.address);
+  console.log("Sedn implementation deployed to: ", implementationAddress);
 
   if (network.name !== "hardhat") {
     // Verify contract on Etherscan
     await timeout(60000); // We may have to wait a bit until etherscan can read the contract
-    await run("verify:verify", {
-      address: sedn.address,
-      network: network.name,
-      constructorArguments: [usdcTokenAddress, registryAddress, verifier, trustedForwarder],
+    await hre.run("verify:verify", {
+      address: proxy.address,
+      constructorArguments: [trustedForwarderAddress],
     });
   }
+  return { implementationAddress, proxyAddress: proxy.address };
 });
