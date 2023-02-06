@@ -1,20 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.4;
 
-import "hardhat/console.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "../Forwarder/SednForwarder.sol";
-
-error SednError();
 
 interface IUserRequest {
     /**
@@ -77,7 +73,7 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
     address public addressDelegate;
     address public trustedVerifyAddress;
     uint256 public nonce;
-    uint256 public constant TIME_TO_UNLOCK = 20;
+    uint256 public constant TIME_TO_UNLOCK = 7884000;
     mapping(bytes32 => uint256) private _payments;
     mapping(bytes32 => uint256) private _senderPayments;
 
@@ -117,7 +113,7 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
             registry = IRegistry(_registryDeploymentAddressForChain);
             trustedVerifyAddress = _trustedVerifyAddress;
             nonce = 0;
-            __ERC20_init_unchained("Sedn USDC", "Sedn");
+            __ERC20_init_unchained("Sedn USDC", "SednUSDC");
             ERC2771ContextUpgradeable(address(_trustedForwarder));
             __UUPSUpgradeable_init_unchained();
             __Ownable_init_unchained();
@@ -180,7 +176,10 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
      * @param timestamp Timestamp of block where the payment is executed
      * @dev Creates a unique key for the payment to enable clawbacks
      */
-    function _combineToBytes32(address _address, bytes32 _secret, uint256 timestamp) public pure returns (bytes32) {
+    function _combineToBytes32(
+        address _address,
+        bytes32 _secret, uint256 timestamp
+    ) public pure returns (bytes32) {
         bytes32 _addressBytes = keccak256(abi.encodePacked(_address));
         bytes32 _timestampBytes = keccak256(abi.encodePacked(timestamp));
         return keccak256(abi.encodePacked(_addressBytes, _secret, _timestampBytes));
@@ -214,7 +213,6 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
      */
     function transferUnknown(uint256 _amount, bytes32 secret) external {
         require(_amount > 0, "Amount must be greater than 0");
-        require(_msgSender() != address(0), "Transfer from the zero address");
         _burn(_msgSender(), _amount);
         _addPayment(_amount, _msgSender(), secret);
         emit TransferUnknown(_msgSender(), secret, _amount);
@@ -266,12 +264,14 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
      */
     function clawback(bytes32 secret, uint256 timestamp) external {
         require(block.timestamp > (timestamp + TIME_TO_UNLOCK), "Clawback not allowed yet");
+        uint256 claimAmount = _payments[secret];
+        require(claimAmount > 0, "Payment already claimed");
         bytes32 paymentHash = _combineToBytes32(_msgSender(), secret, timestamp);
         uint256 amount = _senderPayments[paymentHash];
         require(amount >  0, "No payment found");
-        _mint(_msgSender(), amount);
         _payments[secret] -= amount;
         _senderPayments[paymentHash] = 0;
+        _mint(_msgSender(), amount);
         emit Clawback(_msgSender(), secret, amount);
     }
 
@@ -330,7 +330,7 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
      * @param to The address to withdraw the USDC toss
      */
     function withdraw(uint256 amount, address to) external {
-        require(_msgSender() != address(0), "Transfer from the zero address");
+        require(to != address(0), "Withdrawal to the zero address");
         usdcToken.approve(address(this), amount);
         require(usdcToken.transferFrom(address(this), to, amount), "transferFrom failed");
         _burn(_msgSender(), amount);
@@ -350,7 +350,8 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
         address to = _userRequest.receiverAddress;
         require(_msgSender() != address(0), "bridgeWithdrawal from the zero address");
         require(to != address(0), "bridgeWithdrawal to the zero address");
-        console.log("Bridge and claiming funds", amount, _msgSender());
+        require(amount > 0, "Amount must be greater than 0");
+        require(balanceOf(_msgSender()) >= amount, "Insufficient balance");
         usdcToken.approve(address(registry), amount);
         usdcToken.approve(bridgeImpl, amount);
         registry.outboundTransferTo{value: msg.value}(_userRequest);
