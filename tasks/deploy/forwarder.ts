@@ -1,4 +1,3 @@
-import type { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { task } from "hardhat/config";
 import type { TaskArguments } from "hardhat/types";
 
@@ -8,20 +7,25 @@ function timeout(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-task("deploy:forwarder").setAction(async function (taskArguments: TaskArguments, { ethers, run, network }) {
-  const signers: SignerWithAddress[] = await ethers.getSigners();
+task("deploy:forwarder").setAction(async function (taskArguments: TaskArguments) {
+  const hre = taskArguments.hre;
+  const ethers = hre.ethers;
+  const network = hre.network.name;
+  const signer = await ethers.getSigner();
+
   const forwarderFactory: SednForwarder__factory = await ethers.getContractFactory("SednForwarder");
-  const forwarder: SednForwarder = await forwarderFactory.connect(signers[0]).deploy();
+  const forwarder: SednForwarder = await forwarderFactory.connect(signer).deploy();
   console.log(forwarder.deployTransaction.hash);
   await forwarder.deployed();
   console.log("Forwarder deployed to: ", forwarder.address);
-  if (network.name !== "hardhat") {
+  if (network !== "hardhat") {
     // Verify contract on Etherscan
     await timeout(60000); // We may have to wait a bit until etherscan can read the contract
-    await run("verify:verify", {
+    await hre.run("verify:verify", {
       address: forwarder.address,
-      network: network.name,
+      network: network,
       constructorArguments: [],
     });
   }
+  return forwarder.address;
 });

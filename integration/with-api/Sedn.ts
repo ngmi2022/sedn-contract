@@ -64,7 +64,7 @@ export interface ISednMultichainVariables {
 // *************************************/
 
 const TESTNET: boolean = process.env.TESTNET === "testnet" ? true : false; // we need to include this in workflow
-const deployedNetworks = TESTNET ? ["arbitrum-goerli", "optimism-goerli"] : ["arbitrum", "optimism", "polygon"]; // "optimism", "arbitrum"
+const deployedNetworks = TESTNET ? ["optimism-goerli", "arbitrum-goerli"] : ["arbitrum", "optimism", "polygon"]; // "optimism", "arbitrum"
 let ENVIRONMENT: Environment = (process.env.ENVIRONMENT as Environment) || ("prod" as Environment);
 const SIGNER_PK = process.env.SENDER_PK!;
 const RECIPIENT_PK = process.env.RECIPIENT_PK!;
@@ -310,7 +310,7 @@ describe(`Sedn testing with api`, function () {
       sednVars[networksToTest[0]].signer.address,
     );
   });
-  it.only(`should be able to correctly sedn funds to an unknown user`, async function () {
+  it(`should be able to correctly sedn funds to an unknown user`, async function () {
     // partially randomized scenario creation
     console.log("INFO: Creating funding scenario");
     const firstNetwork = networksToTest[0];

@@ -1,7 +1,11 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
+import { Network } from "@ethersproject/providers";
 import { expect } from "chai";
+import { time } from "console";
 import { BigNumber, Contract, Signer, Wallet, ethers } from "ethers";
+import { MultiFactorAuthServerConfig } from "firebase-admin/lib/auth/auth-config";
 import { check } from "prettier";
+import { ConfigReturnValue } from "sedn-interfaces/dist/types";
 
 import { FakeSigner } from "../../helper/FakeSigner";
 import { sendTx } from "../../helper/signer";
@@ -30,286 +34,509 @@ const SIGNER_PK = process.env.SENDER_PK!;
 const RECIPIENT_PK = process.env.RECIPIENT_PK!;
 const UNFUNDED_SIGNER_PK = process.env.UNFUNDED_SIGNER_PK!;
 const VERIFIER_PK = process.env.VERIFIER_PK!;
-const AMOUNT_ENV = process.env.AMOUNT || "1.00";
+const AMOUNT_ENV = process.env.AMOUNT || "1";
 let NETWORKS = process.env.NETWORKS || defaultNetworksToTest.join(",");
 const networksToTest: string[] = NETWORKS.split(","); // ensure networks to test can be specified in workflow
 
 // fixed variables
 const gasless = true;
 
+export interface ISednVariables {
+  sedn: Contract;
+  usdcOrigin: Contract;
+  signer: ethers.Wallet;
+  verifier: ethers.Wallet;
+  config: ConfigReturnValue;
+  recipient: ethers.Wallet;
+  unfundedSigner: ethers.Wallet;
+  trusted: FakeSigner;
+  decDivider: BigNumber;
+  amount: BigNumber;
+  relayerWebhook: string;
+  forwarderAddress: string;
+}
+
+async function getSedn(network: string): Promise<ISednVariables> {
+  let config = await fetchConfig();
+  // const sednAddress = config.contracts[network];
+  const sednAddress = "0x2eECe520fB6d83582DD78056565951A4A7cB6743";
+  const sednAbi = "0xEdeAD3a692514c1AC7440e065bf1FD5220B99D43";
+  const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(network));
+  const signer = new ethers.Wallet(SIGNER_PK, provider);
+  const verifier = new ethers.Wallet(VERIFIER_PK, provider);
+  const recipient = new ethers.Wallet(RECIPIENT_PK, provider);
+  const unfundedSigner = new ethers.Wallet(UNFUNDED_SIGNER_PK, provider);
+  const relayerWebhook = config.relayerWebhooks[network];
+  const forwarderAddress = config.forwarder[network];
+  // const forwarderAddress = "0x47b80475A1A4832a0dcbBc206E24Ddf6533aE2Bb";
+  const sedn = new ethers.Contract(sednAddress, await getAbi(network, sednAbi), signer);
+  const usdcOrigin = new ethers.Contract(
+    config.usdc[network].contract,
+    await getAbi(network, config.usdc[network].abi),
+    signer,
+  );
+  const trusted = new FakeSigner(verifier, sedn.address);
+  if (trusted.getAddress() !== config.verifier) {
+    const error = new Error(`Using the wrong verifier: expected ${config.verifier} got ${trusted.getAddress()}`);
+    console.error(error);
+    throw error;
+  }
+  await sleep(1000);
+  const decimals = await usdcOrigin.decimals();
+  const decDivider = BigNumber.from(10 ** decimals + "");
+  const amount = BigNumber.from(AMOUNT_ENV).mul(decDivider);
+  return {
+    sedn,
+    usdcOrigin,
+    signer,
+    verifier,
+    config,
+    recipient,
+    unfundedSigner,
+    trusted,
+    decDivider,
+    amount,
+    relayerWebhook,
+    forwarderAddress,
+  } as ISednVariables;
+}
+
+async function sednKnown(signer: Wallet, recipient: Wallet, deployed: ISednVariables, network: string) {
+  // check allowance & if necessary increase approve
+  const usdcOrigin = deployed.usdcOrigin;
+  const sedn = deployed.sedn;
+  const amount = deployed.amount;
+  const relayerWebhook = deployed.relayerWebhook;
+  const forwarder = deployed.forwarderAddress;
+  await checkAllowance(deployed.usdcOrigin, signer, sedn, BigNumber.from(amount.toString() + "0"));
+
+  // send
+  const usdcBeforeSednSigner = await usdcOrigin.balanceOf(signer.address);
+  const usdcBeforeSednContract = await usdcOrigin.balanceOf(sedn.address);
+  const sednBeforeSednRecipient = await sedn.balanceOf(recipient.address);
+  // TODO: put this shit in helper so its not duplicated
+  const validUntilTime = (await signer.provider!.getBlock("latest")).timestamp + 1000;
+  await sendTx(
+    sedn,
+    signer,
+    "sednKnown",
+    [amount, recipient.address],
+    BigInt("0"),
+    network,
+    validUntilTime,
+    gasless,
+    relayerWebhook,
+    forwarder,
+  );
+
+  // for some reason the usdcBalance does not update quickly enough
+  await waitTillRecipientBalanceChanged(60_000, usdcOrigin, signer, usdcBeforeSednSigner);
+  const usdcAfterSednSigner = await usdcOrigin.balanceOf(signer.address);
+  const usdcAfterSednContract = await usdcOrigin.balanceOf(sedn.address);
+  const sednAfterSednRecipient = await sedn.balanceOf(recipient.address);
+
+  // all three balances are checked; contract USDC, signer USDC and signer Sedn
+  expect(usdcBeforeSednSigner.sub(usdcAfterSednSigner)).to.equal(amount);
+  expect(usdcAfterSednContract.sub(usdcBeforeSednContract)).to.equal(amount);
+  expect(sednAfterSednRecipient.sub(sednBeforeSednRecipient)).to.equal(amount);
+}
+
+async function sednUnknown(signer: Wallet, deployed: ISednVariables, network: string, solution?: string) {
+  const usdcOrigin = deployed.usdcOrigin;
+  const sedn = deployed.sedn;
+  const amount = deployed.amount;
+  const relayerWebhook = deployed.relayerWebhook;
+  const forwarder = deployed.forwarderAddress;
+  // check allowance & if necessary increase approve
+  await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount));
+
+  // send
+  const usdcBeforeSednSigner = await usdcOrigin.balanceOf(signer.address);
+  const usdcBeforeSednContract = await usdcOrigin.balanceOf(sedn.address);
+  let secret = "";
+  if (!solution) {
+    [solution, secret] = generateSecret();
+  } else {
+    secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
+  }
+
+  const validUntilTime = (await signer.provider!.getBlock("latest")).timestamp + 1000;
+  const tx = await sendTx(
+    sedn,
+    signer,
+    "sednUnknown",
+    [amount, secret],
+    BigInt("0"),
+    network,
+    validUntilTime,
+    gasless,
+    relayerWebhook,
+    forwarder,
+  );
+  const timestamp = (await signer.provider!.getBlock(tx.blockNumber)).timestamp;
+
+  await waitTillRecipientBalanceChanged(60_000, usdcOrigin, signer, usdcBeforeSednSigner);
+  // check sending
+  const usdcAfterSednSigner = await usdcOrigin.balanceOf(signer.address);
+  const usdcAfterSednContract = await usdcOrigin.balanceOf(sedn.address);
+  expect(usdcBeforeSednSigner.sub(usdcAfterSednSigner)).to.equal(amount);
+  expect(usdcAfterSednContract.sub(usdcBeforeSednContract)).to.equal(amount);
+  return { solution, secret, timestamp };
+}
+
+async function transferKnown(signer: Wallet, recipient: Wallet, deployed: ISednVariables, network: string) {
+  // check allowance & if necessary increase approve
+  const sedn = deployed.sedn;
+  const amount = deployed.amount;
+  const relayerWebhook = deployed.relayerWebhook;
+  const forwarder = deployed.forwarderAddress;
+
+  // transfer
+  const sednBeforeSednSigner = await sedn.balanceOf(signer.address);
+  const sednBeforeSednRecipient = await sedn.balanceOf(recipient.address);
+  // TODO: put this shit in helper so its not duplicated
+  const validUntilTime = (await signer.provider!.getBlock("latest")).timestamp + 1000;
+  await sendTx(
+    sedn,
+    signer,
+    "transferKnown",
+    [amount, recipient.address],
+    BigInt("0"),
+    network,
+    validUntilTime,
+    gasless,
+    relayerWebhook,
+    forwarder,
+  );
+
+  // for some reason the usdcBalance does not update quickly enough
+  await waitTillRecipientBalanceChanged(60_000, sedn, signer, sednBeforeSednSigner);
+  const sednAfterSednSigner = await sedn.balanceOf(signer.address);
+  const sednAfterSednRecipient = await sedn.balanceOf(recipient.address);
+
+  // all three balances are checked; contract USDC, signer USDC and signer Sedn
+  expect(sednBeforeSednSigner.sub(sednAfterSednSigner)).to.equal(amount);
+  expect(sednAfterSednRecipient.sub(sednBeforeSednRecipient)).to.equal(amount);
+}
+
+async function transferUnknown(signer: Wallet, deployed: ISednVariables, network: string, solution?: string) {
+  const sedn = deployed.sedn;
+  const amount = deployed.amount;
+  const relayerWebhook = deployed.relayerWebhook;
+  const forwarder = deployed.forwarderAddress;
+
+  // transfer
+  const sednBeforeSednSigner = await sedn.balanceOf(signer.address);
+  let secret = "";
+  if (!solution) {
+    [solution, secret] = generateSecret();
+  } else {
+    secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
+  }
+
+  const validUntilTime = (await signer.provider!.getBlock("latest")).timestamp + 1000;
+  const tx = await sendTx(
+    sedn,
+    signer,
+    "transferUnknown",
+    [amount, secret],
+    BigInt("0"),
+    network,
+    validUntilTime,
+    gasless,
+    relayerWebhook,
+    forwarder,
+  );
+  const timestamp = (await signer.provider!.getBlock(tx.blockNumber)).timestamp;
+
+  await waitTillRecipientBalanceChanged(60_000, sedn, signer, sednBeforeSednSigner);
+  // check sending
+  const sednAfterSednSigner = await sedn.balanceOf(signer.address);
+  expect(sednBeforeSednSigner.sub(sednAfterSednSigner)).to.equal(amount);
+  return { solution, secret, timestamp };
+}
+
+async function hybridKnown(signer: Wallet, recipient: Wallet, deployed: ISednVariables, network: string) {
+  // check allowance & if necessary increase approve
+  const usdcOrigin = deployed.usdcOrigin;
+  const sedn = deployed.sedn;
+  const amount = deployed.amount;
+  const relayerWebhook = deployed.relayerWebhook;
+  const forwarder = deployed.forwarderAddress;
+  // check Allowance
+  await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount));
+
+  // transfer
+  const usdcBeforeSednSigner = await usdcOrigin.balanceOf(signer.address);
+  const sednBeforeSednSigner = await sedn.balanceOf(signer.address);
+  const sednBeforeSednRecipient = await sedn.balanceOf(recipient.address);
+  // TODO: put this shit in helper so its not duplicated
+  const validUntilTime = (await signer.provider!.getBlock("latest")).timestamp + 1000;
+  await sendTx(
+    sedn,
+    signer,
+    "hybridKnown",
+    [amount, amount, recipient.address],
+    BigInt("0"),
+    network,
+    validUntilTime,
+    gasless,
+    relayerWebhook,
+    forwarder,
+  );
+
+  // for some reason the usdcBalance does not update quickly enough
+  await waitTillRecipientBalanceChanged(60_000, sedn, signer, sednBeforeSednSigner);
+  const usdcAfterSednSigner = await usdcOrigin.balanceOf(signer.address);
+  const sednAfterSednSigner = await sedn.balanceOf(signer.address);
+  const sednAfterSednRecipient = await sedn.balanceOf(recipient.address);
+
+  // all three balances are checked; signer USDC and signer Sedn and recipient Sedn
+  expect(usdcBeforeSednSigner.sub(usdcAfterSednSigner)).to.equal(amount);
+  expect(sednBeforeSednSigner.sub(sednAfterSednSigner)).to.equal(amount);
+  expect(sednAfterSednRecipient.sub(sednBeforeSednRecipient)).to.equal(amount.mul(2));
+}
+
+async function hybridUnknown(signer: Wallet, deployed: ISednVariables, network: string, solution?: string) {
+  const usdcOrigin = deployed.usdcOrigin;
+  const sedn = deployed.sedn;
+  const amount = deployed.amount;
+  const relayerWebhook = deployed.relayerWebhook;
+  const forwarder = deployed.forwarderAddress;
+  // check allowance & if necessary increase approve
+  await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount));
+
+  // send
+  const usdcBeforeSednSigner = await usdcOrigin.balanceOf(signer.address);
+  const usdcBeforeSednContract = await usdcOrigin.balanceOf(sedn.address);
+  const sednBeforeSednSigner = await sedn.balanceOf(signer.address);
+  let secret = "";
+  if (!solution) {
+    [solution, secret] = generateSecret();
+  } else {
+    secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
+  }
+
+  const validUntilTime = (await signer.provider!.getBlock("latest")).timestamp + 1000;
+  console.log("DEBUG: hybridUnknown Solution:", solution);
+  const tx = await sendTx(
+    sedn,
+    signer,
+    "hybridUnknown",
+    [amount, amount, secret],
+    BigInt("0"),
+    network,
+    validUntilTime,
+    gasless,
+    relayerWebhook,
+    forwarder,
+  );
+  const timestamp = (await signer.provider!.getBlock(tx.blockNumber)).timestamp;
+
+  await waitTillRecipientBalanceChanged(60_000, usdcOrigin, signer, usdcBeforeSednSigner);
+  // check sending
+  const usdcAfterSednSigner = await usdcOrigin.balanceOf(signer.address);
+  const usdcAfterSednContract = await usdcOrigin.balanceOf(sedn.address);
+  const sednAfterSednSigner = await sedn.balanceOf(signer.address);
+  expect(usdcBeforeSednSigner.sub(usdcAfterSednSigner)).to.equal(amount);
+  expect(usdcAfterSednContract.sub(usdcBeforeSednContract)).to.equal(amount);
+  expect(sednBeforeSednSigner.sub(sednAfterSednSigner)).to.equal(amount);
+  return { solution, secret, timestamp };
+}
+
+async function claim(claimer: Wallet, deployed: ISednVariables, network: string, solution: string, amount?: BigNumber) {
+  const sedn = deployed.sedn;
+  const relayerWebhook = deployed.relayerWebhook;
+  const forwarder = deployed.forwarderAddress;
+  const trusted = deployed.trusted;
+  const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
+  if (!amount) {
+    amount = deployed.amount;
+  }
+  const sednBeforeClaimRecipient = await sedn.balanceOf(claimer.address);
+  const funcArgs = await generateClaimArgs(solution, secret, claimer, trusted, amount.toNumber());
+  // TODO: get this shit into signer.ts
+  const validUntilTime = (await claimer.provider!.getBlock("latest")).timestamp + 1000;
+  await sendTx(
+    sedn,
+    claimer,
+    "claim",
+    funcArgs,
+    BigInt("0"),
+    network,
+    validUntilTime,
+    gasless,
+    relayerWebhook,
+    forwarder,
+  );
+  await waitTillRecipientBalanceChanged(60_000, sedn, claimer, sednBeforeClaimRecipient);
+
+  // check claim
+  const sednAfterClaimRecipient = await sedn.balanceOf(claimer.address);
+  expect(sednAfterClaimRecipient.sub(sednBeforeClaimRecipient)).to.equal(amount);
+}
+
+async function withdraw(signer: Wallet, deployed: ISednVariables, network: string) {
+  // withdraw
+  const sedn = deployed.sedn;
+  const usdcOrigin = deployed.usdcOrigin;
+  const amount = deployed.amount;
+  const relayerWebhook = deployed.relayerWebhook;
+  const forwarder = deployed.forwarderAddress;
+
+  const sednBeforeWithdrawSigner = await sedn.balanceOf(signer.address);
+  const usdcBeforeWithdrawSigner = await usdcOrigin.balanceOf(signer.address);
+  const validUntilTime = (await signer.provider!.getBlock("latest")).timestamp + 1000;
+  // TODO: get this shit into signer.ts
+  const txReceipt = await sendTx(
+    sedn,
+    signer,
+    "withdraw",
+    [amount, signer.address],
+    BigInt("0"),
+    network,
+    validUntilTime,
+    gasless,
+    relayerWebhook,
+    forwarder,
+  );
+  await waitTillRecipientBalanceChanged(60_000, usdcOrigin, signer, usdcBeforeWithdrawSigner);
+  const sednAfterWithdrawSigner = await sedn.balanceOf(signer.address);
+  const usdcAfterWithdrawSigner = await usdcOrigin.balanceOf(signer.address);
+  expect(sednBeforeWithdrawSigner.sub(sednAfterWithdrawSigner)).to.equal(amount);
+  expect(usdcAfterWithdrawSigner.sub(usdcBeforeWithdrawSigner)).to.equal(amount);
+}
+
+async function clawback(
+  signer: Wallet,
+  deployed: ISednVariables,
+  network: string,
+  solution: string,
+  timestamp: number,
+) {
+  const sedn = deployed.sedn;
+  const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
+  const relayerWebhook = deployed.relayerWebhook;
+  const forwarder = deployed.forwarderAddress;
+
+  const sednBeforeSednSigner = await sedn.balanceOf(signer.address);
+  const validUntilTime = (await signer.provider!.getBlock("latest")).timestamp + 1000;
+  const tx = await sendTx(
+    sedn,
+    signer,
+    "clawback",
+    [secret, timestamp],
+    BigInt("0"),
+    network,
+    validUntilTime,
+    false,
+    relayerWebhook,
+    forwarder,
+  );
+  const sednAfterSednSigner = await sedn.balanceOf(signer.address);
+  console.log("sednBeforeSednSigner", sednBeforeSednSigner.toString());
+  console.log("sednAfterSednSigner", sednAfterSednSigner.toString());
+  expect(sednAfterSednSigner.sub(sednBeforeSednSigner)).to.equal(deployed.amount);
+  return;
+}
+
 // /**********************************
 // NO-API INTEGRATION TESTS
 // *************************************/
 
-describe("Sedn Contract", function () {
-  async function getSedn(network: string) {
-    let config = await fetchConfig();
-    const sednContract = "0x91B4ebC9E330E6EAAbc8481e483D42Da813065f6";
-    // const sednContract = config.contracts[network];
-    console.log("Contract address:", sednContract);
-    // const sednContract = "0xC1757a915fF0272914A689724345042d4539848E";
+networksToTest.forEach(function (network) {
+  describe(`Sedn testing without api`, function () {
+    let deployed: ISednVariables;
+    beforeEach(async function () {
+      deployed = await getSedn(network);
+    });
+    it("should correctly send funds to a registered user", async function () {
+      await sednKnown(deployed.signer, deployed.recipient, deployed, network);
+    });
+    it("should send funds to an unregistered user", async function () {
+      // sednUnknown
+      const { solution, secret } = await sednUnknown(deployed.signer, deployed, network);
 
-    // TODO: support other providers
-    const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(network));
-    const signer = new ethers.Wallet(SIGNER_PK, provider);
-    const verifier = new ethers.Wallet(VERIFIER_PK, provider);
-    const recipient = new ethers.Wallet(RECIPIENT_PK, provider);
-    const unfundedSigner = new ethers.Wallet(UNFUNDED_SIGNER_PK, provider);
-    const relayerWebhook = config.relayerWebhooks[network];
-    const forwarder = config.forwarder[network];
-    // Get Sedn
-    const sedn = new ethers.Contract(sednContract, await getAbi(network, sednContract), signer);
-    const usdcOrigin = new ethers.Contract(
-      config.usdc[network].contract,
-      await getAbi(network, config.usdc[network].abi),
-      signer,
-    );
-    const trusted = new FakeSigner(verifier, sedn.address);
-    if (trusted.getAddress() !== config.verifier) {
-      const error = new Error(`Using the wrong verifier: expected ${config.verifier} got ${trusted.getAddress()}`);
-      console.error(error);
-      throw error;
-    }
-    await sleep(1000);
-    const decimals = await usdcOrigin.decimals();
-    const decDivider = parseInt(10 ** decimals + "");
-    const amount = parseInt(parseFloat(AMOUNT_ENV) * decDivider + "");
-    return {
-      sedn,
-      usdcOrigin,
-      signer,
-      verifier,
-      config,
-      recipient,
-      unfundedSigner,
-      trusted,
-      decDivider,
-      amount,
-      relayerWebhook,
-      forwarder,
-    };
-  }
-  networksToTest.forEach(function (network) {
-    describe(`Sedn testing without api`, function () {
-      let sedn: Contract;
-      let usdcOrigin: Contract;
-      let signer: Wallet;
-      let recipient: Wallet;
-      let trusted: FakeSigner;
-      let config: any;
-      let decDivider: number;
-      let amount: number;
-      let relayerWebhook: string;
-      let forwarder: string;
-      beforeEach(async function () {
-        const deployed = await getSedn(network);
-        sedn = deployed.sedn;
-        usdcOrigin = deployed.usdcOrigin;
-        signer = deployed.signer;
-        recipient = deployed.recipient;
-        trusted = deployed.trusted;
-        config = deployed.config;
-        decDivider = deployed.decDivider;
-        amount = deployed.amount;
-        relayerWebhook = deployed.relayerWebhook;
-        forwarder = deployed.forwarder;
-      });
-      it.only("should correctly send funds to a registered user", async function () {
-        // check allowance & if necessary increase approve
-        await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount.toString() + "0"));
+      // claim
+      await claim(deployed.recipient, deployed, network, solution as string);
+    });
+    it("should sedn funds to an unregistered user who has already received funds", async function () {
+      // sednUnknown
+      const { solution, secret } = await sednUnknown(deployed.signer, deployed, network);
 
-        // send
-        const usdcBeforeSednSigner = await usdcOrigin.balanceOf(signer.address); // should be at least 10
-        const usdcBeforeSednContract = await usdcOrigin.balanceOf(sedn.address);
-        const sednBeforeSednSigner = await sedn.balanceOf(signer.address);
-        // TODO: put this shit in helper so its not duplicated
-        console.log("forwarder", forwarder);
-        console.log("contract", sedn.address);
-        const validUntilTime = (await signer.provider!.getBlock("latest")).timestamp + 1000;
-        await sendTx(
-          sedn,
-          signer,
-          signer.privateKey,
-          "sednKnown",
-          [amount, signer.address],
-          BigInt("0"),
-          network,
-          validUntilTime,
-          gasless,
-          relayerWebhook,
-          forwarder,
-        );
+      // sednUnknown2
+      await sednUnknown(deployed.recipient, deployed, network, solution as string);
 
-        // for some reason the usdcBalance does not update quickly enough
-        await waitTillRecipientBalanceChanged(60_000, usdcOrigin, signer, usdcBeforeSednSigner);
-        const usdcAfterSednSigner = await usdcOrigin.balanceOf(signer.address);
-        const usdcAfterSednContract = await usdcOrigin.balanceOf(sedn.address);
-        const sednAfterSednSigner = await sedn.balanceOf(signer.address);
+      // claim
+      await claim(deployed.recipient, deployed, network, solution as string, deployed.amount.mul(2));
+    });
+    it("should transfer funds to a registered user", async function () {
+      const sednSignerBalance = await deployed.sedn.balanceOf(deployed.signer.address);
+      if (sednSignerBalance.lt(deployed.amount)) {
+        await sednKnown(deployed.signer, deployed.signer, deployed, network);
+      }
+      await transferKnown(deployed.signer, deployed.recipient, deployed, network);
+    });
+    it("should transfer funds to an unregistered user", async function () {
+      const sednSignerBalance = await deployed.sedn.balanceOf(deployed.signer.address);
+      if (sednSignerBalance.lt(deployed.amount)) {
+        await sednKnown(deployed.signer, deployed.signer, deployed, network);
+      }
+      // transfer
+      const { solution, secret } = await transferUnknown(deployed.signer, deployed, network);
 
-        // all three balances are checked; contract USDC, signer USDC and signer Sedn
-        expect(usdcBeforeSednSigner.sub(usdcAfterSednSigner)).to.equal(amount);
-        expect(usdcAfterSednContract.sub(usdcBeforeSednContract)).to.equal(amount);
-        expect(sednAfterSednSigner.sub(sednBeforeSednSigner)).to.equal(amount);
-      });
-      it("should send funds to an unregistered user", async function () {
-        // check allowance & if necessary increase approve
-        await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount));
+      // claim
+      await claim(deployed.recipient, deployed, network, solution as string);
+    });
+    it("should hybrid sedn funds to a registered user", async function () {
+      // ensure balance
+      const signerSednBalance = await deployed.sedn.balanceOf(deployed.signer.address);
+      if (signerSednBalance.lt(deployed.amount)) {
+        await sednKnown(deployed.signer, deployed.signer, deployed, network);
+      }
+      await hybridKnown(deployed.signer, deployed.recipient, deployed, network);
+    });
+    it("should hybrid sedn funds to an unregistered user", async function () {
+      // ensure balance
+      const signerSednBalance = await deployed.sedn.balanceOf(deployed.signer.address);
+      if (signerSednBalance.lt(deployed.amount)) {
+        await sednKnown(deployed.signer, deployed.signer, deployed, network);
+      }
+      // hybridUnknown
+      const { solution, secret } = await hybridUnknown(deployed.signer, deployed, network);
+      // claim
+      await claim(deployed.recipient, deployed, network, solution as string, deployed.amount.mul(2));
+    });
+    it("should hybrid sedn funds to an unregistered user who has already received funds", async function () {
+      // ensure balance
+      const signerSednBalance = await deployed.sedn.balanceOf(deployed.signer.address);
+      if (signerSednBalance.lt(deployed.amount)) {
+        await sednKnown(deployed.signer, deployed.signer, deployed, network);
+      }
+      // hybridUnknown
+      const { solution, secret } = await hybridUnknown(deployed.signer, deployed, network);
 
-        // send
-        const usdcBeforeSednSigner = await usdcOrigin.balanceOf(signer.address);
-        const usdcBeforeSednContract = await usdcOrigin.balanceOf(sedn.address);
-        const sednBeforeClaimRecipient = await sedn.balanceOf(recipient.address);
-        const [solution, secret] = generateSecret();
-
-        // always gasfull
-        const validUntilTime = (await signer.provider!.getBlock("latest")).timestamp + 1000;
-        console.log("DEBUG: relayerWebhook", relayerWebhook);
-        await sendTx(
-          sedn,
-          signer,
-          signer.privateKey,
-          "sednUnknown",
-          [amount, secret],
-          BigInt("0"),
-          network,
-          validUntilTime,
-          gasless,
-          relayerWebhook,
-          forwarder,
-        );
-
-        await waitTillRecipientBalanceChanged(60_000, usdcOrigin, signer, usdcBeforeSednSigner);
-        // check sending
-        const usdcAfterSednSigner = await usdcOrigin.balanceOf(signer.address);
-        const usdcAfterSednContract = await usdcOrigin.balanceOf(sedn.address);
-        expect(usdcBeforeSednSigner.sub(usdcAfterSednSigner)).to.equal(amount);
-        expect(usdcAfterSednContract.sub(usdcBeforeSednContract)).to.equal(amount);
-
-        // claim
-        const funcArgsTwo = await generateClaimArgs(solution, secret, recipient, trusted, amount);
-        // TODO: get this shit into signer.ts
-        await sendTx(
-          sedn,
-          recipient,
-          recipient.privateKey,
-          "claim",
-          funcArgsTwo,
-          BigInt("0"),
-          network,
-          validUntilTime + 60,
-          gasless,
-          relayerWebhook,
-          forwarder,
-        );
-        await waitTillRecipientBalanceChanged(60_000, sedn, recipient, sednBeforeClaimRecipient);
-
-        // check claim
-        const sednAfterClaimRecipient = await sedn.balanceOf(recipient.address);
-        expect(sednAfterClaimRecipient.sub(sednBeforeClaimRecipient)).to.equal(amount);
-      });
-      it("should transfer funds to an unregistered user", async function () {
-        // check and adapt funding balances of signer
-        let [useSigner, useRecipient] = await checkFunding(usdcOrigin, signer, recipient, sedn, amount);
-
-        // transfer
-        const sednBeforeTransferSigner = await sedn.balanceOf(useSigner.address);
-        const [solution, secret] = generateSecret();
-        const funcArgs = [amount, secret];
-        const validUntilTime = (await signer.provider!.getBlock("latest")).timestamp + 1000;
-        await sendTx(
-          sedn,
-          useSigner,
-          useSigner.privateKey,
-          "transferUnknown",
-          funcArgs,
-          BigInt("0"),
-          network,
-          validUntilTime,
-          gasless,
-          relayerWebhook,
-          forwarder,
-        );
-        await waitTillRecipientBalanceChanged(60_000, sedn, useSigner, sednBeforeTransferSigner);
-
-        const sednAfterTransferSigner = await sedn.balanceOf(useSigner.address);
-        expect(sednBeforeTransferSigner.sub(sednAfterTransferSigner)).to.equal(amount);
-
-        // claim
-        const sednBeforeClaimRecipient = await sedn.balanceOf(useRecipient.address);
-        const funcArgsTwo = await generateClaimArgs(solution, secret, useRecipient, trusted, amount);
-        // TODO: get this shit into signer.ts
-        const txReceiptTwo = await sendTx(
-          sedn,
-          useRecipient,
-          useRecipient.privateKey,
-          "claim",
-          funcArgsTwo,
-          BigInt("0"),
-          network,
-          validUntilTime + 60,
-          gasless,
-          relayerWebhook,
-          forwarder,
-        );
-        await waitTillRecipientBalanceChanged(60_000, sedn, useRecipient, sednBeforeClaimRecipient);
-        const sednAfterClaimRecipient = await sedn.balanceOf(useRecipient.address);
-        expect(sednAfterClaimRecipient.sub(sednBeforeClaimRecipient)).to.equal(amount);
-      });
-      it("should transfer funds to a registered user", async function () {
-        // check and adapt funding balances of signer
-        let [useSigner, useRecipient] = await checkFunding(usdcOrigin, signer, recipient, sedn, amount);
-
-        // transfer
-        const sednBeforeTransferSigner = await sedn.balanceOf(useSigner.address);
-        const sednBeforeTransferRecipient = await sedn.balanceOf(useRecipient.address);
-        const validUntilTime = (await signer.provider!.getBlock("latest")).timestamp + 1000;
-        const txReceipt = await sendTx(
-          sedn,
-          useSigner,
-          useSigner.privateKey,
-          "transferKnown",
-          [amount, useRecipient.address],
-          BigInt("0"),
-          network,
-          validUntilTime,
-          gasless,
-          relayerWebhook,
-          forwarder,
-        );
-        await waitTillRecipientBalanceChanged(60_000, sedn, useSigner, sednBeforeTransferSigner);
-        const sednAfterTransferSigner = await sedn.balanceOf(useSigner.address);
-        const sednAfterTransferRecipient = await sedn.balanceOf(useRecipient.address);
-        expect(sednBeforeTransferSigner.sub(sednAfterTransferSigner)).to.equal(amount);
-        expect(sednAfterTransferRecipient.sub(sednBeforeTransferRecipient)).to.equal(amount);
-      });
-      it("should withdraw funds to a given address", async function () {
-        // check and adapt funding balances of signer
-        let [useSigner, useRecipient] = await checkFunding(usdcOrigin, signer, recipient, sedn, amount);
-
-        // withdraw
-        const sednBeforeWithdrawSigner = await sedn.balanceOf(useSigner.address);
-        const usdcBeforeWithdrawSigner = await usdcOrigin.balanceOf(useSigner.address);
-        const validUntilTime = (await signer.provider!.getBlock("latest")).timestamp + 1000;
-        // TODO: get this shit into signer.ts
-        const txReceipt = await sendTx(
-          sedn,
-          useSigner,
-          useSigner.privateKey,
-          "withdraw",
-          [amount, useSigner.address],
-          BigInt("0"),
-          network,
-          validUntilTime,
-          gasless,
-          relayerWebhook,
-          forwarder,
-        );
-        await waitTillRecipientBalanceChanged(60_000, usdcOrigin, useSigner, usdcBeforeWithdrawSigner);
-        const sednAfterWithdrawSigner = await sedn.balanceOf(useSigner.address);
-        const usdcAfterWithdrawSigner = await usdcOrigin.balanceOf(useSigner.address);
-        expect(sednBeforeWithdrawSigner.sub(sednAfterWithdrawSigner)).to.equal(amount);
-        expect(usdcAfterWithdrawSigner.sub(usdcBeforeWithdrawSigner)).to.equal(amount);
-      });
+      // hybridUnknown2
+      await hybridUnknown(deployed.recipient, deployed, network, solution as string);
+      // claim
+      await claim(deployed.recipient, deployed, network, solution as string, deployed.amount.mul(4));
+    });
+    it("should withdraw funds to a given address", async function () {
+      const signerSednBalance = await deployed.sedn.balanceOf(deployed.signer.address);
+      if (signerSednBalance.lt(deployed.amount)) {
+        await sednKnown(deployed.signer, deployed.signer, deployed, network);
+      }
+      await withdraw(deployed.signer, deployed, network);
+    });
+    it("should allow clawbacks", async function () {
+      const { solution, secret, timestamp } = await sednUnknown(deployed.signer, deployed, network);
+      let timestampCheck = (await deployed.signer.provider!.getBlock("latest")).timestamp;
+      while (timestamp + 20 > timestampCheck) {
+        await sleep(3000);
+        timestampCheck = await (await deployed.signer.provider!.getBlock("latest")).timestamp;
+        console.log(`current timestamp: ${timestampCheck} vs. ${timestamp}`);
+      }
+      await clawback(deployed.signer, deployed, network, solution as string, timestamp as number);
     });
   });
 });

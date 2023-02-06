@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.4;
 
-import "hardhat/console.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/metatx/ERC2771Context.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "../Forwarder/SednForwarder.sol";
-
-error SednError();
 
 interface IUserRequest {
     /**
@@ -67,14 +65,17 @@ interface IRegistry is IUserRequest {
 /// @title Contract to enhance USDC functionality by letting users send money to a "claimable" payment balance
 /// @author Marco Hauptmann, Derek Rein & Ferdinand Ehrhardt
 /// @notice This contract is not production-ready and should not be used in production
-contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
-    IERC20 public immutable usdcToken;
-    IRegistry public immutable registry;
+contract Sedn is 
+Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, OwnableUpgradeable, IUserRequest{
+    IERC20 public usdcToken;
+    IRegistry public registry;
     uint256 public paymentCounter;
     address public addressDelegate;
     address public trustedVerifyAddress;
-    uint256 public nonce = 0;
-    uint256 public timeToUnlock = 20;
+    uint256 public nonce;
+    uint256 public constant TIME_TO_UNLOCK = 7884000;
+    mapping(bytes32 => uint256) private _payments;
+    mapping(bytes32 => uint256) private _senderPayments;
 
     event TransferKnown(address indexed from, address indexed to, uint256 amount);
     event TransferUnknown(address indexed from, bytes32 secret, uint256 amount);
@@ -90,42 +91,60 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
     event BridgeWithdraw(address indexed owner, address indexed to, uint256 amount, uint256 chainId);
     event Clawback(address indexed recipient, bytes32 secret, uint256 amount);
 
-    mapping(bytes32 => uint256) private _payments;
-    mapping(bytes32 => uint256) private _senderPayments;
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor(address _trustedForwarder) ERC2771ContextUpgradeable(address(_trustedForwarder)) {
+        _disableInitializers();
+    }
 
     /**
+     * @dev Initialize the contract since it is a an implementation contract and constructor is not called
      * @param _usdcTokenAddressForChain Address for the USDC implementation for chain
      * @param _registryDeploymentAddressForChain Address for the registry (Socket) implementation for chain
      * @param _trustedVerifyAddress Address acting as verifier to unlock valid claims, not specific for chains
      * @param _trustedForwarder Address for the trusted forwarder contract for chain
     */
-    constructor(
+    function initSedn_unchained(
         address _usdcTokenAddressForChain,
         address _registryDeploymentAddressForChain,
         address _trustedVerifyAddress,
         SednForwarder _trustedForwarder
-    ) 
-    ERC2771Context(address(_trustedForwarder)) ERC20("Sedn USDC", "sdnUSDC"){
-        console.log(
-            "Deploying the Sedn Contract; USDC Token Address: %s; Socket Registry: %s",
+        ) internal onlyInitializing {
+            usdcToken = IERC20(_usdcTokenAddressForChain);
+            registry = IRegistry(_registryDeploymentAddressForChain);
+            trustedVerifyAddress = _trustedVerifyAddress;
+            nonce = 0;
+            __ERC20_init_unchained("Sedn USDC", "SednUSDC");
+            ERC2771ContextUpgradeable(address(_trustedForwarder));
+            __UUPSUpgradeable_init_unchained();
+            __Ownable_init_unchained();
+        }
+    
+    function initSedn(
+        address _usdcTokenAddressForChain,
+        address _registryDeploymentAddressForChain,
+        address _trustedVerifyAddress,
+        SednForwarder _trustedForwarder
+    ) public initializer {
+        initSedn_unchained(
             _usdcTokenAddressForChain,
-            _registryDeploymentAddressForChain
-        );
-        usdcToken = IERC20(_usdcTokenAddressForChain);
-        registry = IRegistry(_registryDeploymentAddressForChain);
-        trustedVerifyAddress = _trustedVerifyAddress;
+            _registryDeploymentAddressForChain,
+            _trustedVerifyAddress,
+            _trustedForwarder);
     }
 
-    ///@inheritdoc ERC2771Context
-    function _msgSender() internal view virtual override (Context, ERC2771Context)
+    ///@inheritdoc UUPSUpgradeable
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    ///@inheritdoc ERC2771ContextUpgradeable
+    function _msgSender() internal view virtual override (ContextUpgradeable, ERC2771ContextUpgradeable)
         returns (address sender) {
-        sender = ERC2771Context._msgSender();
+        sender = ERC2771ContextUpgradeable._msgSender();
     }
 
-    ///@inheritdoc ERC2771Context
-    function _msgData() internal view virtual override (Context, ERC2771Context)
+    ///@inheritdoc ERC2771ContextUpgradeable
+    function _msgData() internal view virtual override (ContextUpgradeable, ERC2771ContextUpgradeable)
         returns (bytes calldata) {
-        return ERC2771Context._msgData();
+        return ERC2771ContextUpgradeable._msgData();
     }
 
     /**
@@ -133,7 +152,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      * @notice Overriding decimals to return the decimals of USDC token, when in doubt return to 6
      */
     function decimals() public view virtual override returns (uint8) {
-        try IERC20Metadata(address(usdcToken)).decimals() returns (uint8 value) {
+        try IERC20MetadataUpgradeable(address(usdcToken)).decimals() returns (uint8 value) {
             return value;
         } catch {
             return 6;
@@ -157,7 +176,10 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      * @param timestamp Timestamp of block where the payment is executed
      * @dev Creates a unique key for the payment to enable clawbacks
      */
-    function _combineToBytes32(address _address, bytes32 _secret, uint256 timestamp) public pure returns (bytes32) {
+    function _combineToBytes32(
+        address _address,
+        bytes32 _secret, uint256 timestamp
+    ) pure internal returns (bytes32) {
         bytes32 _addressBytes = keccak256(abi.encodePacked(_address));
         bytes32 _timestampBytes = keccak256(abi.encodePacked(timestamp));
         return keccak256(abi.encodePacked(_addressBytes, _secret, _timestampBytes));
@@ -191,7 +213,6 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      */
     function transferUnknown(uint256 _amount, bytes32 secret) external {
         require(_amount > 0, "Amount must be greater than 0");
-        require(_msgSender() != address(0), "Transfer from the zero address");
         _burn(_msgSender(), _amount);
         _addPayment(_amount, _msgSender(), secret);
         emit TransferUnknown(_msgSender(), secret, _amount);
@@ -242,13 +263,15 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      * @param secret The secret to identify and clawback the payment
      */
     function clawback(bytes32 secret, uint256 timestamp) external {
-        require(block.timestamp > (timestamp + timeToUnlock), "Clawback not allowed yet");
+        require(block.timestamp > (timestamp + TIME_TO_UNLOCK), "Clawback not allowed yet");
+        uint256 claimAmount = _payments[secret];
         bytes32 paymentHash = _combineToBytes32(_msgSender(), secret, timestamp);
         uint256 amount = _senderPayments[paymentHash];
+        require(claimAmount > amount, "Payment already claimed");
         require(amount >  0, "No payment found");
-        _mint(_msgSender(), amount);
         _payments[secret] -= amount;
         _senderPayments[paymentHash] = 0;
+        _mint(_msgSender(), amount);
         emit Clawback(_msgSender(), secret, amount);
     }
 
@@ -307,7 +330,7 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
      * @param to The address to withdraw the USDC toss
      */
     function withdraw(uint256 amount, address to) external {
-        require(_msgSender() != address(0), "Transfer from the zero address");
+        require(to != address(0), "Withdrawal to the zero address");
         usdcToken.approve(address(this), amount);
         require(usdcToken.transferFrom(address(this), to, amount), "transferFrom failed");
         _burn(_msgSender(), amount);
@@ -327,7 +350,8 @@ contract Sedn is ERC20, ERC2771Context, Ownable, IUserRequest{
         address to = _userRequest.receiverAddress;
         require(_msgSender() != address(0), "bridgeWithdrawal from the zero address");
         require(to != address(0), "bridgeWithdrawal to the zero address");
-        console.log("Bridge and claiming funds", amount, _msgSender());
+        require(amount > 0, "Amount must be greater than 0");
+        require(balanceOf(_msgSender()) >= amount, "Insufficient balance");
         usdcToken.approve(address(registry), amount);
         usdcToken.approve(bridgeImpl, amount);
         registry.outboundTransferTo{value: msg.value}(_userRequest);
