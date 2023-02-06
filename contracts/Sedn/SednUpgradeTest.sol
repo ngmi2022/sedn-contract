@@ -35,9 +35,6 @@ contract SednUpgradeTest is Sedn {
         address to = _userRequest.receiverAddress;
         require(_msgSender() != address(0), "bridgeWithdrawal from the zero address");
         require(to != address(0), "bridgeWithdrawal to the zero address");
-        console.log("Bridge and claiming funds (from, amount, to):",  _msgSender(), amount, to);
-        console.log("UserRequest", _userRequest.amount, _userRequest.receiverAddress, _userRequest.toChainId);
-        console.log("BridgeImpl", bridgeImpl);
         this.withdraw(amount, to);
     }
 
