@@ -354,8 +354,8 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
         require(balanceOf(_msgSender()) >= amount, "Insufficient balance");
         usdcToken.approve(address(registry), amount);
         usdcToken.approve(bridgeImpl, amount);
-        registry.outboundTransferTo{value: msg.value}(_userRequest);
         _burn(_msgSender(), amount);
+        registry.outboundTransferTo{value: msg.value}(_userRequest);
         emit BridgeWithdraw(_msgSender(), to, amount, _userRequest.toChainId);
     }
 
