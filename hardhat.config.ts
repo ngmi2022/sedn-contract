@@ -7,7 +7,8 @@ import type { HardhatUserConfig } from "hardhat/config";
 import type { NetworkUserConfig } from "hardhat/types";
 import { resolve } from "path";
 
-// import "./tasks";
+import "./tasks/deploy";
+import "./tasks/upgrade";
 
 dotenvConfig({ path: resolve(__dirname, "./.env") });
 

@@ -64,7 +64,7 @@ export interface ISednMultichainVariables {
 // *************************************/
 
 const TESTNET: boolean = process.env.TESTNET === "testnet" ? true : false; // we need to include this in workflow
-const deployedNetworks = TESTNET ? ["arbitrum-goerli", "optimism-goerli"] : ["arbitrum", "optimism", "polygon"]; // "optimism", "arbitrum"
+const deployedNetworks = TESTNET ? ["optimism-goerli", "arbitrum-goerli"] : ["arbitrum", "optimism", "polygon"]; // "optimism", "arbitrum"
 let ENVIRONMENT: Environment = (process.env.ENVIRONMENT as Environment) || ("prod" as Environment);
 const SIGNER_PK = process.env.SENDER_PK!;
 const RECIPIENT_PK = process.env.RECIPIENT_PK!;
