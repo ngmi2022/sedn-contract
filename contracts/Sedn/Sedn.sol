@@ -179,7 +179,7 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
     function _combineToBytes32(
         address _address,
         bytes32 _secret, uint256 timestamp
-    ) public pure returns (bytes32) {
+    ) pure internal returns (bytes32) {
         bytes32 _addressBytes = keccak256(abi.encodePacked(_address));
         bytes32 _timestampBytes = keccak256(abi.encodePacked(timestamp));
         return keccak256(abi.encodePacked(_addressBytes, _secret, _timestampBytes));
