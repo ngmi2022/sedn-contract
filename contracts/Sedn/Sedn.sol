@@ -265,9 +265,9 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
     function clawback(bytes32 secret, uint256 timestamp) external {
         require(block.timestamp > (timestamp + TIME_TO_UNLOCK), "Clawback not allowed yet");
         uint256 claimAmount = _payments[secret];
-        require(claimAmount > 0, "Payment already claimed");
         bytes32 paymentHash = _combineToBytes32(_msgSender(), secret, timestamp);
         uint256 amount = _senderPayments[paymentHash];
+        require(claimAmount > amount, "Payment already claimed");
         require(amount >  0, "No payment found");
         _payments[secret] -= amount;
         _senderPayments[paymentHash] = 0;
