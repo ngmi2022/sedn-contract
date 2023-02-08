@@ -3,12 +3,30 @@
         "network": "arbitrum-goerli",
         "testnet": true,
         "usdcAddress": "0xa30d67979d4ce07b5467533b633ad23285434c4a",
-        "forwarderAddress": "0x47b80475A1A4832a0dcbBc206E24Ddf6533aE2Bb",
+        "forwarderAddress": "0x47b80475A1A4832a0dcbBc206E24Ddf6533aE2Bb"
+    },
+    {
+        "network": "arbitrum",
+        "testnet": false,
+        "usdcAddress": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+        "forwarderAddress": "0x542696b46A2bBD84EE8a50b8101e4DCA048CAb09"
+    },
+    {
+        "network": "optimism",
+        "testnet": false,
+        "usdcAddress": "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
+        "forwarderAddress": "0x43172039020e5665891Ca3469B1DCeAdF76220c9"
+    },
+    {
+        "network": "polygon-mainnet",
+        "testnet": false,
+        "usdcAddress": "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
+        "forwarderAddress": "0xEd02391B5EAC1A313dEd1d0525De2a2A0E891ade"
     },
     {
         "network": "optimism-goerli",
         "testnet": true,
         "usdcAddress": "0x8DC32778b81f7C2A537647CCf7fac2F8BC713f9C",
-        "forwarderAddress": "0x8d8456F935c207A890673Fbe9dc5B25b0e8065a3",
+        "forwarderAddress": "0x8d8456F935c207A890673Fbe9dc5B25b0e8065a3"
     }
 ]

@@ -33,6 +33,7 @@ import {
   handleTxSignature,
   instantiateFundingScenario,
   sleep,
+  timeout,
   waitTillRecipientBalanceChanged,
 } from "../../helper/utils";
 
@@ -64,7 +65,7 @@ export interface ISednMultichainVariables {
 // *************************************/
 
 const TESTNET: boolean = process.env.TESTNET === "testnet" ? true : false; // we need to include this in workflow
-const deployedNetworks = TESTNET ? ["optimism-goerli", "arbitrum-goerli"] : ["arbitrum", "optimism", "polygon"]; // "optimism", "arbitrum"
+const deployedNetworks = TESTNET ? ["arbitrum-goerli", "optimism-goerli"] : ["polygon", "arbitrum", "optimism"]; // "optimism", "arbitrum"
 let ENVIRONMENT: Environment = (process.env.ENVIRONMENT as Environment) || ("prod" as Environment);
 const SIGNER_PK = process.env.SENDER_PK!;
 const RECIPIENT_PK = process.env.RECIPIENT_PK!;
@@ -80,6 +81,7 @@ const API_URLS: any = {
   dev: "http://127.0.0.1:5001/sedn-staging/us-central1",
 };
 const API_URL = API_URLS[ENVIRONMENT];
+console.log("API_URL", API_URL);
 ENVIRONMENT = ENVIRONMENT === "dev" ? ("staging" as Environment) : ENVIRONMENT; // ensure that dev is always reverting to staging
 
 // some params & functions to facilitate metaTX testing / testnet
@@ -90,7 +92,7 @@ const db = admin.firestore();
 
 async function getSedn(network: string): Promise<ISednVariables> {
   let config = await fetchConfig();
-  const sednAddress = config.contracts[network];
+  const sednAddress = config.contracts[network].contract;
   const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(network));
   const signer = new ethers.Wallet(SIGNER_PK, provider);
   const verifier = new ethers.Wallet(VERIFIER_PK, provider);
@@ -98,7 +100,8 @@ async function getSedn(network: string): Promise<ISednVariables> {
   const unfundedSigner = new ethers.Wallet(UNFUNDED_SIGNER_PK, provider);
   const relayerWebhook = config.relayerWebhooks[network];
   const forwarderAddress = config.forwarder[network];
-  const sedn = new ethers.Contract(sednAddress, await getAbi(network, sednAddress), signer);
+  const sedn = new ethers.Contract(sednAddress, await getAbi(network, config.contracts[network].abi), signer);
+  console.log("sedn", sedn.address);
   const usdcOrigin = new ethers.Contract(
     config.usdc[network].contract,
     await getAbi(network, config.usdc[network].abi),
@@ -310,7 +313,7 @@ describe(`Sedn testing with api`, function () {
       sednVars[networksToTest[0]].signer.address,
     );
   });
-  it(`should be able to correctly sedn funds to an unknown user`, async function () {
+  it.only(`should be able to correctly sedn funds to an unknown user`, async function () {
     // partially randomized scenario creation
     console.log("INFO: Creating funding scenario");
     const firstNetwork = networksToTest[0];
@@ -386,7 +389,10 @@ describe(`Sedn testing with api`, function () {
     // instantiate claimerUser & get solution
     const solution = execution.transactions[0].solution || "";
     claimerAuthToken = await createUserAndGenerateIdToken(auth, db, claimerPhone, claimerAddress);
-
+    const decodedToken = await admin.auth().verifyIdToken(claimerAuthToken);
+    console.log("INFO: Claimer UID: ", decodedToken.uid);
+    console.log("INFO: Claiming execution with solution: ", solution);
+    console.log("INFO: Claiming execution now");
     await claimAndExecute(execution, claimerAddress, solution, sednVars, testnet, ENVIRONMENT, claimerAuthToken);
 
     await waitTillRecipientBalanceChanged(

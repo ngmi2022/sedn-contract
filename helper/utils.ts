@@ -6,6 +6,7 @@ import { BigNumber, Contract, Wallet, ethers } from "ethers";
 import * as path from "path";
 import { ITransaction } from "sedn-interfaces";
 
+import { SednAbi, SednTestnetAbi } from "../abis/abis";
 import { ISednMultichainVariables } from "../integration/with-api/Sedn";
 import { FakeSigner } from "./FakeSigner";
 import { getSignedTxRequest } from "./signer";
@@ -28,12 +29,12 @@ export const fetchConfig = async () => {
   if (ENVIRONMENT === "staging" || ENVIRONMENT === "dev") {
     console.log("config environment:", ENVIRONMENT);
     return await (
-      await fetch("https://storage.googleapis.com/sedn-public-config/v2.staging.config.json?avoidTheCaches=1")
+      await fetch("https://storage.googleapis.com/sedn-config-public/v2.staging.config.json?avoidTheCaches=1")
     ).json();
   }
   console.log("config environment:", ENVIRONMENT);
   return await (
-    await fetch("https://storage.googleapis.com/sedn-public-config/v2.config.json?avoidTheCaches=1")
+    await fetch("https://storage.googleapis.com/sedn-config-public/v2.config.json?avoidTheCaches=1")
   ).json();
 };
 
@@ -163,7 +164,7 @@ export const explorerData: any = {
   },
   "optimism-goerli": {
     url: "https://goerli-optimism.etherscan.io/",
-    api: "https://api-goerli-optimistic.etherscan.io/api",
+    api: "https://api-goerli-optimism.etherscan.io/",
     apiKey: process.env.OPTIMISM_API_KEY!,
   },
 };
@@ -179,11 +180,20 @@ export const getAbi = async (network: string, contract: string) => {
   if (!apiKey) {
     throw new Error(`API Key for ${network} is not defined`);
   }
-  // console.log(`${apiUrl}?module=contract&action=getabi&address=${contract}&apikey=${apiKey}`);
-  const data: any = await (
-    await fetch(`${apiUrl}?module=contract&action=getabi&address=${contract}&apikey=${apiKey}`)
-  ).json();
-  return JSON.parse(data.result);
+  try {
+    // console.log(`DEBUG URL ABI: ${apiUrl}?module=contract&action=getabi&address=${contract}&apikey=${apiKey}`);
+    const data: any = await (
+      await fetch(`${apiUrl}?module=contract&action=getabi&address=${contract}&apikey=${apiKey}`)
+    ).json();
+    return JSON.parse(data.result);
+  } catch (e) {
+    console.error(e);
+    if (["arbitrum-goerli", "optimism-goerli"].includes(network)) {
+      return SednTestnetAbi;
+    } else {
+      return SednAbi;
+    }
+  }
 };
 
 export const feeData = async (network: string, signer: Wallet) => {
@@ -237,7 +247,7 @@ export const getChainFromId = (chainId: number) => {
     case 1:
       return "mainnet";
     case 137:
-      return "polygon-mainnet";
+      return "polygon";
     case 42161:
       return "arbitrum";
     case 421613:
@@ -513,9 +523,13 @@ export const instantiateFundingScenario = async (
         `INFO: Funding unfundedSigner on ${network} with ${usdcBalanceUnfundedTarget} USDC on EOA...diff ${usdcDifference.toString()}`,
       );
       if (usdcDifference.lt(zeroBig)) {
+        const fee = await feeData(network, sednVars[network].unfundedSigner);
         tx = await sednVars[network].usdcOrigin
           .connect(sednVars[network].unfundedSigner)
-          .transfer(sednVars[network].signer.address, usdcDifference.mul(minusOneBig));
+          .transfer(sednVars[network].signer.address, usdcDifference.mul(minusOneBig), {
+            maxFeePerGas: fee.maxFee,
+            maxPriorityFeePerGas: fee.maxPriorityFee,
+          });
         const nonce = (await sednVars[network].unfundedSigner.getTransactionCount()) + 1;
         tx.nonce = nonce;
         console.log(`INFO: Sending tx with nonce ${nonce} and ${network}/${tx.hash}`);
@@ -528,9 +542,13 @@ export const instantiateFundingScenario = async (
           usdcBalanceUnfundedBefore,
         );
       } else {
+        const fee = await feeData(network, sednVars[network].signer);
         tx = await sednVars[network].usdcOrigin
           .connect(sednVars[network].signer)
-          .transfer(sednVars[network].unfundedSigner.address, usdcDifference);
+          .transfer(sednVars[network].unfundedSigner.address, usdcDifference, {
+            maxFeePerGas: fee.maxFee,
+            maxPriorityFeePerGas: fee.maxPriorityFee,
+          });
         const nonce = (await sednVars[network].signer.getTransactionCount()) + 1;
         tx.nonce = nonce;
         console.log(`INFO: Sending tx with nonce ${nonce} and ${network}/${tx.hash}`);
@@ -561,9 +579,13 @@ export const instantiateFundingScenario = async (
         `INFO: funding unfundedSigner on ${network} with ${sednBalanceUnfundedTarget} USDC on Sedn... (diff ${sednDifference.toString()}))`,
       );
       if (sednDifference.lt(zeroBig)) {
+        const fee = await feeData(network, sednVars[network].unfundedSigner);
         tx = await sednVars[network].sedn
           .connect(sednVars[network].unfundedSigner)
-          .transferKnown(sednDifference.mul(minusOneBig), sednVars[network].signer.address);
+          .transferKnown(sednDifference.mul(minusOneBig), sednVars[network].signer.address, {
+            maxFeePerGas: fee.maxFee,
+            maxPriorityFeePerGas: fee.maxPriorityFee,
+          });
         const nonce = (await sednVars[network].unfundedSigner.getTransactionCount()) + 1;
         tx.nonce = nonce;
         console.log(`INFO: Sending tx with nonce ${nonce} and ${network}/${tx.hash}`);
@@ -582,9 +604,13 @@ export const instantiateFundingScenario = async (
           sednVars[network].sedn,
           sednDifference,
         );
+        const fee = await feeData(network, sednVars[network].signer);
         tx = await sednVars[network].sedn
           .connect(sednVars[network].signer)
-          .sednKnown(sednDifference, sednVars[network].unfundedSigner.address);
+          .sednKnown(sednDifference, sednVars[network].unfundedSigner.address, {
+            maxFeePerGas: fee.maxFee,
+            maxPriorityFeePerGas: fee.maxPriorityFee,
+          });
         const nonce = (await sednVars[network].signer.getTransactionCount()) + 1;
         tx.nonce = nonce;
         console.log(`INFO: Sending tx with nonce ${nonce} and ${network}/${tx.hash}`);
@@ -612,6 +638,7 @@ export const handleTxSignature = async (
 ) => {
   const network = getChainFromId(transaction.chainId);
   const method = transaction.method;
+  console.log("Network:", network);
   const sednContract = sednVars[network].sedn;
   const signer = sednVars[network][signerName];
   let args: any = transaction.args;
