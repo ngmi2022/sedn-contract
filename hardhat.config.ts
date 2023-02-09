@@ -114,6 +114,7 @@ const config: HardhatUserConfig = {
       sepolia: process.env.ETHERSCAN_API_KEY || "",
       "arbitrum-goerli": process.env.ARBISCAN_API_KEY || "",
       "optimism-goerli": process.env.OPTIMISM_API_KEY || "",
+      arbitrum: process.env.ARBISCAN_API_KEY || "",
     },
     customChains: [
       {

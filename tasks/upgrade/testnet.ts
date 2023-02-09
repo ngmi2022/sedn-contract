@@ -20,7 +20,7 @@ task("upgrade:testnet").setAction(async function (taskArguments: TaskArguments) 
   const network = hre.network;
   const signer = await ethers.getSigner();
 
-  const sednFactory: ContractFactory = await ethers.getContractFactory("SednUpgradeTest");
+  const sednFactory: ContractFactory = await ethers.getContractFactory("SednTestnet");
   const upgrade = await upgrades.upgradeProxy(proxyAddress, sednFactory, {
     constructorArgs: [forwarderAddress],
   });
