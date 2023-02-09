@@ -1,10 +1,11 @@
+import { ConstructorFragment } from "@ethersproject/abi";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { deployContract } from "@nomiclabs/hardhat-ethers/types";
 import { addresses } from "@socket.tech/ll-core";
 import { expect } from "chai";
 import { BigNumber, Contract, Wallet } from "ethers";
 import { ethers, network } from "hardhat";
+import { upgrades } from "hardhat";
 import { it } from "mocha";
 
 import { FakeSigner } from "../../helper/FakeSigner";
@@ -208,7 +209,7 @@ describe("Sedn", function () {
   let claimer: SignerWithAddress;
   let circleSigner: SignerWithAddress;
   let trusted: FakeSigner;
-  let contract: Sedn;
+  let contract: Contract;
   let usdc: Contract;
   let forwarder: Contract;
   let registry: string;
@@ -226,11 +227,13 @@ describe("Sedn", function () {
     registry = requirements.registryAddress;
     forwarder = await deploySednForwarder([], owner);
     await forwarder.deployed();
-    contract = await deploySedn(
-      [requirements.usdc.address, requirements.registryAddress, accounts[1].address, forwarder.address],
-      owner,
-    );
-
+    const sednArgs = [requirements.usdc.address, requirements.registryAddress, accounts[1].address, forwarder.address];
+    const sednFactory = await ethers.getContractFactory("Sedn");
+    contract = await upgrades.deployProxy(sednFactory, sednArgs, {
+      kind: "uups",
+      constructorArgs: [forwarder.address],
+      initializer: "initSedn",
+    });
     trusted = new FakeSigner(accounts[1], contract.address);
 
     // Set up usdc in account wallets
@@ -252,10 +255,15 @@ describe("Sedn", function () {
 
   describe("constructor", () => {
     it("should deploy", async () => {
-      const requirements = await getRequirements();
       const forwarder = await deploySednForwarder([], owner);
       await forwarder.deployed();
-      const sedn = await deploySedn([usdc.address, registry, accounts[1].address, forwarder.address], owner);
+      const sednArgs = [usdc.address, registry, accounts[1].address, forwarder.address];
+      const sednFactory = await ethers.getContractFactory("Sedn");
+      const sedn = await upgrades.deployProxy(sednFactory, sednArgs, {
+        kind: "uups",
+        constructorArgs: [forwarder.address],
+        initializer: "initSedn",
+      });
       await sedn.deployed();
       expect(await sedn.owner()).to.equal(owner.address);
       expect(await sedn.usdcToken()).to.equal(usdc.address);
@@ -384,7 +392,7 @@ describe("Sedn", function () {
       // console.log("Mid", paymentAmountMid.toString());
       expect(paymentAmountMid).to.equal(amount);
       // 1st Clawback
-      await time.increase(25);
+      await time.increase(7884010);
       await clawback(contract, sender, secret, timestamp);
       // Check payment status again
       const paymentAmountOne = await contract.connect(sender).getPaymentAmount(secret);
@@ -456,7 +464,6 @@ describe("Sedn", function () {
   });
   describe("forwarder", () => {
     it("should relay a transaction successfully", async () => {
-      await contract.deployed();
       await forwarder.deployed();
       // get balance before execution
       const sednBalanceBeforeClaimer = await contract.balanceOf(claimer.address);
@@ -495,7 +502,6 @@ describe("Sedn", function () {
       expect(usdcBalanceBeforeSender.sub(usdcBalanceAfterSender)).to.equal(amount);
     });
     it("should throw an error when a incorrect chain is specified", async () => {
-      await contract.deployed();
       await forwarder.deployed();
 
       // instantiate sender as wallet
