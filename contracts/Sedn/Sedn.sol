@@ -267,7 +267,7 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
         uint256 claimAmount = _payments[secret];
         bytes32 paymentHash = _combineToBytes32(_msgSender(), secret, timestamp);
         uint256 amount = _senderPayments[paymentHash];
-        require(claimAmount > amount, "Payment already claimed");
+        require(claimAmount >= amount, "Payment already claimed");
         require(amount >  0, "No payment found");
         _payments[secret] -= amount;
         _senderPayments[paymentHash] = 0;

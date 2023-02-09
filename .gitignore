@@ -5,6 +5,7 @@
 !.yarn/plugins
 !.yarn/sdks
 !.yarn/versions
+!.openzeppelin
 **/artifacts
 **/build
 **/cache

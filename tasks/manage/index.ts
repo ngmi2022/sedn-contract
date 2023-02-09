@@ -2,10 +2,7 @@ import fs from "fs";
 import { run, upgrades } from "hardhat";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import path from "path";
-import { ConfigReturnValue, Environment } from "sedn-interfaces/dist/types";
 import { v4 as uuidv4 } from "uuid";
-
-import { fetchConfig } from "../../helper/utils";
 
 export interface INetwork {
   network: string;
@@ -167,6 +164,7 @@ function saveBuild(build: IBuild) {
   const jsonBuild = JSON.stringify(build);
   const filePath = path.join(__dirname, `./logs/${build.uid}.json`);
   fs.writeFileSync(filePath, jsonBuild, { encoding: "utf8" });
+  console.log(`Build saved to: ${filePath}`);
   return;
 }
 
@@ -175,6 +173,7 @@ export interface IBuild {
   networks: INetwork[];
   state: IBuildState;
   build?: INetworkBuilt[];
+  upgrade?: IBuildState;
 }
 
 export type IBuildState = "init" | "pending" | "success";
@@ -188,6 +187,7 @@ export interface INetworkBuilt {
   forwarderAddress: string | undefined;
   implementationAddress: string | undefined;
   proxyAddress: string | undefined;
+  upgraded?: boolean;
 }
 
 export async function multiNetworkBuild(networks: INetwork[], verifierAddress: string, buildUid?: string) {
@@ -315,5 +315,88 @@ export async function getConfig() {
     return networks;
   } catch (error) {
     throw new Error(`Could not find config file`);
+  }
+}
+
+export async function multiNetworkUpgrade(buildUid: string) {
+  const build = (await getBuild(buildUid)) as IBuild;
+  if (!build.build) {
+    throw new Error("No build(s) found in build");
+  }
+  const networksArray = build.networks.map((network: INetwork) => network.network);
+  const hre: HardhatRuntimeEnvironment = require("hardhat");
+  const networksHRE = Object.keys(hre.config.networks);
+  checkMissingNetworks(networksArray, networksHRE);
+
+  let upgradeBuild: IBuild = JSON.parse(JSON.stringify(build)) as IBuild;
+  if (upgradeBuild.upgrade! === "success") {
+    console.log("build reset to facilitate new upgrade");
+    upgradeBuild.build = upgradeBuild.build!.map(networkBuilt => {
+      return { ...networkBuilt, upgraded: false };
+    });
+    upgradeBuild.upgrade = "init" as IBuildState;
+  } else {
+    upgradeBuild.upgrade = "init" as IBuildState;
+  }
+  let networksToDo: string[] | undefined;
+  while (upgradeBuild.upgrade !== "success") {
+    const filteredNetworks = upgradeBuild.build?.filter(networkBuilt => !networkBuilt.upgraded);
+    networksToDo = filteredNetworks?.map(networkBuilt => networkBuilt.network);
+    if (!networksToDo || !networksToDo.length) {
+      upgradeBuild.upgrade = "success";
+      saveBuild(upgradeBuild);
+      return;
+    }
+    const networkToUpgrade: INetworkBuilt | undefined = upgradeBuild.build!.find(
+      network => network.network === networksToDo![0],
+    );
+    if (!networkToUpgrade) {
+      throw new Error("network build not found, this shouldn't happen");
+    }
+    const networkUpgraded = await singleNetworkUpgrade(networkToUpgrade);
+    upgradeBuild.build = upgradeBuild.build!.filter(entry => entry.network !== networkUpgraded.network);
+    upgradeBuild.build!.push(networkUpgraded!);
+    upgradeBuild.upgrade = "pending" as IBuildState;
+    saveBuild(upgradeBuild);
+  }
+}
+
+export async function singleNetworkUpgrade(networkToUpgrade: INetworkBuilt) {
+  // check if network is fully defined
+  if (
+    !networkToUpgrade.network ||
+    networkToUpgrade.testnet === undefined ||
+    !networkToUpgrade.implementationAddress ||
+    !networkToUpgrade.proxyAddress ||
+    !networkToUpgrade.forwarderAddress ||
+    !networkToUpgrade.usdcAddress
+  ) {
+    throw new Error("network to upgrade is not fully defined");
+  }
+  const network = networkToUpgrade.network;
+  // init network build
+  let subBuild: INetworkBuilt = {
+    network,
+    testnet: networkToUpgrade.testnet,
+    usdcAddress: networkToUpgrade.usdcAddress,
+    forwarderAddress: networkToUpgrade.forwarderAddress,
+    implementationAddress: networkToUpgrade.implementationAddress,
+    proxyAddress: networkToUpgrade.proxyAddress,
+  };
+  try {
+    let addresses: { implementationAddress: any; proxyAddress: any };
+    if (networkToUpgrade.testnet) {
+      addresses = await upgradeTestnetSedn(network, subBuild.proxyAddress!, subBuild.forwarderAddress!);
+    } else {
+      addresses = await upgradeSedn(network, subBuild.proxyAddress!, subBuild.forwarderAddress!);
+    }
+    subBuild.implementationAddress = addresses.implementationAddress!;
+    subBuild.proxyAddress = addresses.proxyAddress!;
+    subBuild.upgraded = true;
+    console.log("subBuild successful");
+    return subBuild;
+  } catch (error) {
+    console.log("error upgrading sedn", error);
+    throw new Error("error upgrading sedn");
   }
 }

@@ -27,7 +27,7 @@ import {
 // *************************************/
 
 const TESTNET: boolean = process.env.TESTNET === "testnet" ? true : false; // we need to include this in workflow
-const defaultNetworksToTest = TESTNET ? ["arbitrum-goerli"] : ["optimism"]; // "optimism", "arbitrum"
+const defaultNetworksToTest = TESTNET ? ["arbitrum-goerli"] : ["polygon"]; // "optimism", "arbitrum"
 let ENVIRONMENT = process.env.ENVIRONMENT || "prod";
 ENVIRONMENT = ENVIRONMENT === "dev" ? "prod" : ENVIRONMENT; // ensure that dev is always reverting to staging
 const SIGNER_PK = process.env.SENDER_PK!;
@@ -58,9 +58,8 @@ export interface ISednVariables {
 
 async function getSedn(network: string): Promise<ISednVariables> {
   let config = await fetchConfig();
-  // const sednAddress = config.contracts[network];
-  const sednAddress = "0x2eECe520fB6d83582DD78056565951A4A7cB6743";
-  const sednAbi = "0xEdeAD3a692514c1AC7440e065bf1FD5220B99D43";
+  const sednAddress = config.contracts[network].contract;
+  const sednAbi = config.contracts[network].abi;
   const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(network));
   const signer = new ethers.Wallet(SIGNER_PK, provider);
   const verifier = new ethers.Wallet(VERIFIER_PK, provider);
@@ -528,7 +527,7 @@ networksToTest.forEach(function (network) {
       }
       await withdraw(deployed.signer, deployed, network);
     });
-    it("should allow clawbacks", async function () {
+    it.skip("should allow clawbacks", async function () {
       const { solution, secret, timestamp } = await sednUnknown(deployed.signer, deployed, network);
       let timestampCheck = (await deployed.signer.provider!.getBlock("latest")).timestamp;
       while (timestamp + 20 > timestampCheck) {

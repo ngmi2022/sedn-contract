@@ -8,10 +8,15 @@ import { v4 as uuid } from "uuid";
 const COLLECTION_NAME = "accounts";
 
 export const getIdToken = async (user: UserRecord) => {
-  const env = process.env;
-  const gcloud_project = env.GCLOUD_PROJECT || "";
-  const firebaseKey = env[`FIREBASE_KEY_${gcloud_project.replaceAll("-", "_")}`];
+  const gCloudProject = process.env.GCLOUD_PROJECT;
+  let firebaseKey: string;
+  if (gCloudProject === "sedn-staging") {
+    firebaseKey = process.env.FIREBASE_KEY_sedn_staging!;
+  } else {
+    firebaseKey = process.env.FIREBASE_KEY_sedn_production!;
+  }
 
+  console.log("firebaseKey: ", firebaseKey, "is used to create a custom token");
   let url: string;
   if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
     url = `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/www.googleapis.com/identitytoolkit/v3/relyingparty/verifyCustomToken?key=${firebaseKey}`;
@@ -38,30 +43,31 @@ export const createUser = async (auth: Auth, db: admin.firestore.Firestore, phon
   if (phoneNumber) {
     try {
       phoneUser = await auth.getUserByPhoneNumber(phoneNumber);
-      // console.log("DEBUG: User exists", JSON.stringify(phoneUser));
     } catch (error) {
+      // @ts-ignore
       if (!error.code || error.code != "auth/user-not-found") {
         throw error;
       }
     }
+    // @ts-ignore
     if (!phoneUser) {
-      // console.log("DEBUG: creating new auth for phone number", phoneNumber);
       phoneUser = await auth.createUser({
         phoneNumber: phoneNumber,
       });
     }
 
-    const hasMasterAccount = await getAccountConnectionRecordsForAnyUID(db, phoneUser.uid);
-    // console.log(`DEBUG: User with uid: ${phoneUser.uid} has master account: ${JSON.stringify(hasMasterAccount)}`);
+    const hasMasterAccountUnqualified = await getAccountConnectionRecordsForAnyUID(db, phoneUser.uid);
+    let hasMasterAccount: IAccount | null = null;
+    if (Array.isArray(hasMasterAccountUnqualified)) {
+      hasMasterAccount = hasMasterAccountUnqualified[0];
+    }
     if (!hasMasterAccount) {
-      // console.log("DEBUG: creating new master account because none exists");
       const res = await createAccountInDatabase(db, {
         phoneUID: phoneUser.uid,
       });
       masterAccountRef = res.ref;
       masterAccount = res.account;
     } else {
-      // console.log("DEBUG: using existing master account", JSON.stringify(hasMasterAccount));
       masterAccountRef = db.collection(COLLECTION_NAME).doc(hasMasterAccount.master);
       masterAccount = hasMasterAccount;
     }
@@ -70,28 +76,28 @@ export const createUser = async (auth: Auth, db: admin.firestore.Firestore, phon
   if (address) {
     try {
       addressUser = await auth.getUser(address);
-      // console.log("DEBUG: User exists", JSON.stringify(addressUser));
     } catch (error) {
+      // @ts-ignore
       if (!error.code || error.code != "auth/user-not-found") {
         throw error;
       }
     }
+    // @ts-ignore
     if (!addressUser) {
-      // console.log("DEBUG: creating new auth for address", address);
       addressUser = await auth.createUser({
         uid: address,
       });
     }
   }
 
+  // @ts-ignore
   if (phoneUser && addressUser) {
-    // console.log("DEBUG: updating master account with phone and address", phoneUser.uid, addressUser.uid);
     await masterAccountRef.update({
       phoneUID: phoneUser.uid,
       primaryWalletUID: addressUser.uid,
     });
   }
-
+  // @ts-ignore
   return { phoneUser, addressUser };
 };
 
@@ -107,18 +113,10 @@ export const createUserAndGenerateIdToken = async (
   return idToken;
 };
 
-function findObjectWithMostKeys(arr: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>[]) {
-  return arr.reduce((prev, curr) => {
-    const prevData = prev.data() as IAccount;
-    const currData = curr.data() as IAccount;
-    return Object.keys(prevData).length > Object.keys(currData).length ? prev : curr;
-  });
-}
-
 const getAccountConnectionRecordsForAnyUID = async (
   db: admin.firestore.Firestore,
   uid: string,
-): Promise<IAccount | null> => {
+): Promise<IAccount[] | IAccount | null> => {
   const doc = await db.collection(COLLECTION_NAME).doc(uid).get();
   if (doc.exists) {
     const data = doc.data() as IAccount;
@@ -127,19 +125,23 @@ const getAccountConnectionRecordsForAnyUID = async (
 
   const walletAccountSnapshot = await db.collection(COLLECTION_NAME).where("primaryWalletUID", "==", uid).get();
 
+  let accounts: IAccount[] = [];
   if (!walletAccountSnapshot.empty) {
-    const account = findObjectWithMostKeys(walletAccountSnapshot.docs).data() as IAccount;
-
-    return account;
+    for (const account of walletAccountSnapshot.docs) {
+      accounts.push(account.data() as IAccount);
+    }
+    return accounts;
   }
 
   const phoneAccountSnapshot = await db.collection(COLLECTION_NAME).where("phoneUID", "==", uid).get();
 
   if (!phoneAccountSnapshot.empty) {
-    const account = findObjectWithMostKeys(phoneAccountSnapshot.docs).data() as IAccount;
-
-    return account;
+    for (const account of phoneAccountSnapshot.docs) {
+      accounts.push(account.data() as IAccount);
+    }
+    return accounts;
   }
+
   return null;
 };
 
@@ -166,6 +168,12 @@ const createAccountInDatabase = async (db: admin.firestore.Firestore, { phoneUID
 
 const deleteAccountConnectionRecordsForAnyUID = async (db: admin.firestore.Firestore, uid: string): Promise<void> => {
   const accountData = await getAccountConnectionRecordsForAnyUID(db, uid);
+  if (Array.isArray(accountData)) {
+    for (const account of accountData) {
+      await db.collection(COLLECTION_NAME).doc(account.master).delete();
+    }
+    return;
+  }
   if (accountData) {
     await db.collection(COLLECTION_NAME).doc(accountData.master).delete();
   }
@@ -195,34 +203,4 @@ export const deleteAccountsForAnyUIDs = async (
     }
   }
   return;
-};
-
-export const apiCall = async (apiUrl: string, apiMethod: string, request: any, authToken?: string) => {
-  let responseResult: any;
-  try {
-    const headers: any = { "content-type": "application/json" };
-    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
-    console.log(
-      `curl -X POST "${apiUrl + "/" + apiMethod}" -d '${JSON.stringify({
-        data: request,
-      })}' ${Object.keys(headers)
-        .map(key => `-H "${key}: ${headers[key]}"`)
-        .join(" ")}`,
-    );
-    const { status, data } = await axios.post(
-      `${apiUrl + "/" + apiMethod}/`,
-      {
-        data: request,
-      },
-      { headers },
-    );
-    console.log(`INFO: ${apiMethod} response`);
-    console.log("INFO: --  response status", status);
-    console.log("INFO: --  response data", JSON.stringify(data));
-    responseResult = data.result;
-  } catch (e) {
-    console.log(e);
-    throw e;
-  }
-  return responseResult;
 };
