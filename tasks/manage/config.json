@@ -3,30 +3,40 @@
         "network": "arbitrum-goerli",
         "testnet": true,
         "usdcAddress": "0xa30d67979d4ce07b5467533b633ad23285434c4a",
-        "forwarderAddress": "0x47b80475A1A4832a0dcbBc206E24Ddf6533aE2Bb"
+        "forwarderAddress": "0x47b80475A1A4832a0dcbBc206E24Ddf6533aE2Bb",
+        "implementationAddress": "0x2AA655A4CC789dd01F81Be5fFE8438866D6b2645",
+        "proxyAddress": "0x47Ff593eb078B5673787c88d605f08ccB5F592c9"
     },
     {
         "network": "arbitrum",
         "testnet": false,
         "usdcAddress": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
-        "forwarderAddress": "0x542696b46A2bBD84EE8a50b8101e4DCA048CAb09"
+        "forwarderAddress": "0x542696b46A2bBD84EE8a50b8101e4DCA048CAb09",
+        "implementationAddress": "0x103Da210231c50a9cB4E6f15819e37c2a1362556",
+        "proxyAddress": "0x23BE248f7D4D639868ECB8C8e6750C3cb8F812ad"
     },
     {
         "network": "optimism",
         "testnet": false,
         "usdcAddress": "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
-        "forwarderAddress": "0x43172039020e5665891Ca3469B1DCeAdF76220c9"
+        "forwarderAddress": "0x43172039020e5665891Ca3469B1DCeAdF76220c9",
+        "implementationAddress": "0x701866461F0cFf3CCd89d2b424D9710a5635760C",
+        "proxyAddress": "0xB79cc182492A2f0c561A1B34b3050348758588b4"
     },
     {
         "network": "polygon-mainnet",
         "testnet": false,
         "usdcAddress": "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
-        "forwarderAddress": "0xEd02391B5EAC1A313dEd1d0525De2a2A0E891ade"
+        "forwarderAddress": "0xEd02391B5EAC1A313dEd1d0525De2a2A0E891ade",
+        "implementationAddress": "0x8137D2d486B5ce67ec801a81645F2828D21c11a9",
+        "proxyAddress": "0x6F0370D18080F1DbeB9BA349c5a30ccDC8c998eD"
     },
     {
         "network": "optimism-goerli",
         "testnet": true,
         "usdcAddress": "0x8DC32778b81f7C2A537647CCf7fac2F8BC713f9C",
-        "forwarderAddress": "0x8d8456F935c207A890673Fbe9dc5B25b0e8065a3"
+        "forwarderAddress": "0x8d8456F935c207A890673Fbe9dc5B25b0e8065a3",
+        "implementationAddress": "0x9Fae0259e20936b612534dF14EBf9eC03823D916",
+        "proxyAddress": "0x720C6A81DADb6580275C924e1BcE4C530b865F6F"
     }
 ]
