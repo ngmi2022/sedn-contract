@@ -56,7 +56,11 @@ export const createUser = async (auth: Auth, db: admin.firestore.Firestore, phon
       });
     }
 
-    const hasMasterAccount = await getAccountConnectionRecordsForAnyUID(db, phoneUser.uid);
+    const hasMasterAccountUnqualified = await getAccountConnectionRecordsForAnyUID(db, phoneUser.uid);
+    let hasMasterAccount: IAccount | null = null;
+    if (Array.isArray(hasMasterAccountUnqualified)) {
+      hasMasterAccount = hasMasterAccountUnqualified[0];
+    }
     if (!hasMasterAccount) {
       const res = await createAccountInDatabase(db, {
         phoneUID: phoneUser.uid,
