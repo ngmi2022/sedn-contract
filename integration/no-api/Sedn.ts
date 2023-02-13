@@ -11,8 +11,6 @@ import { FakeSigner } from "../../helper/FakeSigner";
 import { sendTx } from "../../helper/signer";
 import {
   checkAllowance,
-  checkFunding,
-  feeData,
   fetchConfig,
   generateClaimArgs,
   generateSecret,
@@ -353,7 +351,7 @@ async function claim(claimer: Wallet, deployed: ISednVariables, network: string,
     amount = deployed.amount;
   }
   const sednBeforeClaimRecipient = await sedn.balanceOf(claimer.address);
-  const funcArgs = await generateClaimArgs(solution, secret, claimer, trusted, amount.toNumber());
+  const funcArgs = await generateClaimArgs(solution, secret, claimer, trusted);
   // TODO: get this shit into signer.ts
   const validUntilTime = (await claimer.provider!.getBlock("latest")).timestamp + 1000;
   await sendTx(
@@ -526,6 +524,27 @@ networksToTest.forEach(function (network) {
         await sednKnown(deployed.signer, deployed.signer, deployed, network);
       }
       await withdraw(deployed.signer, deployed, network);
+    });
+    it("should not allow claiming if paused is true", async function () {
+      // sednUnknown
+      const { solution, secret } = await sednUnknown(deployed.signer, deployed, network);
+
+      //pause stuff
+      await deployed.sedn.connect(deployed.signer).setPause(true);
+
+      // claim
+      const funcArgs = await generateClaimArgs(solution, secret, deployed.recipient, deployed.trusted);
+      // TODO: get this shit into signer.ts
+      try {
+        await deployed.sedn.connect(deployed.recipient).claim(...funcArgs);
+      } catch (e) {
+        expect(e.message).to.contain("Claiming is paused by admin");
+      }
+      // unpause stuff
+      await deployed.sedn.connect(deployed.signer).setPause(false);
+
+      // claim
+      await claim(deployed.recipient, deployed, network, solution as string);
     });
     it.skip("should allow clawbacks", async function () {
       const { solution, secret, timestamp } = await sednUnknown(deployed.signer, deployed, network);

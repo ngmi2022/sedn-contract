@@ -7,7 +7,9 @@ import {
   ChainId,
   ConfigReturnValue,
   Environment,
-  IClaimRequest,
+  IClaimInfoRequest,
+  IClaimInfoResp,
+  IClaimReq,
   IExecuteTransactionsRequest,
   IExecution,
   ITransaction,
@@ -19,12 +21,18 @@ import {
 } from "sedn-interfaces";
 
 import { FakeSigner } from "../../helper/FakeSigner";
-import { createUserAndGenerateIdToken, deleteAccountsForAnyUIDs } from "../../helper/authUtils";
+import {
+  createUserAndGenerateIdToken,
+  deleteAccountsForAnyUIDs,
+  deleteExecutionRecordsForAnyPhone,
+} from "../../helper/authUtils";
 import {
   INetworkScenarios,
   apiCall,
   createFundingScenario,
   fetchConfig,
+  generateSecret,
+  generateSecretFromSolution,
   getAbi,
   getBalance,
   getChainFromId,
@@ -166,7 +174,6 @@ const wireAndExecute = async (
 };
 
 const claimAndExecute = async (
-  execution: IExecution,
   recipientAddress: string,
   solution: string,
   sednVars: ISednMultichainVariables,
@@ -175,13 +182,17 @@ const claimAndExecute = async (
   authToken: string,
 ): Promise<IExecution> => {
   // build claim request and post to claim endpoint
-  const claimRequest: IClaimRequest = {
-    executionId: execution.id,
-    solution: solution,
+  const claimInfoRequest: IClaimInfoRequest = {
+    secret: generateSecretFromSolution(solution),
+  };
+  const claimInfoResponse: IClaimInfoResp = await apiCall(API_URL, "claimInfo", claimInfoRequest, authToken);
+  const claimRequest: IClaimReq = {
+    executionIds: claimInfoResponse.executionIds,
+    chainIds: claimInfoResponse.chainIds,
+    solution,
     recipientAddress,
     testnet,
     environment,
-    // in real life, this can be also the claimants phone number
   };
   const claimResponse: IWireResponse = await apiCall(API_URL, "claim", claimRequest, authToken);
 
@@ -312,6 +323,8 @@ describe(`Sedn testing with api`, function () {
       knownPhone,
       sednVars[networksToTest[0]].signer.address,
     );
+    // EXECUTION MANAGEMENT
+    await deleteExecutionRecordsForAnyPhone(db, claimerPhone);
   });
   it(`should be able to correctly sedn funds to an unknown user`, async function () {
     // partially randomized scenario creation
@@ -393,7 +406,7 @@ describe(`Sedn testing with api`, function () {
     console.log("INFO: Claimer UID: ", decodedToken.uid);
     console.log("INFO: Claiming execution with solution: ", solution);
     console.log("INFO: Claiming execution now");
-    await claimAndExecute(execution, claimerAddress, solution, sednVars, testnet, ENVIRONMENT, claimerAuthToken);
+    await claimAndExecute(claimerAddress, solution, sednVars, testnet, ENVIRONMENT, claimerAuthToken);
 
     await waitTillRecipientBalanceChanged(
       60_000,
@@ -425,7 +438,133 @@ describe(`Sedn testing with api`, function () {
     expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount); // amount is the same for all
     //networks and represents the complete send amount
   });
-  it(`should be able to correctly sedn additional payments to an unknown user`, async function () {});
+  it(`should be able to correctly sedn additional payments to an unknown user`, async function () {
+    // partially randomized scenario creation
+    console.log("INFO: Creating funding scenario");
+    const firstNetwork = networksToTest[0];
+    const secondNetwork = networksToTest[1];
+    const unfundedSignerAddress = sednVars[firstNetwork].unfundedSigner.address;
+    const claimerAddress = sednVars[firstNetwork].recipient.address;
+    const amount = sednVars[firstNetwork].amount.toString();
+    const scenarioNetwork: INetworkScenarios = {};
+    if (SINGLE_NETWORK) {
+      // single network scenario
+      scenarioNetwork[firstNetwork] = {
+        usdc: BigNumber.from(amount).mul(2),
+        sedn: BigNumber.from("0"),
+      };
+      scenarioNetwork[secondNetwork] = {
+        usdc: parseUnits("0", "mwei"),
+        sedn: BigNumber.from("0"),
+      };
+    } else {
+      scenarioNetwork[firstNetwork] = {
+        usdc: parseUnits("1", "mwei"),
+        sedn: BigNumber.from("0"),
+      };
+      scenarioNetwork[secondNetwork] = {
+        usdc: parseUnits("1.2", "mwei"),
+        sedn: BigNumber.from("0"),
+      };
+    }
+    const completeFundingScenario: INetworkScenarios = createFundingScenario(deployedNetworks, scenarioNetwork);
+    await instantiateFundingScenario(completeFundingScenario, sednVars);
+    console.log("INFO: Done funding");
+    // establish previous usdc balances of unfundedSigner
+    const usdcBeforeSednSignerFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].usdcOrigin, sednVars[firstNetwork].unfundedSigner),
+    );
+    const usdcBeforeSednSignerSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].usdcOrigin, sednVars[secondNetwork].unfundedSigner),
+    );
+    const execution = await wireAndExecute(
+      unfundedSignerAddress,
+      claimerPhone,
+      amount.toString(),
+      sednVars,
+      testnet,
+      ENVIRONMENT,
+      senderAuthToken,
+    );
+    // establish usdc balances of unfundedSigner after execution
+    const usdcMidSednSignerFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].usdcOrigin, sednVars[firstNetwork].unfundedSigner),
+    );
+    const usdcMidSednSignerSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].usdcOrigin, sednVars[secondNetwork].unfundedSigner),
+    );
+    // check correct execution of signer side
+    const totalMidUsdcDifferenceSigner = usdcBeforeSednSignerFirstNetwork
+      .add(usdcBeforeSednSignerSecondNetwork)
+      .sub(usdcMidSednSignerFirstNetwork.add(usdcMidSednSignerSecondNetwork));
+    expect(totalMidUsdcDifferenceSigner).to.equal(sednVars[firstNetwork].amount); // amount is the same for all networks and represents the complete send amount
+
+    const executionTwo = await wireAndExecute(
+      unfundedSignerAddress,
+      claimerPhone,
+      amount.toString(),
+      sednVars,
+      testnet,
+      ENVIRONMENT,
+      senderAuthToken,
+    );
+    // establish midway sedn balances of signer
+    const usdcAfterSednSignerFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].usdcOrigin, sednVars[firstNetwork].unfundedSigner),
+    );
+    const usdcAfterSednSignerSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].usdcOrigin, sednVars[secondNetwork].unfundedSigner),
+    );
+    // check correct execution of signer side
+    const totalUsdcDifferenceSigner = usdcMidSednSignerFirstNetwork
+      .add(usdcMidSednSignerSecondNetwork)
+      .sub(usdcAfterSednSignerFirstNetwork.add(usdcAfterSednSignerSecondNetwork));
+    expect(totalUsdcDifferenceSigner).to.equal(sednVars[firstNetwork].amount); // amount is the same for all networks and represents the complete send amount
+
+    // establish previous sedn balances of recipient
+    const sednBeforeSednRecipientFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].recipient),
+    );
+    const sednBeforeSednRecipientSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].recipient),
+    );
+    // instantiate claimerUser & get solution
+    const solution = execution.transactions[0].solution || "";
+    claimerAuthToken = await createUserAndGenerateIdToken(auth, db, claimerPhone, claimerAddress);
+    console.log("INFO: Claiming execution with solution: ", solution);
+    console.log("INFO: Claiming execution now");
+    await claimAndExecute(claimerAddress, solution, sednVars, testnet, ENVIRONMENT, claimerAuthToken);
+
+    await waitTillRecipientBalanceChanged(
+      60_000,
+      sednVars[firstNetwork].sedn,
+      sednVars[firstNetwork].recipient,
+      sednBeforeSednRecipientFirstNetwork,
+    );
+    if (!SINGLE_NETWORK) {
+      console.log("second network triggered");
+      await waitTillRecipientBalanceChanged(
+        60_000,
+        sednVars[secondNetwork].sedn,
+        sednVars[secondNetwork].recipient,
+        sednBeforeSednRecipientSecondNetwork,
+      );
+    }
+
+    // establish previous sedn balances of recipient
+    const sednAfterSednRecipientFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].recipient),
+    );
+    const sednAfterSednRecipientSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].recipient),
+    );
+    // check correct execution of recipient side
+    const totalSednDifferenceRecipient = sednAfterSednRecipientFirstNetwork
+      .add(sednAfterSednRecipientSecondNetwork)
+      .sub(sednBeforeSednRecipientFirstNetwork.add(sednBeforeSednRecipientSecondNetwork));
+    expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount.mul(2)); // amount is the same for all
+    //networks and represents the complete send amounts
+  });
   it(`should be able to correctly sedn funds to an known user`, async function () {
     console.log("INFO: Creating funding scenario");
     const firstNetwork = networksToTest[0];
@@ -604,7 +743,6 @@ describe(`Sedn testing with api`, function () {
       sednVars[networksToTest[0]].recipient.address,
     );
     const claimExecution = await claimAndExecute(
-      execution,
       claimerAddress,
       solution,
       sednVars,
@@ -641,7 +779,133 @@ describe(`Sedn testing with api`, function () {
     expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount); // amount is the same for all
     //networks and represents the complete send amount
   });
-  it(`should be able to correctly transfer additional payments to an unknown user`, async function () {});
+  it(`should be able to correctly transfer additional payments to an unknown user`, async function () {
+    // partially randomized scenario creation
+    console.log("INFO: Creating funding scenario");
+    const firstNetwork = networksToTest[0];
+    const secondNetwork = networksToTest[1];
+    const unfundedSignerAddress = sednVars[firstNetwork].unfundedSigner.address;
+    const claimerAddress = sednVars[firstNetwork].recipient.address;
+    const amount = sednVars[firstNetwork].amount.toString();
+    const scenarioNetwork: INetworkScenarios = {};
+    if (SINGLE_NETWORK) {
+      // single network scenario
+      scenarioNetwork[firstNetwork] = {
+        usdc: BigNumber.from("0"),
+        sedn: BigNumber.from(amount).mul(2),
+      };
+      scenarioNetwork[secondNetwork] = {
+        usdc: parseUnits("0", "mwei"),
+        sedn: BigNumber.from("0"),
+      };
+    } else {
+      scenarioNetwork[firstNetwork] = {
+        usdc: BigNumber.from("0"),
+        sedn: parseUnits("1", "mwei"),
+      };
+      scenarioNetwork[secondNetwork] = {
+        usdc: BigNumber.from("0"),
+        sedn: parseUnits("1.2", "mwei"),
+      };
+    }
+    const completeFundingScenario: INetworkScenarios = createFundingScenario(deployedNetworks, scenarioNetwork);
+    await instantiateFundingScenario(completeFundingScenario, sednVars);
+    console.log("INFO: Done funding");
+    // establish previous sedn balances of unfundedSigner
+    const sednBeforeSednSignerFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].unfundedSigner),
+    );
+    const sednBeforeSednSignerSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].unfundedSigner),
+    );
+    const execution = await wireAndExecute(
+      unfundedSignerAddress,
+      claimerPhone,
+      amount.toString(),
+      sednVars,
+      testnet,
+      ENVIRONMENT,
+      senderAuthToken,
+    );
+    // establish usdc balances of unfundedSigner after execution
+    const sednMidSednSignerFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].unfundedSigner),
+    );
+    const sednMidSednSignerSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].unfundedSigner),
+    );
+    // check correct execution of signer side
+    const totalMidSednDifferenceSigner = sednBeforeSednSignerFirstNetwork
+      .add(sednBeforeSednSignerSecondNetwork)
+      .sub(sednMidSednSignerFirstNetwork.add(sednMidSednSignerSecondNetwork));
+    expect(totalMidSednDifferenceSigner).to.equal(sednVars[firstNetwork].amount); // amount is the same for all networks and represents the complete send amount
+
+    const executionTwo = await wireAndExecute(
+      unfundedSignerAddress,
+      claimerPhone,
+      amount.toString(),
+      sednVars,
+      testnet,
+      ENVIRONMENT,
+      senderAuthToken,
+    );
+    // establish midway sedn balances of signer
+    const sednAfterSednSignerFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].unfundedSigner),
+    );
+    const sednAfterSednSignerSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].unfundedSigner),
+    );
+    // check correct execution of signer side
+    const totalSednDifferenceSigner = sednMidSednSignerFirstNetwork
+      .add(sednMidSednSignerSecondNetwork)
+      .sub(sednAfterSednSignerFirstNetwork.add(sednAfterSednSignerSecondNetwork));
+    expect(totalSednDifferenceSigner).to.equal(sednVars[firstNetwork].amount); // amount is the same for all networks and represents the complete send amount
+
+    // establish previous sedn balances of recipient
+    const sednBeforeSednRecipientFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].recipient),
+    );
+    const sednBeforeSednRecipientSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].recipient),
+    );
+    // instantiate claimerUser & get solution
+    const solution = execution.transactions[0].solution || "";
+    claimerAuthToken = await createUserAndGenerateIdToken(auth, db, claimerPhone, claimerAddress);
+    console.log("INFO: Claiming execution with solution: ", solution);
+    console.log("INFO: Claiming execution now");
+    await claimAndExecute(claimerAddress, solution, sednVars, testnet, ENVIRONMENT, claimerAuthToken);
+
+    await waitTillRecipientBalanceChanged(
+      60_000,
+      sednVars[firstNetwork].sedn,
+      sednVars[firstNetwork].recipient,
+      sednBeforeSednRecipientFirstNetwork,
+    );
+    if (!SINGLE_NETWORK) {
+      console.log("second network triggered");
+      await waitTillRecipientBalanceChanged(
+        60_000,
+        sednVars[secondNetwork].sedn,
+        sednVars[secondNetwork].recipient,
+        sednBeforeSednRecipientSecondNetwork,
+      );
+    }
+
+    // establish previous sedn balances of recipient
+    const sednAfterSednRecipientFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].recipient),
+    );
+    const sednAfterSednRecipientSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].recipient),
+    );
+    // check correct execution of recipient side
+    const totalSednDifferenceRecipient = sednAfterSednRecipientFirstNetwork
+      .add(sednAfterSednRecipientSecondNetwork)
+      .sub(sednBeforeSednRecipientFirstNetwork.add(sednBeforeSednRecipientSecondNetwork));
+    expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount.mul(2)); // amount is the same for all
+    //networks and represents the complete send amounts
+  });
   it(`should be able to correctly transfer funds to an known user`, async function () {
     console.log("INFO: Creating funding scenario");
     const firstNetwork = networksToTest[0];
@@ -847,7 +1111,6 @@ describe(`Sedn testing with api`, function () {
       sednVars[networksToTest[0]].recipient.address,
     );
     const claimExecution = await claimAndExecute(
-      execution,
       claimerAddress,
       solution,
       sednVars,
@@ -892,7 +1155,217 @@ describe(`Sedn testing with api`, function () {
     expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount); // amount is the same for all
     //networks and represents the complete send amount
   });
-  it(`should be able to correctly sedn and transfer additional payments to an unknown user`, async function () {});
+  it(`should be able to correctly sedn and transfer additional payments to an unknown user`, async function () {
+    console.log("INFO: Creating funding scenario");
+    const firstNetwork = networksToTest[0];
+    const secondNetwork = networksToTest[1];
+    const unfundedSignerAddress = sednVars[firstNetwork].unfundedSigner.address;
+    const claimerAddress = sednVars[firstNetwork].recipient.address;
+    const amount = sednVars[firstNetwork].amount.toString();
+    const scenarioNetwork: INetworkScenarios = {};
+    if (SINGLE_NETWORK) {
+      // single network scenario
+      scenarioNetwork[firstNetwork] = {
+        usdc: parseUnits("0.50", "mwei"),
+        sedn: parseUnits("0.50", "mwei"),
+      };
+      scenarioNetwork[secondNetwork] = {
+        usdc: BigNumber.from("0"),
+        sedn: BigNumber.from("0"),
+      };
+    } else {
+      scenarioNetwork[firstNetwork] = {
+        usdc: parseUnits("0.25", "mwei"),
+        sedn: parseUnits("0.25", "mwei"),
+      };
+      scenarioNetwork[secondNetwork] = {
+        usdc: parseUnits("0.25", "mwei"),
+        sedn: parseUnits("0.25", "mwei"),
+      };
+    }
+    const completeFundingScenario: INetworkScenarios = createFundingScenario(deployedNetworks, scenarioNetwork);
+    await instantiateFundingScenario(completeFundingScenario, sednVars);
+    console.log("INFO: Done funding");
+
+    // establish previous usdc balances of unfundedSigner
+    const usdcBeforeSednSignerFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].usdcOrigin, sednVars[firstNetwork].unfundedSigner),
+    );
+    const usdcBeforeSednSignerSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].usdcOrigin, sednVars[secondNetwork].unfundedSigner),
+    );
+
+    // establish previous sedn balances of unfundedSigner
+    const sednBeforeSednSignerFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].unfundedSigner),
+    );
+    const sednBeforeSednSignerSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].unfundedSigner),
+    );
+
+    // establish previous sedn balances of recipient
+    const sednBeforeSednRecipientFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].recipient),
+    );
+    const sednBeforeSednRecipientSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].recipient),
+    );
+
+    // build request for API
+    const execution = await wireAndExecute(
+      unfundedSignerAddress,
+      claimerPhone,
+      amount,
+      sednVars,
+      testnet,
+      ENVIRONMENT,
+      senderAuthToken,
+    );
+
+    // establish usdc balances of unfundedSigner after execution
+    const usdcMidSednSignerFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].usdcOrigin, sednVars[firstNetwork].unfundedSigner),
+    );
+    const usdcMidSednSignerSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].usdcOrigin, sednVars[secondNetwork].unfundedSigner),
+    );
+
+    // establish sedn balances of unfundedSigner after execution
+    const sednMidSednSignerFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].unfundedSigner),
+    );
+    const sednMidSednSignerSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].unfundedSigner),
+    );
+
+    // check correct execution of signer side - usdc + sedn
+    const midDifferenceSigner = usdcBeforeSednSignerFirstNetwork
+      .add(
+        usdcBeforeSednSignerSecondNetwork.add(sednBeforeSednSignerFirstNetwork).add(sednBeforeSednSignerSecondNetwork),
+      )
+      .sub(
+        usdcMidSednSignerFirstNetwork
+          .add(usdcMidSednSignerSecondNetwork)
+          .add(sednMidSednSignerFirstNetwork)
+          .add(sednMidSednSignerSecondNetwork),
+      );
+    expect(midDifferenceSigner).to.equal(sednVars[firstNetwork].amount); // amount is the same for all networks and represents the complete send amount
+
+    // refund wallet
+    await instantiateFundingScenario(completeFundingScenario, sednVars);
+    console.log("INFO: Done funding");
+
+    // establish usdc balances of unfundedSigner after execution
+    const usdcNewBeforeSednSignerFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].usdcOrigin, sednVars[firstNetwork].unfundedSigner),
+    );
+    const usdcNewBeforeSednSignerSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].usdcOrigin, sednVars[secondNetwork].unfundedSigner),
+    );
+
+    // establish sedn balances of unfundedSigner after execution
+    const sednNewBeforeSednSignerFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].unfundedSigner),
+    );
+    const sednNewBeforeSednSignerSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].unfundedSigner),
+    );
+
+    // build request for API
+    const executionTwo = await wireAndExecute(
+      unfundedSignerAddress,
+      claimerPhone,
+      amount,
+      sednVars,
+      testnet,
+      ENVIRONMENT,
+      senderAuthToken,
+    );
+
+    // establish usdc balances of unfundedSigner after execution
+    const usdcAfterSednSignerFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].usdcOrigin, sednVars[firstNetwork].unfundedSigner),
+    );
+    const usdcAfterSednSignerSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].usdcOrigin, sednVars[secondNetwork].unfundedSigner),
+    );
+
+    // establish sedn balances of unfundedSigner after execution
+    const sednAfterSednSignerFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].unfundedSigner),
+    );
+    const sednAfterSednSignerSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].unfundedSigner),
+    );
+
+    // check correct execution of signer side - usdc + sedn
+    const totalDifferenceSigner = usdcNewBeforeSednSignerFirstNetwork
+      .add(
+        usdcNewBeforeSednSignerSecondNetwork
+          .add(sednNewBeforeSednSignerFirstNetwork)
+          .add(sednNewBeforeSednSignerSecondNetwork),
+      )
+      .sub(
+        usdcAfterSednSignerFirstNetwork
+          .add(usdcAfterSednSignerSecondNetwork)
+          .add(sednAfterSednSignerFirstNetwork)
+          .add(sednAfterSednSignerSecondNetwork),
+      );
+    expect(totalDifferenceSigner).to.equal(sednVars[firstNetwork].amount); // amount is the same for all networks and represents the complete send amount
+
+    // instantiate claimerUser & get solution
+    const solution = execution.transactions[0].solution || "";
+    claimerAuthToken = await createUserAndGenerateIdToken(
+      auth,
+      db,
+      claimerPhone,
+      sednVars[networksToTest[0]].recipient.address,
+    );
+    const claimExecution = await claimAndExecute(
+      claimerAddress,
+      solution,
+      sednVars,
+      testnet,
+      ENVIRONMENT,
+      claimerAuthToken,
+    );
+
+    for (const transaction of claimExecution.transactions) {
+      const network = getChainFromId(transaction.chainId);
+      console.log("firstNetwork", firstNetwork);
+      console.log("secondNetwork", secondNetwork);
+      console.log("network", network);
+      if (network === firstNetwork) {
+        await waitTillRecipientBalanceChanged(
+          60_000,
+          sednVars[firstNetwork].sedn,
+          sednVars[firstNetwork].recipient,
+          sednBeforeSednRecipientFirstNetwork,
+        );
+      }
+      if (network === secondNetwork) {
+        await waitTillRecipientBalanceChanged(
+          60_000,
+          sednVars[secondNetwork].sedn,
+          sednVars[secondNetwork].recipient,
+          sednBeforeSednRecipientSecondNetwork,
+        );
+      }
+    }
+    // establish previous sedn balances of recipient
+    const sednAfterSednRecipientFirstNetwork = BigNumber.from(
+      await getBalance(sednVars[firstNetwork].sedn, sednVars[firstNetwork].recipient),
+    );
+    const sednAfterSednRecipientSecondNetwork = BigNumber.from(
+      await getBalance(sednVars[secondNetwork].sedn, sednVars[secondNetwork].recipient),
+    );
+    // check correct execution of recipient side
+    const totalSednDifferenceRecipient = sednAfterSednRecipientFirstNetwork
+      .add(sednAfterSednRecipientSecondNetwork)
+      .sub(sednBeforeSednRecipientFirstNetwork.add(sednBeforeSednRecipientSecondNetwork));
+    expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount.mul(2)); // amount is the same for all
+    //networks and represents the complete send amount
+  });
   it(`should be able to correctly sedn and transfer funds to an known user`, async function () {
     console.log("INFO: Creating funding scenario");
     const firstNetwork = networksToTest[0];
@@ -1129,5 +1602,4 @@ describe(`Sedn testing with api`, function () {
     expect(totalSednDifferenceSigner.toString()).to.equal(sednVars[firstNetwork].amount.toString()); // amount is the same for all
     //networks and represents the complete send amount
   });
-  it(`should be able to correctly sedn and transfer additional payments to an unknown user`, async function () {});
 });

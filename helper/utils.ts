@@ -1,10 +1,12 @@
-import { TransactionReceipt, TransactionResponse } from "@ethersproject/providers";
+import { Provider, TransactionReceipt, TransactionRequest, TransactionResponse } from "@ethersproject/providers";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import axios from "axios";
 import { fetch } from "cross-fetch";
 import { config } from "dotenv";
 import { BigNumber, Contract, Wallet, ethers } from "ethers";
 import * as path from "path";
 import { ITransaction } from "sedn-interfaces";
+import { callbackify } from "util";
 
 import { SednAbi, SednTestnetAbi } from "../abis/abis";
 import { ISednMultichainVariables } from "../integration/with-api/Sedn";
@@ -97,7 +99,7 @@ export const getRpcUrl = (network: string) => {
       return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
     // return "https://mainnet.infura.io/v3/" + infuraKey;
     case "polygon-mainnet":
-      return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
+      return "https://polygon-mainnet.g.alchemy.com/v2/eldCAzt9EO0-9yLqcQ1TxEQSZaa9uM5F";
     // return "https://polygon-mainnet.infura.io/v3/" + infuraKey;
     case "matic":
       return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
@@ -200,12 +202,7 @@ export const feeData = async (network: string, signer: Wallet) => {
   let fees: any = {};
   switch (network) {
     case "polygon":
-      fees = await fetch("https://gasstation-mainnet.matic.network/v2").then(response => response.json());
-      console.log("INFO: Polygon fee market is used");
-      return {
-        maxFee: ethers.utils.parseUnits(Math.ceil(fees.fast.maxFee) + "", "gwei"),
-        maxPriorityFee: ethers.utils.parseUnits(Math.ceil(fees.fast.maxPriorityFee) + "", "gwei"),
-      };
+    case "polygon-mainnet":
     case "matic":
       fees = await fetch("https://gasstation-mainnet.matic.network/v2").then(response => response.json());
       console.log("INFO: Polygon fee market is used");
@@ -435,15 +432,14 @@ export const generateSecret = function () {
   return [solution, secret];
 };
 
-export const generateClaimArgs = async (
-  solution: string,
-  secret: string,
-  recipient: Wallet,
-  trusted: FakeSigner,
-  amount: number,
-) => {
+export const generateSecretFromSolution = function (solution: string) {
+  const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
+  return secret;
+};
+
+export const generateClaimArgs = async (solution: string, secret: string, recipient: Wallet, trusted: FakeSigner) => {
   const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 1000;
-  const signedMessage = await trusted.signMessage(BigNumber.from(amount), recipient.address, till, secret);
+  const signedMessage = await trusted.signMessage(recipient.address, till, secret);
   const signature = ethers.utils.splitSignature(signedMessage);
   return [solution, secret, till, signature.v, signature.r, signature.s];
 };

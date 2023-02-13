@@ -2,7 +2,7 @@ import axios from "axios";
 import * as admin from "firebase-admin";
 import { Auth } from "firebase-admin/lib/auth/auth";
 import { UserRecord } from "firebase-admin/lib/auth/user-record";
-import { IAccount, ICreateAccount } from "sedn-interfaces";
+import { IAccount, ICreateAccount, IExecution } from "sedn-interfaces";
 import { v4 as uuid } from "uuid";
 
 const COLLECTION_NAME = "accounts";
@@ -16,7 +16,6 @@ export const getIdToken = async (user: UserRecord) => {
     firebaseKey = process.env.FIREBASE_KEY_sedn_production!;
   }
 
-  console.log("firebaseKey: ", firebaseKey, "is used to create a custom token");
   let url: string;
   if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
     url = `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/www.googleapis.com/identitytoolkit/v3/relyingparty/verifyCustomToken?key=${firebaseKey}`;
@@ -203,4 +202,29 @@ export const deleteAccountsForAnyUIDs = async (
     }
   }
   return;
+};
+
+const getExecutionRecordsForAnyPhone = async (db: admin.firestore.Firestore, phone: string) => {
+  const results: IExecution[] = [];
+  const recipientField: string = "recipient";
+  await db
+    .collection("execution")
+    .where(recipientField, "==", phone)
+    .get()
+    .then((querySnapshot: any) => {
+      querySnapshot.forEach((doc: any) => {
+        results.push(doc.data() as IExecution);
+      });
+    });
+  return results;
+};
+
+export const deleteExecutionRecordsForAnyPhone = async (db: admin.firestore.Firestore, phone: string) => {
+  const executions = await getExecutionRecordsForAnyPhone(db, phone);
+  if (!executions) {
+    return;
+  }
+  for (const execution of executions) {
+    await db.collection("execution").doc(execution.id).delete();
+  }
 };
