@@ -1,7 +1,6 @@
 import { getConfig, multiNetworkUpgrade } from ".";
 
 async function upgrade(buildUid: string) {
-  const networks = await getConfig();
   const build = await multiNetworkUpgrade(buildUid);
   console.log("finished upgrade");
 }

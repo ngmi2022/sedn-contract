@@ -76,6 +76,7 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
     uint256 public constant TIME_TO_UNLOCK = 7884000;
     mapping(bytes32 => uint256) private _payments;
     mapping(bytes32 => uint256) private _senderPayments;
+    bool public paused;
 
     event TransferKnown(address indexed from, address indexed to, uint256 amount);
     event TransferUnknown(address indexed from, bytes32 secret, uint256 amount);
@@ -113,6 +114,7 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
             registry = IRegistry(_registryDeploymentAddressForChain);
             trustedVerifyAddress = _trustedVerifyAddress;
             nonce = 0;
+            paused = false;
             __ERC20_init_unchained("Sedn USDC", "SednUSDC");
             ERC2771ContextUpgradeable(address(_trustedForwarder));
             __UUPSUpgradeable_init_unchained();
@@ -279,7 +281,6 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
      * @param solution the solutio to the hashed secret
      * @param secret The secret to identify and claim the payment
      * @param receiver The address to send the USDC to
-     * @param amount The amount of USDC to be claimed
      * @param till The time till the transaction is valid
      * @param _v The v value of the signature
      * @param _r The r value of the signature
@@ -289,16 +290,16 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
         string memory solution,
         bytes32 secret,
         address receiver,
-        uint256 amount,
         uint256 till,
         uint8 _v,
         bytes32 _r,
         bytes32 _s
     ) internal view {
+        require(paused != true, "Claiming is paused by admin");
         require(keccak256(abi.encodePacked(solution)) == secret, "Incorrect answer");
         require(_payments[secret] >= 0, "No secret carrying balance");
         require(block.timestamp < till, "Time expired");
-        require(verify(amount, receiver, till, secret, nonce, _v, _r, _s), "Verification failed");
+        require(verify(receiver, till, secret, _v, _r, _s), "Verification failed");
     }
 
     /**
@@ -317,9 +318,9 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
         bytes32 _r,
         bytes32 _s
     ) external {
-        uint256 secretAmount = _payments[secret];
-        _checkClaim(solution, secret, _msgSender(), secretAmount, _till, _v, _r, _s);
+        _checkClaim(solution, secret, _msgSender(), _till, _v, _r, _s);
         require(_msgSender() != address(0), "Transfer to the zero address not possible");
+        uint256 secretAmount = _payments[secret];
         _mint(_msgSender(), secretAmount);
         _payments[secret] = 0;
         emit PaymentClaimed(_msgSender(), secret, secretAmount);
@@ -359,7 +360,6 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
         emit BridgeWithdraw(_msgSender(), to, amount, _userRequest.toChainId);
     }
 
-
     /**
      * @notice This is an admin function
      * @param _trustedVerifyAddress The address of the trusted verifier
@@ -368,26 +368,26 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
         trustedVerifyAddress = _trustedVerifyAddress;
     }
 
-    function increaseNonce() public onlyOwner {
-        nonce++;
+    /**
+     * @dev This is an admin function and should be re-initialized when upgrading the contract 
+     * @param pause if true, claims will not succeed
+     */
+    function setPause(bool pause) public onlyOwner {
+        paused = pause;
     }
 
     /**
      * @dev This function is internally used by _checkClaim to verify the signature
-     * @param _amount The amount of USDC to be claimed
      * @param _receiver The address to send the USDC to
      * @param _till The time till the transaction is valid
      * @param _secret The secret to identify and claim the payment
-     * @param _nonce The nonce to prevent replay attacks 
      */
     function getMessageHash(
-        uint256 _amount,
         address _receiver,
         uint256 _till,
-        bytes32 _secret,
-        uint256 _nonce
+        bytes32 _secret
     ) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_amount, _receiver, _till, _secret, _nonce));
+        return keccak256(abi.encodePacked(_receiver, _till, _secret));
     }
 
     function getEthSignedMessageHash(bytes32 _messageHash) public pure returns (bytes32) {
@@ -405,26 +405,22 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
 
     /**
      * @dev This function is internally used by _checkClaim to verify the signature
-     * @param _amount The amount of USDC to be claimed
      * @param _receiver The address to send the USDC to
      * @param _till The time till the transaction is valid
      * @param _secret The secret to identify and claim the payment
-     * @param _nonce The nonce to prevent replay attacks 
      * @param _v The v value of the signature
      * @param _r The r value of the signature
      * @param _s The s value of the signature
      */
     function verify(
-        uint256 _amount,
         address _receiver,
         uint256 _till,
         bytes32 _secret,
-        uint256 _nonce,
         uint8 _v,
         bytes32 _r,
         bytes32 _s
     ) public view returns (bool) {
-        bytes32 messageHash = getMessageHash(_amount, _receiver, _till, _secret, _nonce);
+        bytes32 messageHash = getMessageHash(_receiver, _till, _secret);
         bytes32 ethSignedMessageHash = getEthSignedMessageHash(messageHash);
         address recoveredAddress = ecrecover(ethSignedMessageHash, _v, _r, _s);
         return recoveredAddress == trustedVerifyAddress;
