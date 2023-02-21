@@ -16,6 +16,7 @@ export const getIdToken = async (user: UserRecord) => {
     firebaseKey = process.env.FIREBASE_KEY_sedn_production!;
   }
 
+  console.log("firebaseKey: ", firebaseKey, "is used to create a custom token");
   let url: string;
   if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
     url = `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/www.googleapis.com/identitytoolkit/v3/relyingparty/verifyCustomToken?key=${firebaseKey}`;
