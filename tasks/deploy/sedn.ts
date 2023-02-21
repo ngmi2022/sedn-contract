@@ -29,6 +29,7 @@ task("deploy:Sedn").setAction(async function (taskArguments: TaskArguments) {
   const combinedFees = { ...feesOld, maxFeePerGas: fees.maxFee, maxPriorityFeePerGas: fees.maxPriorityFee };
   providerNew.getFeeData = async () => combinedFees;
   const wallet = ethers.Wallet.fromMnemonic(process.env.MNEMONIC as string).connect(providerNew);
+
   // constructor & deploy setup
   const registryAddress: string =
     hre.network.config.chainId !== 31337

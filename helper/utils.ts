@@ -99,7 +99,7 @@ export const getRpcUrl = (network: string) => {
       return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
     // return "https://mainnet.infura.io/v3/" + infuraKey;
     case "polygon-mainnet":
-      return "https://polygon-mainnet.g.alchemy.com/v2/eldCAzt9EO0-9yLqcQ1TxEQSZaa9uM5F";
+      return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
     // return "https://polygon-mainnet.infura.io/v3/" + infuraKey;
     case "matic":
       return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
