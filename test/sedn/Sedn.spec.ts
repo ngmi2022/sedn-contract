@@ -10,9 +10,8 @@ import { it } from "mocha";
 
 import { FakeSigner } from "../../helper/FakeSigner";
 import { getSignedTxRequest } from "../../helper/signer";
-import { Sedn } from "../../src/types/contracts/Sedn/Sedn.sol/Sedn";
 import { restoreSnapshot, takeSnapshot } from "../utils/network";
-import { deploySedn, deploySednForwarder } from "./sedn.contract";
+import { deploySednForwarder } from "./sedn.contract";
 
 if (!process.env.ETHERSCAN_API_KEY) {
   throw new Error("ETHERSCAN_API_KEY not set");
@@ -174,7 +173,7 @@ const claim = async (
   amount: string,
 ) => {
   const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 1000;
-  const signedMessage = await trusted.signMessage(BigNumber.from(amount), signer.address, till, secret);
+  const signedMessage = await trusted.signMessage(signer.address, till, secret);
   const signature = ethers.utils.splitSignature(signedMessage);
   const sednBalanceBeforeClaimer = await sedn.balanceOf(signer.address);
   await sedn.connect(signer).claim(solution, secret, till, signature.v, signature.r, signature.s);
@@ -234,6 +233,7 @@ describe("Sedn", function () {
       constructorArgs: [forwarder.address],
       initializer: "initSedn",
     });
+    await contract.connect(owner).setPause(false);
     trusted = new FakeSigner(accounts[1], contract.address);
 
     // Set up usdc in account wallets
@@ -265,6 +265,8 @@ describe("Sedn", function () {
         initializer: "initSedn",
       });
       await sedn.deployed();
+      sedn.connect(owner).setPause(false);
+      expect(await sedn.paused()).to.equal(false);
       expect(await sedn.owner()).to.equal(owner.address);
       expect(await sedn.usdcToken()).to.equal(usdc.address);
       expect(await sedn.registry()).to.equal(registry);
@@ -462,6 +464,24 @@ describe("Sedn", function () {
       expect(sednBeforeClaimSender.sub(sednAfterClaimSender)).to.equal(amount);
     });
   });
+  describe("claim denial", () => {
+    it("should send funds from a wallet to an unregistered user", async function () {
+      await contract.deployed();
+      await contract.connect(owner).setPause(true);
+      // Send money
+      const { solution, secret } = await sednUnknown(usdc, contract, sender, amount);
+      // Claim
+      const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 1000;
+      const signedMessage = await trusted.signMessage(sender.address, till, secret);
+      const signature = ethers.utils.splitSignature(signedMessage);
+      try {
+        await contract.connect(sender).claim(solution, secret, till, signature.v, signature.r, signature.s);
+      } catch (error) {
+        // @ts-ignore
+        expect(error.message).to.include("Claiming is paused by admin");
+      }
+    });
+  });
   describe("forwarder", () => {
     it("should relay a transaction successfully", async () => {
       await forwarder.deployed();
@@ -532,6 +552,61 @@ describe("Sedn", function () {
       } catch (e) {
         expect(JSON.stringify(e).includes("SednForwarder: wrong chainId"));
       }
+    });
+  });
+  describe("sednTestnet bridgeWithdraw", async () => {
+    it("should withdraw with a testnet", async function () {
+      const forwarder = await deploySednForwarder([], owner);
+      await forwarder.deployed();
+      const sednArgs = [usdc.address, registry, accounts[1].address, forwarder.address];
+      const sednFactory = await ethers.getContractFactory("SednTestnet");
+      const sedn = await upgrades.deployProxy(sednFactory, sednArgs, {
+        kind: "uups",
+        constructorArgs: [forwarder.address],
+        initializer: "initialize",
+      });
+      await sedn.deployed();
+
+      // fund senders sednBalance
+      const balance = await usdc.balanceOf(sender.address);
+      await usdc.connect(sender).approve(sedn.address, amount);
+      await sedn.connect(sender).sednKnown(amount, sender.address);
+
+      // Claim
+      // construct necessary calldata for method execution
+      const toChainId = 137;
+
+      // data construct for middleware, which is not used in this test transaction
+      const miWaId = 0;
+      const miOpNativeAmt = 0;
+      const inToken = usdc.address;
+      const miData = "0x0000000000000000000000000000000000000000000000000000000000000000";
+      const middlewareRequest = [miWaId, miOpNativeAmt, inToken, miData];
+
+      // data construct for hop bridge, which is used in this test transaction
+      const briId = 12;
+      const briOpNativeAmt = 0;
+      const briData = "0x0000000000000000000000000000000000000000000000000000000000000000";
+      const bridgeRequest = [briId, briOpNativeAmt, inToken, briData];
+
+      // create calldata dict
+      const userRequestDict: any = {
+        receiverAddress: claimer.address,
+        toChainId: toChainId,
+        amount: amount,
+        middlewareRequest: middlewareRequest,
+        bridgeRequest: bridgeRequest,
+      };
+      // bridgeImpl
+      const bridgeImpl = "0x1Aba89fC7ff67D27ccaa51893c46FD1e5fEE924B";
+
+      const usdcBeforeClaimContract = await usdc.balanceOf(sedn.address);
+      const sednBeforeClaimSender = await sedn.balanceOf(sender.address);
+      await sedn.connect(sender).bridgeWithdraw(amount, userRequestDict, bridgeImpl);
+      const usdcAfterClaimContract = await usdc.balanceOf(sedn.address);
+      const sednAfterClaimSender = await sedn.balanceOf(sender.address);
+      expect(usdcBeforeClaimContract.sub(usdcAfterClaimContract)).to.equal(amount);
+      expect(sednBeforeClaimSender.sub(sednAfterClaimSender)).to.equal(amount);
     });
   });
 });

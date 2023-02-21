@@ -19,16 +19,8 @@ export class FakeSigner {
     return this.signer.address;
   }
 
-  async getNonce() {
-    return await this.sedn.nonce();
-  }
-
-  async signMessage(amount: BigNumber, receiver: string, till: number, secret: string) {
-    const nonce = await this.getNonce();
-    const message = ethers.utils.solidityKeccak256(
-      ["uint256", "address", "uint256", "bytes32", "uint256"],
-      [amount, receiver, till, secret, nonce],
-    );
+  async signMessage(receiver: string, till: number, secret: string) {
+    const message = ethers.utils.solidityKeccak256(["address", "uint256", "bytes32"], [receiver, till, secret]);
     return await this.signer.signMessage(ethers.utils.arrayify(message));
   }
 }

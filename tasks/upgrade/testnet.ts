@@ -22,6 +22,7 @@ task("upgrade:testnet").setAction(async function (taskArguments: TaskArguments) 
 
   const sednFactory: ContractFactory = await ethers.getContractFactory("SednTestnet");
   const upgrade = await upgrades.upgradeProxy(proxyAddress, sednFactory, {
+    call: { fn: "setPause", args: [false] },
     constructorArgs: [forwarderAddress],
   });
   await upgrade.deployed();

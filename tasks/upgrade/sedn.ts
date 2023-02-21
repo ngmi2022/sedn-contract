@@ -21,7 +21,10 @@ task("upgrade:Sedn").setAction(async function (taskArguments: TaskArguments) {
   const signer = await ethers.getSigner();
 
   const sednFactory: ContractFactory = await ethers.getContractFactory("Sedn");
-  const upgrade = await upgrades.upgradeProxy(proxyAddress, sednFactory, { constructorArgs: [forwarderAddress] });
+  const upgrade = await upgrades.upgradeProxy(proxyAddress, sednFactory, {
+    call: { fn: "setPause", args: [false] },
+    constructorArgs: [forwarderAddress],
+  });
   await upgrade.deployed();
   const implementationAddress = await getImplementationAddress(signer.provider, upgrade.address);
   console.log("Upgraded Sedn proxy at: ", upgrade.address);
