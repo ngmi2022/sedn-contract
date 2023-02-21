@@ -554,4 +554,59 @@ describe("Sedn", function () {
       }
     });
   });
+  describe("sednTestnet bridgeWithdraw", async () => {
+    it("should withdraw with a testnet", async function () {
+      const forwarder = await deploySednForwarder([], owner);
+      await forwarder.deployed();
+      const sednArgs = [usdc.address, registry, accounts[1].address, forwarder.address];
+      const sednFactory = await ethers.getContractFactory("SednTestnet");
+      const sedn = await upgrades.deployProxy(sednFactory, sednArgs, {
+        kind: "uups",
+        constructorArgs: [forwarder.address],
+        initializer: "initialize",
+      });
+      await sedn.deployed();
+
+      // fund senders sednBalance
+      const balance = await usdc.balanceOf(sender.address);
+      await usdc.connect(sender).approve(sedn.address, amount);
+      await sedn.connect(sender).sednKnown(amount, sender.address);
+
+      // Claim
+      // construct necessary calldata for method execution
+      const toChainId = 137;
+
+      // data construct for middleware, which is not used in this test transaction
+      const miWaId = 0;
+      const miOpNativeAmt = 0;
+      const inToken = usdc.address;
+      const miData = "0x0000000000000000000000000000000000000000000000000000000000000000";
+      const middlewareRequest = [miWaId, miOpNativeAmt, inToken, miData];
+
+      // data construct for hop bridge, which is used in this test transaction
+      const briId = 12;
+      const briOpNativeAmt = 0;
+      const briData = "0x0000000000000000000000000000000000000000000000000000000000000000";
+      const bridgeRequest = [briId, briOpNativeAmt, inToken, briData];
+
+      // create calldata dict
+      const userRequestDict: any = {
+        receiverAddress: claimer.address,
+        toChainId: toChainId,
+        amount: amount,
+        middlewareRequest: middlewareRequest,
+        bridgeRequest: bridgeRequest,
+      };
+      // bridgeImpl
+      const bridgeImpl = "0x1Aba89fC7ff67D27ccaa51893c46FD1e5fEE924B";
+
+      const usdcBeforeClaimContract = await usdc.balanceOf(sedn.address);
+      const sednBeforeClaimSender = await sedn.balanceOf(sender.address);
+      await sedn.connect(sender).bridgeWithdraw(amount, userRequestDict, bridgeImpl);
+      const usdcAfterClaimContract = await usdc.balanceOf(sedn.address);
+      const sednAfterClaimSender = await sedn.balanceOf(sender.address);
+      expect(usdcBeforeClaimContract.sub(usdcAfterClaimContract)).to.equal(amount);
+      expect(sednBeforeClaimSender.sub(sednAfterClaimSender)).to.equal(amount);
+    });
+  });
 });

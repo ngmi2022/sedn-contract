@@ -30,6 +30,9 @@ contract SednTestnet is Sedn {
         address to = _userRequest.receiverAddress;
         require(_msgSender() != address(0), "bridgeWithdrawal from the zero address");
         require(to != address(0), "bridgeWithdrawal to the zero address");
-        this.withdraw(amount, to);
+        usdcToken.approve(address(this), amount);
+        require(usdcToken.transferFrom(address(this), to, amount), "transferFrom failed");
+        _burn(_msgSender(), amount);
+        emit Withdraw(_msgSender(), to, amount);
     }
 }
