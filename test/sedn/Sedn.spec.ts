@@ -10,6 +10,7 @@ import { it } from "mocha";
 
 import { FakeSigner } from "../../helper/FakeSigner";
 import { getSignedTxRequest } from "../../helper/signer";
+import { Sedn, Sedn__factory } from "../../src/types";
 import { restoreSnapshot, takeSnapshot } from "../utils/network";
 import { deploySednForwarder } from "./sedn.contract";
 
@@ -227,7 +228,7 @@ describe("Sedn", function () {
     forwarder = await deploySednForwarder([], owner);
     await forwarder.deployed();
     const sednArgs = [requirements.usdc.address, requirements.registryAddress, accounts[1].address, forwarder.address];
-    const sednFactory = await ethers.getContractFactory("Sedn");
+    const sednFactory: Sedn__factory = await ethers.getContractFactory("Sedn");
     contract = await upgrades.deployProxy(sednFactory, sednArgs, {
       kind: "uups",
       constructorArgs: [forwarder.address],
