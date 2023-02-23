@@ -5,10 +5,10 @@ import { ForwarderAbi } from "../../abis/abis";
 
 const configData = async (environment) => {
   if (environment === "staging") {
-    const configData = await (await fetch("https://storage.googleapis.com/sedn-public-config/v2.staging.config.json?avoidTheCaches=1")).json();
+    const configData = await (await fetch("https://storage.googleapis.com/sedn-config-public/v2.staging.config.json?avoidTheCaches=1")).json();
     return configData;
   }
-  const configData = await (await fetch("https://storage.googleapis.com/sedn-public-config/v2.config.json?avoidTheCaches=1")).json();
+  const configData = await (await fetch("https://storage.googleapis.com/sedn-config-public/v2.config.json?avoidTheCaches=1")).json();
   return configData;
 };
 

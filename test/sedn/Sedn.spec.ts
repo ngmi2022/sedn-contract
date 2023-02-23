@@ -160,7 +160,7 @@ const hybridKnown = async (
   const sednAfterTransferSender = await sedn.balanceOf(signer.address);
   const sednAfterTransferClaimer = await sedn.balanceOf(recipient.address);
   const totalAmount = BigNumber.from(amount).add(BigNumber.from(balanceAmount));
-  expect(sednBeforeTransferSender.sub(sednAfterTransferSender)).to.equal(amount);
+  expect(sednBeforeTransferSender.sub(sednAfterTransferSender)).to.equal(balanceAmount);
   expect(sednAfterTransferClaimer.sub(sednBeforeTransferClaimer)).to.equal(totalAmount);
   return;
 };
@@ -214,8 +214,7 @@ describe("Sedn", function () {
   let forwarder: Contract;
   let registry: string;
 
-
-  // comment for commit 
+  // comment for commit
   before(async function () {
     const requirements = await getRequirements();
     amount = "10000000";
@@ -342,41 +341,46 @@ describe("Sedn", function () {
       await contract.deployed();
 
       // fund senders sednBalance
-      const halfAmount = BigNumber.from(amount).div(2).toString();
-      await sednKnown(usdc, contract, sender, sender, halfAmount);
+      const twoThirdAmount = BigNumber.from(amount).div(3).mul(2).toString();
+      const oneThirdAmount = BigNumber.from(amount).div(3).toString();
+      const claimAmount = BigNumber.from(twoThirdAmount).add(oneThirdAmount).toString();
+      await sednKnown(usdc, contract, sender, sender, oneThirdAmount);
 
       // Hybrid send
-      const { solution, secret } = await hybridUnknown(usdc, contract, sender, halfAmount, halfAmount);
+      const { solution, secret } = await hybridUnknown(usdc, contract, sender, twoThirdAmount, oneThirdAmount);
 
       // Claim
-      await claim(contract, claimer, trusted, secret, solution, amount);
+      await claim(contract, claimer, trusted, secret, solution, claimAmount);
     });
     it("should hybrid 'send' funds from a wallet and sednBalance to an unregistered user who has already received some funds", async function () {
       await contract.deployed();
 
       // fund senders sednBalance
-      const halfAmount = BigNumber.from(amount).div(2).toString();
-      const doubleAmount = BigNumber.from(amount).mul(2).toString();
-      await sednKnown(usdc, contract, sender, sender, amount);
+      const twoThirdAmount = BigNumber.from(amount).div(3).mul(2).toString();
+      const oneThirdAmount = BigNumber.from(amount).div(3).toString();
+      const fundAmount = BigNumber.from(oneThirdAmount).mul(2).toString();
+      const claimAmount = BigNumber.from(twoThirdAmount).add(oneThirdAmount).mul(2).toString();
+      await sednKnown(usdc, contract, sender, sender, fundAmount);
 
       // Hybrid send #1
-      const { solution, secret } = await hybridUnknown(usdc, contract, sender, halfAmount, halfAmount);
+      const { solution, secret } = await hybridUnknown(usdc, contract, sender, twoThirdAmount, oneThirdAmount);
 
       // Hybrid send #2
-      await hybridUnknown(usdc, contract, sender, halfAmount, halfAmount, solution);
+      await hybridUnknown(usdc, contract, sender, twoThirdAmount, oneThirdAmount, solution);
 
       // Claim
-      await claim(contract, claimer, trusted, secret, solution, doubleAmount);
+      await claim(contract, claimer, trusted, secret, solution, claimAmount);
     });
     it("should hybrid 'send' funds from a wallet and sednBalance to a registered", async function () {
       await contract.deployed();
 
       // fund senders sednBalance
-      const halfAmount = BigNumber.from(amount).div(2).toString();
-      await sednKnown(usdc, contract, sender, sender, halfAmount);
+      const twoThirdAmount = BigNumber.from(amount).div(3).mul(2).toString();
+      const oneThirdAmount = BigNumber.from(amount).div(3).toString();
+      await sednKnown(usdc, contract, sender, sender, twoThirdAmount);
 
       // Hybrid send
-      await hybridKnown(usdc, contract, sender, claimer, halfAmount, halfAmount);
+      await hybridKnown(usdc, contract, sender, claimer, oneThirdAmount, twoThirdAmount);
     });
   });
   describe("clawback", () => {
