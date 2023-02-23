@@ -184,6 +184,7 @@ const claimAndExecute = async (
   // build claim request and post to claim endpoint
   const claimInfoRequest: IClaimInfoRequest = {
     secret: generateSecretFromSolution(solution),
+    testnet: testnet,
   };
   const claimInfoResponse: IClaimInfoResp = await apiCall(API_URL, "claimInfo", claimInfoRequest, authToken);
   const claimRequest: IClaimReq = {
@@ -1495,7 +1496,7 @@ describe(`Sedn testing with api`, function () {
     expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount); // amount is the same for all
     //networks and represents the complete send amount
   });
-  it.only(`should be able to correctly withdraw funds`, async function () {
+  it(`should be able to correctly withdraw funds`, async function () {
     console.log("INFO: Creating funding scenario");
     const firstNetwork = networksToTest[0];
     const secondNetwork = networksToTest[1];
