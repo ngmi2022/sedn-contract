@@ -39,7 +39,7 @@
             "testnet": true,
             "usdcAddress": "0xa30d67979d4ce07b5467533b633ad23285434c4a",
             "forwarderAddress": "0x47b80475A1A4832a0dcbBc206E24Ddf6533aE2Bb",
-            "implementationAddress": "0x9456Da6C4e4373b17eE2968873656be4e16d3618",
+            "implementationAddress": "0x9589d387EA18F4d812bee0A8C5607aDA23FBBd89",
             "proxyAddress": "0x47FBcfDd7C612f31B0395b2963B97651Db6502C4",
             "upgraded": true
         },
@@ -48,7 +48,7 @@
             "testnet": false,
             "usdcAddress": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
             "forwarderAddress": "0x542696b46A2bBD84EE8a50b8101e4DCA048CAb09",
-            "implementationAddress": "0xB4f874DD9e74206A3c3f71Ff41C67fd3F595dFE4",
+            "implementationAddress": "0x8137D2d486B5ce67ec801a81645F2828D21c11a9",
             "proxyAddress": "0x7d0e1F06F12fCC85f04AF74c9c94b30a5F8E2176",
             "upgraded": true
         },
@@ -57,7 +57,7 @@
             "testnet": false,
             "usdcAddress": "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
             "forwarderAddress": "0x43172039020e5665891Ca3469B1DCeAdF76220c9",
-            "implementationAddress": "0x0a524485540a8b278b6ff35f27B4239692eceA96",
+            "implementationAddress": "0xbB51086bDb73D952BBbBE19CE84a8d8D80C089d9",
             "proxyAddress": "0x5243c39Ce6E7500fC040AbE6330373eE3857F852",
             "upgraded": true
         },
@@ -66,7 +66,7 @@
             "testnet": false,
             "usdcAddress": "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
             "forwarderAddress": "0xEd02391B5EAC1A313dEd1d0525De2a2A0E891ade",
-            "implementationAddress": "0x16C0a7aDdd59EB139E05ADDC356a4000497eD47f",
+            "implementationAddress": "0xfAB4aA0c40b09DBC8358f1A99f0D5C1F4792A8DD",
             "proxyAddress": "0x624cBbcD8A792C5c081a5f9DBF247aCf640e40B0",
             "upgraded": true
         },
@@ -75,7 +75,7 @@
             "testnet": true,
             "usdcAddress": "0x8DC32778b81f7C2A537647CCf7fac2F8BC713f9C",
             "forwarderAddress": "0x8d8456F935c207A890673Fbe9dc5B25b0e8065a3",
-            "implementationAddress": "0xd5eB2196FAb5BAC134Ad2413838A4adECbAd3996",
+            "implementationAddress": "0xCCE48f0150d71a755dF471c81146682b962a3E0b",
             "proxyAddress": "0x84e63dd4a878da992cDc6a0ECE3Fd7c306224c46",
             "upgraded": true
         }

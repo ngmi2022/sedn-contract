@@ -98,14 +98,25 @@ async function getSedn(network: string): Promise<ISednVariables> {
   } as ISednVariables;
 }
 
-async function sednKnown(signer: Wallet, recipient: Wallet, deployed: ISednVariables, network: string) {
+async function sednKnown(
+  signer: Wallet,
+  recipient: Wallet,
+  deployed: ISednVariables,
+  network: string,
+  amount?: string,
+) {
   // check allowance & if necessary increase approve
   const usdcOrigin = deployed.usdcOrigin;
   const sedn = deployed.sedn;
-  const amount = deployed.amount;
+  let amountToUse: BigNumber = BigNumber.from(0);
+  if (!amount) {
+    amountToUse = deployed.amount;
+  } else {
+    amountToUse = BigNumber.from(amount);
+  }
   const relayerWebhook = deployed.relayerWebhook;
   const forwarder = deployed.forwarderAddress;
-  await checkAllowance(deployed.usdcOrigin, signer, sedn, BigNumber.from(amount.toString() + "0"));
+  await checkAllowance(deployed.usdcOrigin, signer, sedn, amountToUse);
 
   // send
   const usdcBeforeSednSigner = await usdcOrigin.balanceOf(signer.address);
@@ -117,7 +128,7 @@ async function sednKnown(signer: Wallet, recipient: Wallet, deployed: ISednVaria
     sedn,
     signer,
     "sednKnown",
-    [amount, recipient.address],
+    [amountToUse.toString(), recipient.address],
     BigInt("0"),
     network,
     validUntilTime,
@@ -133,9 +144,9 @@ async function sednKnown(signer: Wallet, recipient: Wallet, deployed: ISednVaria
   const sednAfterSednRecipient = await sedn.balanceOf(recipient.address);
 
   // all three balances are checked; contract USDC, signer USDC and signer Sedn
-  expect(usdcBeforeSednSigner.sub(usdcAfterSednSigner)).to.equal(amount);
-  expect(usdcAfterSednContract.sub(usdcBeforeSednContract)).to.equal(amount);
-  expect(sednAfterSednRecipient.sub(sednBeforeSednRecipient)).to.equal(amount);
+  expect(usdcBeforeSednSigner.sub(usdcAfterSednSigner)).to.equal(amountToUse);
+  expect(usdcAfterSednContract.sub(usdcBeforeSednContract)).to.equal(amountToUse);
+  expect(sednAfterSednRecipient.sub(sednBeforeSednRecipient)).to.equal(amountToUse);
 }
 
 async function sednUnknown(signer: Wallet, deployed: ISednVariables, network: string, solution?: string) {
@@ -253,11 +264,17 @@ async function transferUnknown(signer: Wallet, deployed: ISednVariables, network
   return { solution, secret, timestamp };
 }
 
-async function hybridKnown(signer: Wallet, recipient: Wallet, deployed: ISednVariables, network: string) {
+async function hybridKnown(
+  signer: Wallet,
+  recipient: Wallet,
+  deployed: ISednVariables,
+  network: string,
+  amount: string,
+  balanceAmount: string,
+) {
   // check allowance & if necessary increase approve
   const usdcOrigin = deployed.usdcOrigin;
   const sedn = deployed.sedn;
-  const amount = deployed.amount;
   const relayerWebhook = deployed.relayerWebhook;
   const forwarder = deployed.forwarderAddress;
   // check Allowance
@@ -273,7 +290,7 @@ async function hybridKnown(signer: Wallet, recipient: Wallet, deployed: ISednVar
     sedn,
     signer,
     "hybridKnown",
-    [amount, amount, recipient.address],
+    [amount, balanceAmount, recipient.address],
     BigInt("0"),
     network,
     validUntilTime,
@@ -290,14 +307,20 @@ async function hybridKnown(signer: Wallet, recipient: Wallet, deployed: ISednVar
 
   // all three balances are checked; signer USDC and signer Sedn and recipient Sedn
   expect(usdcBeforeSednSigner.sub(usdcAfterSednSigner)).to.equal(amount);
-  expect(sednBeforeSednSigner.sub(sednAfterSednSigner)).to.equal(amount);
-  expect(sednAfterSednRecipient.sub(sednBeforeSednRecipient)).to.equal(amount.mul(2));
+  expect(sednBeforeSednSigner.sub(sednAfterSednSigner)).to.equal(balanceAmount);
+  expect(sednAfterSednRecipient.sub(sednBeforeSednRecipient)).to.equal(BigNumber.from(amount).add(balanceAmount));
 }
 
-async function hybridUnknown(signer: Wallet, deployed: ISednVariables, network: string, solution?: string) {
+async function hybridUnknown(
+  signer: Wallet,
+  deployed: ISednVariables,
+  network: string,
+  amount: string,
+  balanceAmount: string,
+  solution?: string,
+) {
   const usdcOrigin = deployed.usdcOrigin;
   const sedn = deployed.sedn;
-  const amount = deployed.amount;
   const relayerWebhook = deployed.relayerWebhook;
   const forwarder = deployed.forwarderAddress;
   // check allowance & if necessary increase approve
@@ -320,7 +343,7 @@ async function hybridUnknown(signer: Wallet, deployed: ISednVariables, network: 
     sedn,
     signer,
     "hybridUnknown",
-    [amount, amount, secret],
+    [amount, balanceAmount, secret],
     BigInt("0"),
     network,
     validUntilTime,
@@ -337,7 +360,7 @@ async function hybridUnknown(signer: Wallet, deployed: ISednVariables, network: 
   const sednAfterSednSigner = await sedn.balanceOf(signer.address);
   expect(usdcBeforeSednSigner.sub(usdcAfterSednSigner)).to.equal(amount);
   expect(usdcAfterSednContract.sub(usdcBeforeSednContract)).to.equal(amount);
-  expect(sednBeforeSednSigner.sub(sednAfterSednSigner)).to.equal(amount);
+  expect(sednBeforeSednSigner.sub(sednAfterSednSigner)).to.equal(balanceAmount);
   return { solution, secret, timestamp };
 }
 
@@ -488,35 +511,44 @@ networksToTest.forEach(function (network) {
     it("should hybrid sedn funds to a registered user", async function () {
       // ensure balance
       const signerSednBalance = await deployed.sedn.balanceOf(deployed.signer.address);
-      if (signerSednBalance.lt(deployed.amount)) {
-        await sednKnown(deployed.signer, deployed.signer, deployed, network);
+      const amount = BigNumber.from(deployed.amount).div(3).mul(2).toString();
+      const balanceAmount = BigNumber.from(deployed.amount).div(3).toString();
+      if (signerSednBalance.lt(balanceAmount)) {
+        await sednKnown(deployed.signer, deployed.signer, deployed, network, balanceAmount);
       }
-      await hybridKnown(deployed.signer, deployed.recipient, deployed, network);
+      await hybridKnown(deployed.signer, deployed.recipient, deployed, network, amount, balanceAmount);
     });
     it("should hybrid sedn funds to an unregistered user", async function () {
       // ensure balance
       const signerSednBalance = await deployed.sedn.balanceOf(deployed.signer.address);
-      if (signerSednBalance.lt(deployed.amount)) {
-        await sednKnown(deployed.signer, deployed.signer, deployed, network);
+      const amount = BigNumber.from(deployed.amount).div(3).mul(2).toString();
+      const balanceAmount = BigNumber.from(deployed.amount).div(3).toString();
+      const claimAmount = BigNumber.from(amount).add(balanceAmount);
+      if (signerSednBalance.lt(balanceAmount)) {
+        await sednKnown(deployed.signer, deployed.signer, deployed, network, balanceAmount);
       }
       // hybridUnknown
-      const { solution, secret } = await hybridUnknown(deployed.signer, deployed, network);
+      const { solution, secret } = await hybridUnknown(deployed.signer, deployed, network, amount, balanceAmount);
       // claim
-      await claim(deployed.recipient, deployed, network, solution as string, deployed.amount.mul(2));
+      await claim(deployed.recipient, deployed, network, solution as string, claimAmount);
     });
     it("should hybrid sedn funds to an unregistered user who has already received funds", async function () {
       // ensure balance
       const signerSednBalance = await deployed.sedn.balanceOf(deployed.signer.address);
-      if (signerSednBalance.lt(deployed.amount)) {
-        await sednKnown(deployed.signer, deployed.signer, deployed, network);
+      const amount = BigNumber.from(deployed.amount).div(3).mul(2).toString();
+      const balanceAmount = BigNumber.from(deployed.amount).div(3).toString();
+      const claimAmount = BigNumber.from(amount).add(balanceAmount).mul(2);
+      if (signerSednBalance.lt(amount)) {
+        // i.e. 2 times balance Amount
+        await sednKnown(deployed.signer, deployed.signer, deployed, network, amount);
       }
       // hybridUnknown
-      const { solution, secret } = await hybridUnknown(deployed.signer, deployed, network);
+      const { solution, secret } = await hybridUnknown(deployed.signer, deployed, network, amount, balanceAmount);
 
       // hybridUnknown2
-      await hybridUnknown(deployed.recipient, deployed, network, solution as string);
+      await hybridUnknown(deployed.recipient, deployed, network, amount, balanceAmount, solution as string);
       // claim
-      await claim(deployed.recipient, deployed, network, solution as string, deployed.amount.mul(4));
+      await claim(deployed.recipient, deployed, network, solution as string, claimAmount);
     });
     it("should withdraw funds to a given address", async function () {
       const signerSednBalance = await deployed.sedn.balanceOf(deployed.signer.address);
