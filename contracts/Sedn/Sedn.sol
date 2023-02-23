@@ -256,7 +256,7 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
         require(balanceAmount > 0, "Amount must be greater than 0");
         require(usdcToken.transferFrom(_msgSender(), address(this), _amount), "Transfer failed");
         _mint(to, _amount); // credit newly received funds (in contract)
-        _transfer(_msgSender(), to, _amount); // transfer existing funds (in contract)
+        _transfer(_msgSender(), to, balanceAmount); // transfer existing funds (in contract)
         uint256 totalAmount = _amount + balanceAmount;
         emit HybridKnown(_msgSender(), to, totalAmount);
     } 

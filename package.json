@@ -126,7 +126,7 @@
     "firebase-admin": "^11.4.1",
     "hardhat-change-network": "^0.0.7",
     "polygonscan-api": "^1.0.4",
-    "sedn-interfaces": "^0.57.0"
+    "sedn-interfaces": "^0.59.0"
   },
   "main": ".solcover.js",
   "directories": {
