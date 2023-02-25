@@ -1,8 +1,10 @@
 import fs from "fs";
-import { run, upgrades } from "hardhat";
+import { ethers, network, run, upgrades } from "hardhat";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
+
+import { feeData, getAbi, getRpcUrl } from "../../helper/utils";
 
 export interface INetwork {
   network: string;
@@ -160,6 +162,17 @@ async function getBuild(uid: string): Promise<IBuild> {
   }
 }
 
+async function getMultiSigs(): Promise<Record<string, string>> {
+  const filePath = path.join(__dirname, `./config/multi-sig.json`);
+  try {
+    const data = await fs.promises.readFile(filePath, "utf8");
+    const multiSigs = JSON.parse(data) as Record<string, string>;
+    return multiSigs;
+  } catch (error) {
+    throw new Error(`Could not find multi-sig.json`);
+  }
+}
+
 function saveBuild(build: IBuild) {
   const jsonBuild = JSON.stringify(build);
   const filePath = path.join(__dirname, `./logs/${build.uid}.json`);
@@ -307,7 +320,7 @@ export async function singleNetworkBuild(networkToBuild: INetwork, verifierAddre
 }
 
 export async function getConfig() {
-  const filePath = path.join(__dirname, `./config.json`);
+  const filePath = path.join(__dirname, `./config/config.json`);
   console.log("getting config file from: ", filePath);
   try {
     const data = await fs.promises.readFile(filePath, "utf8");
@@ -398,5 +411,54 @@ export async function singleNetworkUpgrade(networkToUpgrade: INetworkBuilt) {
   } catch (error) {
     console.log("error upgrading sedn", error);
     throw new Error("error upgrading sedn");
+  }
+}
+
+export async function transferOwnershipToMultiSig(buildId: string) {
+  const build = (await getBuild(buildId)) as IBuild;
+  if (!build.build) {
+    throw new Error("No build(s) found in build");
+  }
+  const multiSigs = await getMultiSigs();
+  const networkBuilds = build.build;
+  for (const networkBuild of networkBuilds) {
+    const multiSig = multiSigs[networkBuild.network];
+    if (multiSig) {
+      const proxyAddress = networkBuild.proxyAddress;
+      const abiAddress = networkBuild.implementationAddress;
+      if (!proxyAddress || !abiAddress) {
+        throw new Error(`No proxy or abi found for network ${networkBuild.network}`);
+      }
+      const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(networkBuild.network));
+      const signer = ethers.Wallet.fromMnemonic(process.env.mnemonic!);
+      signer.connect(provider);
+      const abi = [
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "newOwner",
+              type: "address",
+            },
+          ],
+          name: "transferOwnership",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+      ];
+      const contractInstance = new ethers.Contract(proxyAddress, abi, signer);
+      const owner = await contractInstance.owner();
+      if (owner.toLowerCase() !== multiSig.toLowerCase()) {
+        console.log(`Transferring ownership of proxy ${networkBuild.proxyAddress} to ${multiSig}`);
+        const fees = await feeData(networkBuild.network, signer);
+        const tx = await contractInstance.transferOwnership(multiSig, {
+          maxFeePerGas: fees.maxFee,
+          maxPriorityFeePerGas: fees.maxPriorityFee,
+        });
+        await tx.wait();
+        console.log("Ownership transferred successfully");
+      }
+    }
   }
 }

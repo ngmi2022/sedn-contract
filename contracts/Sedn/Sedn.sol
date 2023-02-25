@@ -115,7 +115,7 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
             trustedVerifyAddress = _trustedVerifyAddress;
             nonce = 0;
             paused = false;
-            __ERC20_init_unchained("Sedn USDC", "SednUSDC");
+            __ERC20_init_unchained("Sedn USD", "SednUSD");
             ERC2771ContextUpgradeable(address(_trustedForwarder));
             __UUPSUpgradeable_init_unchained();
             __Ownable_init_unchained();
