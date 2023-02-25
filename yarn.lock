@@ -15,6 +15,46 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@aws-crypto/sha256-js@npm:1.2.2":
+  version: 1.2.2
+  resolution: "@aws-crypto/sha256-js@npm:1.2.2"
+  dependencies:
+    "@aws-crypto/util": ^1.2.2
+    "@aws-sdk/types": ^3.1.0
+    tslib: ^1.11.1
+  checksum: b6aeb71f88ecc219c5473803345bb15150ecd056a337582638dd60fb2344e0ff63908c684ef55268b249290fe0776e8e6fc830605f0aad850ff325b9cfe0dc6a
+  languageName: node
+  linkType: hard
+
+"@aws-crypto/util@npm:^1.2.2":
+  version: 1.2.2
+  resolution: "@aws-crypto/util@npm:1.2.2"
+  dependencies:
+    "@aws-sdk/types": ^3.1.0
+    "@aws-sdk/util-utf8-browser": ^3.0.0
+    tslib: ^1.11.1
+  checksum: 54d72ce4945b52f3fcbcb62574a55bc038cc3ff165742f340cabca1bdc979faf69c97709cf56daf434e4ad69e33582a04a64da33b4e4e13b25c6ff67f8abe5ae
+  languageName: node
+  linkType: hard
+
+"@aws-sdk/types@npm:^3.1.0":
+  version: 3.272.0
+  resolution: "@aws-sdk/types@npm:3.272.0"
+  dependencies:
+    tslib: ^2.3.1
+  checksum: c4e4f09dd2672eab4fc15b08006c730c1d07d4b54ae35e03167d99f6110751e36b5332165e03c71c28724037f623f8da87a45a018eb631a1ce86d406f9d08da6
+  languageName: node
+  linkType: hard
+
+"@aws-sdk/util-utf8-browser@npm:^3.0.0":
+  version: 3.259.0
+  resolution: "@aws-sdk/util-utf8-browser@npm:3.259.0"
+  dependencies:
+    tslib: ^2.3.1
+  checksum: b6a1e580da1c9b62c749814182a7649a748ca4253edb4063aa521df97d25b76eae3359eb1680b86f71aac668e05cc05c514379bca39ebf4ba998ae4348412da8
+  languageName: node
+  linkType: hard
+
 "@babel/code-frame@npm:^7.0.0, @babel/code-frame@npm:^7.16.7, @babel/code-frame@npm:^7.18.6":
   version: 7.18.6
   resolution: "@babel/code-frame@npm:7.18.6"
@@ -1746,7 +1786,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin/hardhat-upgrades@npm:^1.22.1":
+"@openzeppelin/hardhat-defender@npm:^1.8.2":
+  version: 1.8.2
+  resolution: "@openzeppelin/hardhat-defender@npm:1.8.2"
+  dependencies:
+    "@openzeppelin/hardhat-upgrades": ^1.20.0
+    defender-admin-client: ^1.29.0-rc.1
+    defender-base-client: ^1.3.1
+    ethereumjs-util: ^7.1.5
+  checksum: 0da5baa8a512295394a4b13fd9aaccc6c0d6a9df6fb784dad6fe0f49f2bef1e5808b048289e01ea025d0acd71e278eaa4be79cfa7724bba9d07a16e65a482b00
+  languageName: node
+  linkType: hard
+
+"@openzeppelin/hardhat-upgrades@npm:^1.20.0, @openzeppelin/hardhat-upgrades@npm:^1.22.1":
   version: 1.22.1
   resolution: "@openzeppelin/hardhat-upgrades@npm:1.22.1"
   dependencies:
@@ -2967,6 +3019,19 @@ __metadata:
     isomorphic-unfetch: ^3.0.0
     js-cookie: ^2.2.1
   checksum: 78d34a60e1a3e650b696b8b7b6153faee4b73f9828777b01326316c66377e3ba4175a4b5c29fb084f0fd35222e9133b29fc20930232f8cebbd77a01720ad9f3e
+  languageName: node
+  linkType: hard
+
+"amazon-cognito-identity-js@npm:^6.0.1":
+  version: 6.1.2
+  resolution: "amazon-cognito-identity-js@npm:6.1.2"
+  dependencies:
+    "@aws-crypto/sha256-js": 1.2.2
+    buffer: 4.9.2
+    fast-base64-decode: ^1.0.0
+    isomorphic-unfetch: ^3.0.0
+    js-cookie: ^2.2.1
+  checksum: 6a79e5adca08884b6def7d27bee3003449a86139ddef1c0864a76887898e032951f9fa77f1e78e8cf57f45ff0b9c10fe14a5277b51026d14de26604bf0aea7f8
   languageName: node
   linkType: hard
 
@@ -4959,6 +5024,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"defender-admin-client@npm:^1.29.0-rc.1":
+  version: 1.39.0
+  resolution: "defender-admin-client@npm:1.39.0"
+  dependencies:
+    axios: ^0.21.2
+    defender-base-client: 1.39.0
+    ethers: ^5.7.2
+    lodash: ^4.17.19
+    node-fetch: ^2.6.0
+  checksum: 53b0876d4b67ea24ad25e504e00c2b5269b1686c7a96b6b6d07416aad332299cb7f3a1c432f97c4d5ff18b5baa1ae25da828c69fc81b80ca0c80f4a626b494da
+  languageName: node
+  linkType: hard
+
 "defender-autotask-client@npm:^1.37.0":
   version: 1.37.0
   resolution: "defender-autotask-client@npm:1.37.0"
@@ -4986,6 +5064,19 @@ __metadata:
     lodash: ^4.17.19
     node-fetch: ^2.6.0
   checksum: 759b58245c4abfad3211a3cd6801c20b826ced3ad93c8763f0a8754a136af4073a8518d773b7bde7732c713333cf74c46f4df55f27893a045b7ffff633fb695c
+  languageName: node
+  linkType: hard
+
+"defender-base-client@npm:1.39.0, defender-base-client@npm:^1.3.1":
+  version: 1.39.0
+  resolution: "defender-base-client@npm:1.39.0"
+  dependencies:
+    amazon-cognito-identity-js: ^6.0.1
+    async-retry: ^1.3.3
+    axios: ^0.21.2
+    lodash: ^4.17.19
+    node-fetch: ^2.6.0
+  checksum: 6d8916f29234cc5a2687485c679ef1b6ef5d6386bc54118e75e8d4fa980c0cf289fde1e6fe9336955a62dc6da2ee947fdd705380032c966c3c920c242749df64
   languageName: node
   linkType: hard
 
@@ -11737,6 +11828,7 @@ __metadata:
     "@nomiclabs/hardhat-etherscan": ^3.1.0
     "@openzeppelin/contracts": ^4.8.0
     "@openzeppelin/contracts-upgradeable": ^4.8.1
+    "@openzeppelin/hardhat-defender": ^1.8.2
     "@openzeppelin/hardhat-upgrades": ^1.22.1
     "@rollup/plugin-commonjs": ^23.0.2
     "@rollup/plugin-json": ^5.0.1
@@ -13016,7 +13108,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tslib@npm:^1.8.1, tslib@npm:^1.9.0, tslib@npm:^1.9.3":
+"tslib@npm:^1.11.1, tslib@npm:^1.8.1, tslib@npm:^1.9.0, tslib@npm:^1.9.3":
   version: 1.14.1
   resolution: "tslib@npm:1.14.1"
   checksum: dbe628ef87f66691d5d2959b3e41b9ca0045c3ee3c7c7b906cc1e328b39f199bb1ad9e671c39025bd56122ac57dfbf7385a94843b1cc07c60a4db74795829acd
@@ -13027,6 +13119,13 @@ __metadata:
   version: 2.4.1
   resolution: "tslib@npm:2.4.1"
   checksum: 19480d6e0313292bd6505d4efe096a6b31c70e21cf08b5febf4da62e95c265c8f571f7b36fcc3d1a17e068032f59c269fab3459d6cd3ed6949eafecf64315fca
+  languageName: node
+  linkType: hard
+
+"tslib@npm:^2.3.1":
+  version: 2.5.0
+  resolution: "tslib@npm:2.5.0"
+  checksum: ae3ed5f9ce29932d049908ebfdf21b3a003a85653a9a140d614da6b767a93ef94f460e52c3d787f0e4f383546981713f165037dc2274df212ea9f8a4541004e1
   languageName: node
   linkType: hard
 

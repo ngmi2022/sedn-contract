@@ -1,10 +1,10 @@
 import fs from "fs";
-import { ethers, network, run, upgrades } from "hardhat";
+import { defender, ethers, run, upgrades } from "hardhat";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
 
-import { feeData, getAbi, getRpcUrl } from "../../helper/utils";
+import { feeData, getRpcUrl } from "../../helper/utils";
 
 export interface INetwork {
   network: string;
@@ -48,6 +48,24 @@ export async function upgradeSedn(network: string, proxyAddress: string, forward
     upgrades,
     proxyAddress,
     forwarderAddress,
+  });
+  return { implementationAddress, proxyAddress };
+}
+
+export async function proposeUpgradeSedn(
+  network: string,
+  proxyAddress: string,
+  forwarderAddress: string,
+  multiSig: string,
+) {
+  const hre: HardhatRuntimeEnvironment = require("hardhat");
+  hre.changeNetwork(network);
+  const { implementationAddress } = await run("upgrade:SednPropose", {
+    hre,
+    defender,
+    proxyAddress,
+    forwarderAddress,
+    multiSig,
   });
   return { implementationAddress, proxyAddress };
 }
@@ -386,6 +404,7 @@ export async function singleNetworkUpgrade(networkToUpgrade: INetworkBuilt) {
   ) {
     throw new Error("network to upgrade is not fully defined");
   }
+  const multiSig = (await getMultiSigs())[networkToUpgrade.network];
   const network = networkToUpgrade.network;
   // init network build
   let subBuild: INetworkBuilt = {
@@ -396,21 +415,35 @@ export async function singleNetworkUpgrade(networkToUpgrade: INetworkBuilt) {
     implementationAddress: networkToUpgrade.implementationAddress,
     proxyAddress: networkToUpgrade.proxyAddress,
   };
-  try {
+  if (multiSig) {
     let addresses: { implementationAddress: any; proxyAddress: any };
     if (networkToUpgrade.testnet) {
-      addresses = await upgradeTestnetSedn(network, subBuild.proxyAddress!, subBuild.forwarderAddress!);
+      throw new Error("testnet not supported");
     } else {
-      addresses = await upgradeSedn(network, subBuild.proxyAddress!, subBuild.forwarderAddress!);
+      addresses = await proposeUpgradeSedn(network, subBuild.proxyAddress!, subBuild.forwarderAddress!, multiSig);
     }
     subBuild.implementationAddress = addresses.implementationAddress!;
     subBuild.proxyAddress = addresses.proxyAddress!;
     subBuild.upgraded = true;
     console.log("subBuild successful");
     return subBuild;
-  } catch (error) {
-    console.log("error upgrading sedn", error);
-    throw new Error("error upgrading sedn");
+  } else {
+    try {
+      let addresses: { implementationAddress: any; proxyAddress: any };
+      if (networkToUpgrade.testnet) {
+        addresses = await upgradeTestnetSedn(network, subBuild.proxyAddress!, subBuild.forwarderAddress!);
+      } else {
+        addresses = await upgradeSedn(network, subBuild.proxyAddress!, subBuild.forwarderAddress!);
+      }
+      subBuild.implementationAddress = addresses.implementationAddress!;
+      subBuild.proxyAddress = addresses.proxyAddress!;
+      subBuild.upgraded = true;
+      console.log("subBuild successful");
+      return subBuild;
+    } catch (error) {
+      console.log("error upgrading sedn", error);
+      throw new Error("error upgrading sedn");
+    }
   }
 }
 
@@ -430,8 +463,8 @@ export async function transferOwnershipToMultiSig(buildId: string) {
         throw new Error(`No proxy or abi found for network ${networkBuild.network}`);
       }
       const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(networkBuild.network));
-      const signer = ethers.Wallet.fromMnemonic(process.env.mnemonic!);
-      signer.connect(provider);
+      const mnemonic = process.env.MNEMONIC!;
+      const signer = ethers.Wallet.fromMnemonic(mnemonic).connect(provider);
       const abi = [
         {
           inputs: [
@@ -446,13 +479,26 @@ export async function transferOwnershipToMultiSig(buildId: string) {
           stateMutability: "nonpayable",
           type: "function",
         },
+        {
+          inputs: [],
+          name: "owner",
+          outputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
       ];
       const contractInstance = new ethers.Contract(proxyAddress, abi, signer);
       const owner = await contractInstance.owner();
       if (owner.toLowerCase() !== multiSig.toLowerCase()) {
         console.log(`Transferring ownership of proxy ${networkBuild.proxyAddress} to ${multiSig}`);
         const fees = await feeData(networkBuild.network, signer);
-        const tx = await contractInstance.transferOwnership(multiSig, {
+        const tx = await contractInstance.connect(signer).transferOwnership(multiSig, {
           maxFeePerGas: fees.maxFee,
           maxPriorityFeePerGas: fees.maxPriorityFee,
         });

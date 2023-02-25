@@ -1,4 +1,5 @@
 import "@nomicfoundation/hardhat-toolbox";
+import "@openzeppelin/hardhat-defender";
 import "@openzeppelin/hardhat-upgrades";
 import { config as dotenvConfig } from "dotenv";
 import "hardhat-change-network";
@@ -192,6 +193,10 @@ const config: HardhatUserConfig = {
     outDir: "src/types",
     target: "ethers-v5",
   },
+  defender: {
+    apiKey: process.env.DEFENDER_TEAM_KEY!,
+    apiSecret: process.env.DEFENDER_TEAM_SECRET!,
+  },
 };
 
-export default config;
+export { config as default };
