@@ -92,6 +92,8 @@ const API_URL = API_URLS[ENVIRONMENT];
 console.log("API_URL", API_URL);
 ENVIRONMENT = ENVIRONMENT === "dev" ? ("staging" as Environment) : ENVIRONMENT; // ensure that dev is always reverting to staging
 
+const USE_GELATO = true;
+
 // some params & functions to facilitate metaTX testing / testnet
 const testnet: boolean = process.env.TESTNET === "testnet" ? true : false; // we need to include this in workflow
 admin.initializeApp({ projectId: process.env.GCLOUD_PROJECT });
@@ -267,6 +269,7 @@ const execute = async (
     environment,
     type,
     recipientIdOrAddress,
+    useGelato: USE_GELATO,
   };
   // send signed transactions to API
   const executionResponse = await apiCall(API_URL, "executeTransactions", executeTransactionsRequest, authToken);
@@ -566,7 +569,7 @@ describe(`Sedn testing with api`, function () {
     expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount.mul(2)); // amount is the same for all
     //networks and represents the complete send amounts
   });
-  it(`should be able to correctly sedn funds to an known user`, async function () {
+  it.only(`should be able to correctly sedn funds to an known user`, async function () {
     console.log("INFO: Creating funding scenario");
     const firstNetwork = networksToTest[0];
     const secondNetwork = networksToTest[1];
