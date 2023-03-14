@@ -245,6 +245,8 @@ describe("Sedn", function () {
     await usdc.connect(circleSigner).transferFrom(circleSigner.address, sender.address, BigNumber.from(10 ** 8));
     await usdc.connect(circleSigner).transferFrom(circleSigner.address, claimer.address, BigNumber.from(10 ** 8));
     // claimerTwo has no funds
+
+    this.timeout(60000);
   });
 
   beforeEach(async () => {
@@ -416,6 +418,26 @@ describe("Sedn", function () {
       // console.log("Two", paymentAmountTwo.toString());
       expect(paymentAmountTwo).to.equal("0"); // because its empty
     });
+    it("should throw an error when sender tries to clawback an already claimed payment", async function () {
+      await contract.deployed();
+
+      // Send money
+      const { solution, secret, timestamp } = await sednUnknown(usdc, contract, sender, amount);
+
+      // Claim
+      const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 1000;
+      const signedMessage = await trusted.signMessage(sender.address, till, secret);
+      const signature = ethers.utils.splitSignature(signedMessage);
+
+      await contract.connect(sender).claim(solution, secret, till, signature.v, signature.r, signature.s);
+      await time.increase(7884010);
+      try {
+        await clawback(contract, sender, secret, timestamp);
+      } catch (error) {
+        // @ts-ignore
+        expect(error.message).to.include("Payment already claimed");
+      }
+    });
   });
   describe("withdrawals", () => {
     it("should withdraw funds from a sednBalance to the same chain", async function () {
@@ -472,26 +494,6 @@ describe("Sedn", function () {
     });
   });
   describe("claim denial", () => {
-    it("should throw an error when sender tries to clawback already claimed payment", async function () {
-      await contract.deployed();
-
-      // Send money
-      const { solution, secret } = await sednUnknown(usdc, contract, sender, amount);
-
-      // Claim
-      const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 1000;
-      const signedMessage = await trusted.signMessage(sender.address, till, secret);
-      const signature = ethers.utils.splitSignature(signedMessage);
-
-      await contract.connect(sender).claim(solution, secret, till, signature.v, signature.r, signature.s);
-      try {
-        await contract.connect(sender).claim(solution, secret, till, signature.v, signature.r, signature.s);
-      } catch (error) {
-        console.log("Error: ", error);
-        // @ts-ignore
-        expect(error.message).to.include("Verification failed");
-      }
-    });
     it("should throw an error when trusted verifier does not sign the claim", async function () {
       await contract.deployed();
 
@@ -507,7 +509,6 @@ describe("Sedn", function () {
       try {
         await contract.connect(sender).claim(solution, secret, till, signature.v, signature.r, signature.s);
       } catch (error) {
-        console.log("Error: ", error);
         // @ts-ignore
         expect(error.message).to.include("Verification failed");
       }
