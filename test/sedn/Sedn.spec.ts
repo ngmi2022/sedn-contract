@@ -245,8 +245,6 @@ describe("Sedn", function () {
     await usdc.connect(circleSigner).transferFrom(circleSigner.address, sender.address, BigNumber.from(10 ** 8));
     await usdc.connect(circleSigner).transferFrom(circleSigner.address, claimer.address, BigNumber.from(10 ** 8));
     // claimerTwo has no funds
-
-    this.timeout(60000);
   });
 
   beforeEach(async () => {
