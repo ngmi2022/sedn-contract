@@ -472,6 +472,69 @@ describe("Sedn", function () {
     });
   });
   describe("claim denial", () => {
+    it("should throw an error when sender tries to clawback already claimed payment", async function () {
+      await contract.deployed();
+
+      // Send money
+      const { solution, secret } = await sednUnknown(usdc, contract, sender, amount);
+
+      // Claim
+      const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 1000;
+      const signedMessage = await trusted.signMessage(sender.address, till, secret);
+      const signature = ethers.utils.splitSignature(signedMessage);
+
+      await contract.connect(sender).claim(solution, secret, till, signature.v, signature.r, signature.s);
+      try {
+        await contract.connect(sender).claim(solution, secret, till, signature.v, signature.r, signature.s);
+      } catch (error) {
+        console.log("Error: ", error);
+        // @ts-ignore
+        expect(error.message).to.include("Verification failed");
+      }
+    });
+    it("should throw an error when trusted verifier does not sign the claim", async function () {
+      await contract.deployed();
+
+      // Send money
+      const { solution, secret } = await sednUnknown(usdc, contract, sender, amount);
+      const invalidVerifier = new FakeSigner(accounts[4], contract.address);
+
+      // Claim
+      const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 1000;
+      const signedMessage = await invalidVerifier.signMessage(sender.address, till, secret);
+      const signature = ethers.utils.splitSignature(signedMessage);
+
+      try {
+        await contract.connect(sender).claim(solution, secret, till, signature.v, signature.r, signature.s);
+      } catch (error) {
+        console.log("Error: ", error);
+        // @ts-ignore
+        expect(error.message).to.include("Verification failed");
+      }
+    });
+    it("should throw an error when incorrect solution is provided for the claim", async function () {
+      await contract.deployed();
+
+      // Send money
+      const { secret } = await sednUnknown(usdc, contract, sender, amount);
+
+      // Claim
+      const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 1000;
+      const signedMessage = await trusted.signMessage(sender.address, till, secret);
+      const signature = ethers.utils.splitSignature(signedMessage);
+
+      // Generate random bytes
+      const randomBytes = ethers.utils.randomBytes(32);
+      // Generate keccak256 hash of the random bytes
+      const wrongSolution = ethers.utils.keccak256(randomBytes);
+
+      try {
+        await contract.connect(sender).claim(wrongSolution, secret, till, signature.v, signature.r, signature.s);
+      } catch (error) {
+        // @ts-ignore
+        expect(error.message).to.include("Incorrect answer");
+      }
+    });
     it("should send funds from a wallet to an unregistered user", async function () {
       await contract.deployed();
       await contract.connect(owner).setPause(true);
