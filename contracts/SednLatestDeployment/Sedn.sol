@@ -65,7 +65,7 @@ interface IRegistry is IUserRequest {
 /// @title Contract to enhance USDC functionality by letting users send money to a "claimable" payment balance
 /// @author Marco Hauptmann, Derek Rein & Ferdinand Ehrhardt
 /// @notice This contract is not production-ready and should not be used in production
-contract Sedn is 
+contract SednLatest is 
 Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, OwnableUpgradeable, IUserRequest{
     IERC20 public usdcToken;
     IRegistry public registry;
@@ -73,7 +73,7 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
     address public addressDelegate;
     address public trustedVerifyAddress;
     uint256 public nonce;
-    uint256 public constant TIME_TO_UNLOCK = 432000;
+    uint256 public constant TIME_TO_UNLOCK = 7884000;
     mapping(bytes32 => uint256) private _payments;
     mapping(bytes32 => uint256) private _senderPayments;
     bool public paused;
@@ -88,7 +88,6 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
     event HybridUnknown(address indexed from, bytes32 secret, uint256 amount);
     event HybridUnknownToExistingSecret(address indexed from, bytes32 secret, uint256 amountIncreased);
     event PaymentClaimed(address indexed recipient, bytes32 secret, uint256 amount);
-    event PaymentClaimedToWallet(address indexed recipient, bytes32 secret, uint256 amount);
     event Withdraw (address indexed owner, address indexed to, uint256 amount);
     event BridgeWithdraw(address indexed owner, address indexed to, uint256 amount, uint256 chainId);
     event Clawback(address indexed recipient, bytes32 secret, uint256 amount);
@@ -116,7 +115,7 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
             trustedVerifyAddress = _trustedVerifyAddress;
             nonce = 0;
             paused = false;
-            __ERC20_init_unchained("Sedn USDC", "SednUSDC");
+            __ERC20_init_unchained("Sedn USD", "SednUSD");
             ERC2771ContextUpgradeable(address(_trustedForwarder));
             __UUPSUpgradeable_init_unchained();
             __Ownable_init_unchained();
@@ -304,7 +303,6 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
     }
 
     /**
-     * @notice claims and allocates SednToken to the receiver
      * @param solution the solutio to the hashed secret
      * @param secret The secret to identify and claim the payment
      * @param _till The time till the transaction is valid
@@ -326,31 +324,6 @@ Initializable, ERC20Upgradeable, ERC2771ContextUpgradeable, UUPSUpgradeable, Own
         _mint(_msgSender(), secretAmount);
         _payments[secret] = 0;
         emit PaymentClaimed(_msgSender(), secret, secretAmount);
-    }
-
-    /**
-     * @notice claims and allocates original Token to the receiver
-     * @param solution the solution to the hashed secret
-     * @param secret The secret to identify and claim the payment
-     * @param _till The time till the transaction is valid
-     * @param _v The v value of the signature
-     * @param _r The r value of the signature
-     * @param _s The s value of the signature
-     */
-    function claimToWallet(
-        string memory solution,
-        bytes32 secret,
-        uint256 _till,
-        uint8 _v,
-        bytes32 _r,
-        bytes32 _s
-    ) external {
-        _checkClaim(solution, secret, _msgSender(), _till, _v, _r, _s);
-        require(_msgSender() != address(0), "Transfer to the zero address not possible");
-        uint256 secretAmount = _payments[secret];
-        require(usdcToken.transfer(_msgSender(), secretAmount), "Transfer failed");
-        _payments[secret] = 0;
-        emit PaymentClaimedToWallet(_msgSender(), secret, secretAmount);
     }
 
     /**
