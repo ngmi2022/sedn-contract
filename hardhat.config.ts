@@ -1,4 +1,5 @@
 import "@nomicfoundation/hardhat-toolbox";
+import "@openzeppelin/hardhat-defender";
 import "@openzeppelin/hardhat-upgrades";
 import { config as dotenvConfig } from "dotenv";
 import "hardhat-change-network";
@@ -98,6 +99,11 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
 }
 
 const config: HardhatUserConfig = {
+  //  @ts-ignore
+  defender: {
+    apiKey: process.env.DEFENDER_TEAM_KEY!,
+    apiSecret: process.env.DEFENDER_TEAM_SECRET!,
+  },
   defaultNetwork: "hardhat",
   etherscan: {
     apiKey: {
@@ -106,7 +112,6 @@ const config: HardhatUserConfig = {
       bsc: process.env.BSCSCAN_API_KEY || "",
       mainnet: process.env.ETHERSCAN_API_KEY || "",
       optimisticEthereum: process.env.OPTIMISM_API_KEY || "",
-      optimism: process.env.OPTIMISM_API_KEY || "",
       polygon: process.env.POLYGONSCAN_API_KEY || "",
       polygonMumbai: process.env.POLYGONSCAN_API_KEY || "",
       rinkeby: process.env.ETHERSCAN_API_KEY || "",
@@ -114,7 +119,6 @@ const config: HardhatUserConfig = {
       sepolia: process.env.ETHERSCAN_API_KEY || "",
       "arbitrum-goerli": process.env.ARBISCAN_API_KEY || "",
       "optimism-goerli": process.env.OPTIMISM_API_KEY || "",
-      arbitrum: process.env.ARBISCAN_API_KEY || "",
     },
     customChains: [
       {

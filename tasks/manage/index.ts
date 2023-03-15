@@ -1,8 +1,12 @@
+import { Contract } from "ethers";
 import fs from "fs";
-import { run, upgrades } from "hardhat";
+import { defender, ethers, run, upgrades } from "hardhat";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
+
+import { owner } from "../../abis/abis";
+import { getRpcUrl } from "../../helper/utils";
 
 export interface INetwork {
   network: string;
@@ -46,6 +50,24 @@ export async function upgradeSedn(network: string, proxyAddress: string, forward
     upgrades,
     proxyAddress,
     forwarderAddress,
+  });
+  return { implementationAddress, proxyAddress };
+}
+
+export async function upgradeSednWithMultiSig(
+  network: string,
+  proxyAddress: string,
+  forwarderAddress: string,
+  multiSig: string,
+) {
+  const hre: HardhatRuntimeEnvironment = require("hardhat");
+  hre.changeNetwork(network);
+  const { implementationAddress } = await run("upgrade:SednMultiSig", {
+    hre,
+    defender,
+    proxyAddress,
+    forwarderAddress,
+    multiSig,
   });
   return { implementationAddress, proxyAddress };
 }
@@ -307,12 +329,24 @@ export async function singleNetworkBuild(networkToBuild: INetwork, verifierAddre
 }
 
 export async function getConfig() {
-  const filePath = path.join(__dirname, `./config.json`);
+  const filePath = path.join(__dirname, `/configs/config.json`);
   console.log("getting config file from: ", filePath);
   try {
     const data = await fs.promises.readFile(filePath, "utf8");
     const networks = JSON.parse(data) as INetwork[];
     return networks;
+  } catch (error) {
+    throw new Error(`Could not find config file`);
+  }
+}
+
+export async function getMultiSigs() {
+  const filePath = path.join(__dirname, `/configs/multisig.json`);
+  console.log("getting config file from: ", filePath);
+  try {
+    const data = await fs.promises.readFile(filePath, "utf8");
+    const multiSigs = JSON.parse(data) as INetwork[];
+    return multiSigs;
   } catch (error) {
     throw new Error(`Could not find config file`);
   }
@@ -383,12 +417,34 @@ export async function singleNetworkUpgrade(networkToUpgrade: INetworkBuilt) {
     implementationAddress: networkToUpgrade.implementationAddress,
     proxyAddress: networkToUpgrade.proxyAddress,
   };
+  // setup for checkingt multiSigs
+  const multiSigs = await getMultiSigs();
+  const multiSig = multiSigs[network];
+  let isMultiSig = false;
+  if (multiSig) {
+    const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(network));
+    const proxyContract = new Contract(networkToUpgrade.proxyAddress, owner, provider);
+    const ownerOfContract = await proxyContract.owner();
+    if (ownerOfContract === multiSig) {
+      isMultiSig = true;
+    }
+  }
+  // actual flow
   try {
     let addresses: { implementationAddress: any; proxyAddress: any };
     if (networkToUpgrade.testnet) {
       addresses = await upgradeTestnetSedn(network, subBuild.proxyAddress!, subBuild.forwarderAddress!);
     } else {
-      addresses = await upgradeSedn(network, subBuild.proxyAddress!, subBuild.forwarderAddress!);
+      if (!isMultiSig) {
+        addresses = await upgradeSedn(network, subBuild.proxyAddress!, subBuild.forwarderAddress!);
+      } else {
+        addresses = await upgradeSednWithMultiSig(
+          network,
+          subBuild.proxyAddress!,
+          subBuild.forwarderAddress!,
+          multiSig,
+        );
+      }
     }
     subBuild.implementationAddress = addresses.implementationAddress!;
     subBuild.proxyAddress = addresses.proxyAddress!;
@@ -399,4 +455,55 @@ export async function singleNetworkUpgrade(networkToUpgrade: INetworkBuilt) {
     console.log("error upgrading sedn", error);
     throw new Error("error upgrading sedn");
   }
+}
+
+export async function forceImportForBuild(buildUid: string) {
+  const build = (await getBuild(buildUid)) as IBuild;
+  if (!build.build) {
+    throw new Error("No build(s) found in build");
+  }
+  const networksArray = build.networks.map((network: INetwork) => network.network);
+  const hre: HardhatRuntimeEnvironment = require("hardhat");
+  const networksHRE = Object.keys(hre.config.networks);
+  checkMissingNetworks(networksArray, networksHRE);
+
+  // get all the implementation contracts from build
+  for (const instance of build.build!) {
+    hre.changeNetwork(instance.network);
+    const implementation = instance.implementationAddress;
+    const proxy = instance.proxyAddress;
+    if (!implementation) {
+      throw new Error("implementation address not found");
+    }
+    if (!proxy) {
+      throw new Error("proxy address not found");
+    }
+    const testnet = instance.testnet;
+    if (testnet) {
+      const implFactory = await ethers.getContractFactory("SednTestnetLatest");
+      try {
+        await upgrades.forceImport(proxy, implFactory, {
+          // @ts-ignore
+          constructorArgs: [instance.forwarderAddress!],
+          kind: "uups",
+        });
+      } catch (error) {
+        console.log("error force importing", error);
+        continue;
+      }
+    } else {
+      const implFactory = await ethers.getContractFactory("SednLatest");
+      try {
+        await upgrades.forceImport(proxy, implFactory, {
+          // @ts-ignore
+          constructorArgs: [instance.forwarderAddress!],
+          kind: "uups",
+        });
+      } catch (error) {
+        console.log("error force importing", error);
+        continue;
+      }
+    }
+  }
+  return;
 }

@@ -1,6 +1,5 @@
 import { getImplementationAddress } from "@openzeppelin/upgrades-core";
 import { addresses } from "@socket.tech/ll-core/addresses/index";
-import { sign } from "crypto";
 import { ContractFactory } from "ethers";
 import { task } from "hardhat/config";
 import type { TaskArguments } from "hardhat/types";

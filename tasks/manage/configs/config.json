@@ -1,0 +1,8 @@
+[
+    {
+        "network": "arbitrum",
+        "testnet": false,
+        "usdcAddress": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+        "forwarderAddress": "0x542696b46A2bBD84EE8a50b8101e4DCA048CAb09"
+    }
+]

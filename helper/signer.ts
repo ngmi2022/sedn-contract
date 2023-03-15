@@ -1,10 +1,7 @@
 import { TypedDataDomain, TypedDataField } from "@ethersproject/abstract-signer";
-import { arrayify, hexConcat } from "@ethersproject/bytes";
 import { _TypedDataEncoder } from "@ethersproject/hash";
-import { hashMessage } from "@ethersproject/hash";
-import { keccak256 } from "@ethersproject/keccak256";
 import { fetch } from "cross-fetch";
-import { Contract, Signer, Wallet, ethers } from "ethers";
+import { Contract, Wallet, ethers } from "ethers";
 
 import { ForwarderAbi } from "../abis/abis";
 import { explorerData, feeData, getChainId, getTxCostInUSD, getTxReceipt } from "./utils";
