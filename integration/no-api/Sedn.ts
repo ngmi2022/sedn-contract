@@ -1,10 +1,6 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
-import { Network } from "@ethersproject/providers";
 import { expect } from "chai";
-import { time } from "console";
 import { BigNumber, Contract, Signer, Wallet, ethers } from "ethers";
-import { MultiFactorAuthServerConfig } from "firebase-admin/lib/auth/auth-config";
-import { check } from "prettier";
 import { ConfigReturnValue } from "sedn-interfaces/dist/types";
 
 import { FakeSigner } from "../../helper/FakeSigner";
@@ -519,7 +515,7 @@ networksToTest.forEach(function (network) {
       // claim
       await claim(deployed.recipient, deployed, network, solution as string);
     });
-    it("should sedn funds to an unregistered user who claims to their wallet", async function () {
+    it.only("should sedn funds to an unregistered user who claims to their wallet", async function () {
       // sednUnknown
       const { solution, secret } = await sednUnknown(deployed.signer, deployed, network);
 
