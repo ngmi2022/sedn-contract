@@ -1,10 +1,6 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
-import { Network } from "@ethersproject/providers";
 import { expect } from "chai";
-import { time } from "console";
 import { BigNumber, Contract, Signer, Wallet, ethers } from "ethers";
-import { MultiFactorAuthServerConfig } from "firebase-admin/lib/auth/auth-config";
-import { check } from "prettier";
 import { ConfigReturnValue } from "sedn-interfaces/dist/types";
 
 import { FakeSigner } from "../../helper/FakeSigner";
@@ -396,6 +392,45 @@ async function claim(claimer: Wallet, deployed: ISednVariables, network: string,
   expect(sednAfterClaimRecipient.sub(sednBeforeClaimRecipient)).to.equal(amount);
 }
 
+async function claimToWallet(
+  claimer: Wallet,
+  deployed: ISednVariables,
+  network: string,
+  solution: string,
+  amount?: BigNumber,
+) {
+  const sedn = deployed.sedn;
+  const usdc = deployed.usdcOrigin;
+  const relayerWebhook = deployed.relayerWebhook;
+  const forwarder = deployed.forwarderAddress;
+  const trusted = deployed.trusted;
+  const secret = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(solution));
+  if (!amount) {
+    amount = deployed.amount;
+  }
+  const usdcBeforeClaimRecipient = await usdc.balanceOf(claimer.address);
+  const funcArgs = await generateClaimArgs(solution, secret, claimer, trusted);
+  // TODO: get this shit into signer.ts
+  const validUntilTime = (await claimer.provider!.getBlock("latest")).timestamp + 1000;
+  await sendTx(
+    sedn,
+    claimer,
+    "claimToWallet",
+    funcArgs,
+    BigInt("0"),
+    network,
+    validUntilTime,
+    gasless,
+    relayerWebhook,
+    forwarder,
+  );
+  await waitTillRecipientBalanceChanged(60_000, usdc, claimer, usdcBeforeClaimRecipient);
+
+  // check claim
+  const usdcAfterClaimRecipient = await usdc.balanceOf(claimer.address);
+  expect(usdcAfterClaimRecipient.sub(usdcBeforeClaimRecipient)).to.equal(amount);
+}
+
 async function withdraw(signer: Wallet, deployed: ISednVariables, network: string) {
   // withdraw
   const sedn = deployed.sedn;
@@ -479,6 +514,13 @@ networksToTest.forEach(function (network) {
 
       // claim
       await claim(deployed.recipient, deployed, network, solution as string);
+    });
+    it.only("should sedn funds to an unregistered user who claims to their wallet", async function () {
+      // sednUnknown
+      const { solution, secret } = await sednUnknown(deployed.signer, deployed, network);
+
+      // claim
+      await claimToWallet(deployed.recipient, deployed, network, solution as string);
     });
     it("should sedn funds to an unregistered user who has already received funds", async function () {
       // sednUnknown

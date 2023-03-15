@@ -183,6 +183,25 @@ const claim = async (
   return;
 };
 
+const claimToWallet = async (
+  usdc: Contract,
+  sedn: Contract,
+  signer: SignerWithAddress,
+  trusted: FakeSigner,
+  secret: string,
+  solution: string,
+  amount: string,
+) => {
+  const till = parseInt(new Date().getTime().toString().slice(0, 10)) + 1000;
+  const signedMessage = await trusted.signMessage(signer.address, till, secret);
+  const signature = ethers.utils.splitSignature(signedMessage);
+  const usdcBalanceBeforeClaimer = await usdc.balanceOf(signer.address);
+  await sedn.connect(signer).claimToWallet(solution, secret, till, signature.v, signature.r, signature.s);
+  const usdcBalanceAfterClaimer = await usdc.balanceOf(signer.address);
+  expect(usdcBalanceAfterClaimer.sub(usdcBalanceBeforeClaimer)).to.equal(amount);
+  return;
+};
+
 const clawback = async (sedn: Contract, signer: SignerWithAddress, secret: string, timestamp: number) => {
   await sedn.connect(signer).clawback(secret, timestamp);
   return;
@@ -293,7 +312,14 @@ describe("Sedn", function () {
       const doubleAmount = BigNumber.from(amount).mul(2).toString();
       await claim(contract, claimer, trusted, secret, solution, doubleAmount);
     });
-    it("should send funds from a wallet to a registered", async function () {
+    it("should send funds from a wallet to a unregistered user who claims to their wallet", async function () {
+      await contract.deployed();
+      // Send money
+      const { solution, secret } = await sednUnknown(usdc, contract, sender, amount);
+      // Claim
+      await claimToWallet(usdc, contract, claimer, trusted, secret, solution, amount);
+    });
+    it("should send funds from a wallet to a registered user", async function () {
       await contract.deployed();
       // Send money
       await sednKnown(usdc, contract, sender, claimer, amount);
