@@ -31,7 +31,6 @@ import {
   apiCall,
   createFundingScenario,
   fetchConfig,
-  generateSecret,
   generateSecretFromSolution,
   getAbi,
   getBalance,
