@@ -11804,7 +11804,7 @@ __metadata:
   checksum: 21e219adc0024fbd75021001358780a3cc6ac21273c3fcaef46943af73969729709b03f1df7c012a0baab0830fb9a06ccc6b42f8d50050c665cb98078eab477b
   languageName: node
   linkType: hard
-
+  
 "sedn-interfaces@npm:^0.66.0":
   version: 0.66.0
   resolution: "sedn-interfaces@npm:0.66.0"

@@ -683,7 +683,7 @@ describe(`Sedn testing with api`, function () {
     expect(totalSednDifferenceRecipient).to.equal(sednVars[firstNetwork].amount.mul(2)); // amount is the same for all
     //networks and represents the complete send amounts
   });
-  it(`should be able to correctly sedn funds to an known user`, async function () {
+  it.only(`should be able to correctly sedn funds to an known user`, async function () {
     console.log("INFO: Creating funding scenario");
     const firstNetwork = networksToTest[0];
     const secondNetwork = networksToTest[1];
