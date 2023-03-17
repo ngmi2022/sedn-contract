@@ -684,6 +684,9 @@ export const handleTxSignature = async (
     case "claim":
       console.log("INFO: claim");
       break;
+    case "claimToWallet":
+      console.log("INFO: claimToWallet");
+      break;
     default:
       throw new Error(`Unknown method ${method}`);
   }

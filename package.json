@@ -129,7 +129,7 @@
     "hardhat-change-network": "^0.0.7",
     "hardhat-defender": "^1.0.1",
     "polygonscan-api": "^1.0.4",
-    "sedn-interfaces": "^0.63.0"
+    "sedn-interfaces": "^0.66.0"
   },
   "main": ".solcover.js",
   "directories": {
