@@ -100,8 +100,8 @@ const config: HardhatUserConfig = {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   //  @ts-ignore
   defender: {
-    apiKey: process.env.DEFENDER_TEAM_KEY!,
-    apiSecret: process.env.DEFENDER_TEAM_SECRET!,
+    apiKey: process.env.DEFENDER_TEAM_KEY || "",
+    apiSecret: process.env.DEFENDER_TEAM_SECRET || "",
   },
   defaultNetwork: "hardhat",
   etherscan: {
