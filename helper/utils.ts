@@ -1,12 +1,10 @@
-import { Provider, TransactionReceipt, TransactionRequest, TransactionResponse } from "@ethersproject/providers";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { TransactionReceipt, TransactionResponse } from "@ethersproject/providers";
 import axios from "axios";
 import { fetch } from "cross-fetch";
 import { config } from "dotenv";
 import { BigNumber, Contract, Wallet, ethers } from "ethers";
 import * as path from "path";
 import { ITransaction } from "sedn-interfaces";
-import { callbackify } from "util";
 
 import { SednAbi, SednTestnetAbi } from "../abis/abis";
 import { ISednMultichainVariables } from "../integration/with-api/Sedn";
@@ -72,7 +70,7 @@ export const checkTxStatus = async (receipt: TransactionReceipt) => {
 };
 
 export const getTxReceipt = async (maxTimeMs: number, signer: Wallet, txHash: string) => {
-  let startDate = new Date().getTime();
+  const startDate = new Date().getTime();
 
   const executePoll = async (resolve, reject) => {
     const txReceipt = await signer.provider.getTransactionReceipt(txHash);
@@ -96,33 +94,19 @@ export const getRpcUrl = (network: string) => {
   const infuraKey: string = process.env.INFURA_API_KEY as string;
   switch (network) {
     case "mainnet":
-      return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
-    // return "https://mainnet.infura.io/v3/" + infuraKey;
+      return "https://mainnet.infura.io/v3/" + infuraKey;
     case "polygon-mainnet":
-      return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
-    // return "https://polygon-mainnet.infura.io/v3/" + infuraKey;
     case "matic":
-      return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
-    // return "https://polygon-mainnet.infura.io/v3/" + infuraKey;
     case "polygon":
-      return "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
-    // return "https://polygon-mainnet.infura.io/v3/" + infuraKey;
+      return "https://polygon-mainnet.infura.io/v3/" + infuraKey;
     case "arbitrum":
-      // return "https://arbitrum-mainnet.infura.io/v3/" + infuraKey;
-      return "https://convincing-quaint-lake.arbitrum-mainnet.quiknode.pro/857d08a452034d62d798dafb506880500502adc7/";
-    case "goerli":
-      return "https://goerli.infura.io/v3/" + infuraKey;
-    case "sepolia":
-      return "https://sepolia.infura.io/v3/" + infuraKey;
+      return "https://arbitrum-mainnet.infura.io/v3/" + infuraKey;
     case "arbitrum-goerli":
-      return "https://omniscient-solitary-scion.arbitrum-goerli.quiknode.pro/1c662c045e1a377100a0126ecfca768035478346/";
-    // return "https://arbitrum-goerli.infura.io/v3/" + infuraKey;
+      return "https://arbitrum-goerli.infura.io/v3/" + infuraKey;
     case "optimism":
-      // return "https://optimism-mainnet.infura.io/v3/" + infuraKey;
-      return "https://floral-winter-wave.optimism.quiknode.pro/3a10eae6b3a92cec115ab3ecd846d513dc4336d2/";
+      return "https://optimism-mainnet.infura.io/v3/" + infuraKey;
     case "optimism-goerli":
-      return "https://winter-few-bush.optimism-goerli.quiknode.pro/1fb6db633eccb68892918719fcf6b6f003b112ee/";
-    // return "https://optimism-goerli.infura.io/v3/" + infuraKey;
+      return "https://optimism-goerli.infura.io/v3/" + infuraKey;
     default:
       throw new Error("Network not supported: Infura");
   }
@@ -211,6 +195,7 @@ export const feeData = async (network: string, signer: Wallet) => {
         maxPriorityFee: ethers.utils.parseUnits(Math.ceil(fees.fast.maxPriorityFee) + "", "gwei"),
       };
     default:
+      // eslint-disable-next-line no-case-declarations
       const feesData = await signer.provider?.getFeeData();
       console.log("INFO: Standard fee market is used");
       return {
@@ -310,7 +295,7 @@ export const waitTillRecipientBalanceIncreased = async (
   decDivider: number,
   recipientNetwork: string,
 ) => {
-  let startDate = new Date().getTime();
+  const startDate = new Date().getTime();
 
   const executePoll = async (resolve, reject) => {
     const newBalance = await contract.balanceOf(recipient.address);
@@ -340,7 +325,7 @@ export const waitTillRecipientBalanceChanged = async (
   signer: Wallet,
   initialBalance: BigNumber,
 ) => {
-  let startDate = new Date().getTime();
+  const startDate = new Date().getTime();
 
   const executePoll = async (resolve, reject) => {
     const newBalance = await contract.balanceOf(signer.address);
@@ -411,7 +396,7 @@ export const checkFunding = async (
       console.log("INFO: Switched signers");
     } else {
       // check allowance & if necessary increase approve
-      const allowanceChecked = await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount)); // check allowance
+      await checkAllowance(usdcOrigin, signer, sedn, BigNumber.from(amount)); // check allowance
       const fees = await feeData((await signer.provider.getNetwork()).name, signer);
       const txSend = await sedn.connect(signer).sednKnown(amount, signer.address, {
         maxFeePerGas: fees.maxFee,
@@ -478,7 +463,7 @@ export function createFundingScenario(
   deployedNetworks: string[],
   networkScenarios: INetworkScenarios,
 ): INetworkScenarios {
-  let completeScenario: INetworkScenarios = {};
+  const completeScenario: INetworkScenarios = {};
   const emptyBalance: IScenario = {
     usdc: BigNumber.from("0"),
     sedn: BigNumber.from("0"),

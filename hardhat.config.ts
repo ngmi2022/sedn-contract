@@ -50,7 +50,7 @@ const chainIds = {
 
 function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
   let jsonRpcUrl: string;
-  let accounts: any = {
+  const accounts: any = {
     count: 50,
     mnemonic,
     path: "m/44'/60'/0'/0",
@@ -63,30 +63,28 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
       jsonRpcUrl = "https://bsc-dataseed1.binance.org";
       break;
     case "polygon-mainnet":
-      jsonRpcUrl = "https://green-billowing-brook.matic.quiknode.pro/94871d9a244e783d10f5a31aa0d2e19e61ca25d9/";
+      jsonRpcUrl = "https://polygon-mainnet.infura.io/v3/" + infuraApiKey;
       break;
     case "polygon-mumbai":
-      jsonRpcUrl = "https://powerful-light-brook.matic-testnet.quiknode.pro/6ce1404fa2fdf675ffdeaf2e9036a35a83f2d96a/";
+      jsonRpcUrl = "https://polygon-mumbai.infura.io/v3/" + infuraApiKey;
       break;
     case "gnosis":
       jsonRpcUrl = "https://rpc.gnosischain.com";
       break;
     case "arbitrum-mainnet":
-      jsonRpcUrl =
-        "https://convincing-quaint-lake.arbitrum-mainnet.quiknode.pro/857d08a452034d62d798dafb506880500502adc7/";
+      jsonRpcUrl = "https://arbitrum-mainnet.infura.io/v3/" + infuraApiKey;
       break;
     case "goerli":
       jsonRpcUrl = "https://goerli.infura.io/v3/";
       break;
     case "arbitrum-goerli":
-      jsonRpcUrl =
-        "https://omniscient-solitary-scion.arbitrum-goerli.quiknode.pro/1c662c045e1a377100a0126ecfca768035478346/";
+      jsonRpcUrl = "https://arbitrum-goerli.infura.io/v3/" + infuraApiKey;
       break;
     case "optimism":
-      jsonRpcUrl = "https://floral-winter-wave.optimism.quiknode.pro/3a10eae6b3a92cec115ab3ecd846d513dc4336d2/";
+      jsonRpcUrl = "https://optimism-mainnet.infura.io/v3/" + infuraApiKey;
       break;
     case "optimism-goerli":
-      jsonRpcUrl = "https://winter-few-bush.optimism-goerli.quiknode.pro/1fb6db633eccb68892918719fcf6b6f003b112ee/";
+      jsonRpcUrl = "https://optimism-goerli.infura.io/v3/" + infuraApiKey;
       break;
     default:
       jsonRpcUrl = "https://" + chain + ".infura.io/v3/" + infuraApiKey;
