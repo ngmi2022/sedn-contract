@@ -97,6 +97,7 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
 }
 
 const config: HardhatUserConfig = {
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   //  @ts-ignore
   defender: {
     apiKey: process.env.DEFENDER_TEAM_KEY!,
